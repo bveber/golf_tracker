@@ -8,3 +8,7 @@ local.properties
 .gradle/
 build/
 app/build/
+
+# Local/Temp files
+jdk-17.0.18+8/
+*.txt
