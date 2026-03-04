@@ -26,7 +26,11 @@ android {
             localProperties.load(localPropertiesFile.inputStream())
         }
         val golfCourseApiKey: String = localProperties.getProperty("GOLF_COURSE_API_KEY") ?: ""
+        val googleMapsApiKey: String = localProperties.getProperty("GOOGLE_MAPS_API_KEY") ?: ""
         buildConfigField("String", "GOLF_COURSE_API_KEY", "\"$golfCourseApiKey\"")
+        buildConfigField("String", "GOOGLE_MAPS_API_KEY", "\"$googleMapsApiKey\"")
+        
+        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = googleMapsApiKey
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -95,6 +99,11 @@ dependencies {
     implementation(libs.google.api.client.android)
     implementation(libs.google.api.services.drive)
     implementation(libs.google.http.client.gson)
+    
+    // Google Maps & Location
+    implementation(libs.google.maps.compose)
+    implementation(libs.play.services.maps)
+    implementation(libs.play.services.location)
 
     // Network
     implementation(libs.retrofit)
@@ -113,4 +122,5 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
     implementation(libs.reorderable)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.accompanist.permissions)
 }

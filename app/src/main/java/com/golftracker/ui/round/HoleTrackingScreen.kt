@@ -14,6 +14,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -52,6 +54,7 @@ import com.golftracker.data.model.PenaltyType
 import com.golftracker.data.model.ShotOutcome
 import com.golftracker.ui.components.ChipSelector
 import com.golftracker.ui.components.NumberStepper
+import com.golftracker.ui.gps.GpsScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,6 +67,7 @@ fun HoleTrackingScreen(
     val clubs by viewModel.clubs.collectAsState()
     val holeStat = uiState.currentHoleStat
     val hole = uiState.currentHole
+    var showGps by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -116,6 +120,13 @@ fun HoleTrackingScreen(
                     IconButton(onClick = { viewModel.nextHole() }, enabled = uiState.currentHoleIndex < uiState.holes.size - 1) {
                         Icon(Icons.Default.ArrowForward, contentDescription = "Next Hole")
                     }
+                    IconButton(onClick = { showGps = !showGps }) {
+                        Icon(
+                            if (showGps) Icons.Default.MyLocation else Icons.Default.Map,
+                            contentDescription = if (showGps) "Back to Stats" else "Show GPS",
+                            tint = if (showGps) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             )
         },
@@ -150,12 +161,15 @@ fun HoleTrackingScreen(
             return@Scaffold
         }
 
-        LazyColumn(
-            modifier = Modifier
-                .padding(padding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+        if (showGps) {
+            GpsScreen()
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .padding(padding)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
             // Hole Summary Header
             item {
                 Card(
