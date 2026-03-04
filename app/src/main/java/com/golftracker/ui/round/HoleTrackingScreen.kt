@@ -15,7 +15,7 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -122,7 +122,7 @@ fun HoleTrackingScreen(
                     }
                     IconButton(onClick = { showGps = !showGps }) {
                         Icon(
-                            if (showGps) Icons.Default.MyLocation else Icons.Default.Map,
+                            if (showGps) Icons.Default.List else Icons.Default.Map,
                             contentDescription = if (showGps) "Back to Stats" else "Show GPS",
                             tint = if (showGps) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                         )
@@ -660,6 +660,7 @@ fun HoleTrackingScreen(
     }
 }
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

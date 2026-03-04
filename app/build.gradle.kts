@@ -26,11 +26,11 @@ android {
             localProperties.load(localPropertiesFile.inputStream())
         }
         val golfCourseApiKey: String = localProperties.getProperty("GOLF_COURSE_API_KEY") ?: ""
-        val googleMapsApiKey: String = localProperties.getProperty("GOOGLE_MAPS_API_KEY") ?: ""
+        val googleServicesApiKey: String = localProperties.getProperty("GOOGLE_SERVICES_API_KEY") ?: ""
         buildConfigField("String", "GOLF_COURSE_API_KEY", "\"$golfCourseApiKey\"")
-        buildConfigField("String", "GOOGLE_MAPS_API_KEY", "\"$googleMapsApiKey\"")
+        buildConfigField("String", "GOOGLE_SERVICES_API_KEY", "\"$googleServicesApiKey\"")
         
-        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = googleMapsApiKey
+        manifestPlaceholders["GOOGLE_SERVICES_API_KEY"] = googleServicesApiKey
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
