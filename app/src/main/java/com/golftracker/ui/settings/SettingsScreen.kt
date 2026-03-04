@@ -52,6 +52,20 @@ fun SettingsScreen(
         }
     }
 
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { _ ->
+        val account = GoogleSignIn.getLastSignedInAccount(context)
+        val driveScope = com.google.android.gms.common.api.Scope(com.google.api.services.drive.DriveScopes.DRIVE_FILE)
+        if (account != null && GoogleSignIn.hasPermissions(account, driveScope)) {
+            viewModel.exportToGoogleDrive()
+        } else {
+            scope.launch {
+                snackbarHostState.showSnackbar("Drive permission was not granted.")
+            }
+        }
+    }
+
     // Local Export (Create Document) Launcher
     var tempFileToExport by remember { mutableStateOf<java.io.File?>(null) }
     val createDocumentLauncher = rememberLauncherForActivityResult(
@@ -177,9 +191,16 @@ fun SettingsScreen(
                             val driveScope = com.google.android.gms.common.api.Scope(com.google.api.services.drive.DriveScopes.DRIVE_FILE)
                             if (account != null && GoogleSignIn.hasPermissions(account, driveScope)) {
                                 viewModel.exportToGoogleDrive()
+                            } else if (account != null) {
+                                val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                                    .requestEmail()
+                                    .requestScopes(driveScope)
+                                    .build()
+                                val client = GoogleSignIn.getClient(context, gso)
+                                permissionLauncher.launch(client.signInIntent)
                             } else {
                                 scope.launch {
-                                    snackbarHostState.showSnackbar("Drive permission missing. Please Sign Out and Sign In again to grant it.")
+                                    snackbarHostState.showSnackbar("Please sign in first.")
                                 }
                             }
                         },

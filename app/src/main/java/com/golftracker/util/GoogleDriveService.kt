@@ -19,8 +19,8 @@ import javax.inject.Singleton
 class GoogleDriveService @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-    suspend fun uploadFile(localFile: java.io.File, mimeType: String): String? = withContext(Dispatchers.IO) {
-        val account = GoogleSignIn.getLastSignedInAccount(context) ?: return@withContext null
+    suspend fun uploadFile(localFile: java.io.File, mimeType: String): Result<String> = withContext(Dispatchers.IO) {
+        val account = GoogleSignIn.getLastSignedInAccount(context) ?: return@withContext Result.failure(Exception("No account signed in"))
         
         val credential = GoogleAccountCredential.usingOAuth2(
             context, listOf(DriveScopes.DRIVE_FILE)
@@ -36,7 +36,7 @@ class GoogleDriveService @Inject constructor(
 
         val googleFile = File().apply {
             name = localFile.name
-            parents = listOf("root")
+            // Removed 'parents = listOf("root")' to be more permissive with DRIVE_FILE scope
         }
 
         val mediaContent = FileContent(mimeType, localFile)
@@ -45,14 +45,13 @@ class GoogleDriveService @Inject constructor(
             val uploadedFile = driveService.files().create(googleFile, mediaContent)
                 .setFields("id")
                 .execute()
-            uploadedFile.id
+            Result.success(uploadedFile.id)
         } catch (e: com.google.api.client.googleapis.extensions.android.gms.auth.UserRecoverableAuthIOException) {
-            // This is handled by the caller or requires user intervention
             e.printStackTrace()
-            null
+            Result.failure(Exception("Permission required: ${e.message}"))
         } catch (e: Exception) {
             e.printStackTrace()
-            null
+            Result.failure(Exception(e.message ?: "Unknown Drive error"))
         }
     }
 }

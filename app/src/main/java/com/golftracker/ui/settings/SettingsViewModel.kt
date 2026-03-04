@@ -61,12 +61,15 @@ class SettingsViewModel @Inject constructor(
             val allRounds = roundRepository.finalizedRoundsWithDetails.first()
             val file = jsonExporter.exportAllDataToCache(context, allRounds)
             if (file != null) {
-                val fileId = googleDriveService.uploadFile(file, "application/json")
-                if (fileId != null) {
-                    _exportEvent.emit(ExportResult.DriveSuccess(fileId))
-                } else {
-                    _exportEvent.emit(ExportResult.Error("Failed to upload to Google Drive. Ensure you have granted Drive permissions."))
-                }
+                val result = googleDriveService.uploadFile(file, "application/json")
+                result.fold(
+                    onSuccess = { fileId ->
+                        _exportEvent.emit(ExportResult.DriveSuccess(fileId))
+                    },
+                    onFailure = { error ->
+                        _exportEvent.emit(ExportResult.Error("Google Drive upload failed: ${error.message}"))
+                    }
+                )
             } else {
                 _exportEvent.emit(ExportResult.Error("Failed to generate JSON file."))
             }
