@@ -83,6 +83,15 @@ fun GpsScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        val markerState = com.google.maps.android.compose.rememberMarkerState(
+            position = uiState.flagLocation ?: LatLng(0.0, 0.0)
+        )
+
+        // Sync marker position to ViewModel
+        LaunchedEffect(markerState.position) {
+            viewModel.onFlagDragged(markerState.position)
+        }
+
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
             cameraPositionState = cameraPositionState,
@@ -95,19 +104,11 @@ fun GpsScreen(
                 zoomControlsEnabled = false
             )
         ) {
-            uiState.flagLocation?.let { flagPos ->
-                Marker(
-                    state = MarkerState(position = flagPos),
-                    title = "Flag",
-                    draggable = true,
-                    onClick = { false }
-                )
-                
-                // Track drag end
-                LaunchedEffect(flagPos) {
-                   // No-op for now as MarkerState handles it
-                }
-            }
+            Marker(
+                state = markerState,
+                title = "Flag",
+                draggable = true
+            )
         }
 
         // Distance Overlay
