@@ -659,6 +659,7 @@ fun HoleTrackingScreen(
         }
     }
 }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
