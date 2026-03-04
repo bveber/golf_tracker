@@ -46,6 +46,10 @@ class GoogleDriveService @Inject constructor(
                 .setFields("id")
                 .execute()
             uploadedFile.id
+        } catch (e: com.google.api.client.googleapis.extensions.android.gms.auth.UserRecoverableAuthIOException) {
+            // This is handled by the caller or requires user intervention
+            e.printStackTrace()
+            null
         } catch (e: Exception) {
             e.printStackTrace()
             null

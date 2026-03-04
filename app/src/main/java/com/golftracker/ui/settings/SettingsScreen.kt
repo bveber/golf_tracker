@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.golftracker.data.model.GoogleUser
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -29,7 +30,6 @@ fun SettingsScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    // Sign-In Launcher
     val signInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -45,7 +45,10 @@ fun SettingsScreen(
                 )
             )
         } catch (e: ApiException) {
-            // Handle error
+            scope.launch {
+                val errorMsg = com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes.getStatusCodeString(e.statusCode)
+                snackbarHostState.showSnackbar("Sign-in failed: ${e.statusCode} ($errorMsg)")
+            }
         }
     }
 
@@ -136,7 +139,10 @@ fun SettingsScreen(
                                 .requestScopes(com.google.android.gms.common.api.Scope(com.google.api.services.drive.DriveScopes.DRIVE_FILE))
                                 .build()
                             val client = GoogleSignIn.getClient(context, gso)
-                            signInLauncher.launch(client.signInIntent)
+                            // Clear any previous sign-in to ensure account picker and permission prompt
+                            client.signOut().addOnCompleteListener {
+                                signInLauncher.launch(client.signInIntent)
+                            }
                         }) {
                             Icon(Icons.Default.Login, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
@@ -166,7 +172,17 @@ fun SettingsScreen(
                     }
 
                     Button(
-                        onClick = { viewModel.exportToGoogleDrive() },
+                        onClick = {
+                            val account = GoogleSignIn.getLastSignedInAccount(context)
+                            val driveScope = com.google.android.gms.common.api.Scope(com.google.api.services.drive.DriveScopes.DRIVE_FILE)
+                            if (account != null && GoogleSignIn.hasPermissions(account, driveScope)) {
+                                viewModel.exportToGoogleDrive()
+                            } else {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Drive permission missing. Please Sign Out and Sign In again to grant it.")
+                                }
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = currentUser != null
                     ) {
