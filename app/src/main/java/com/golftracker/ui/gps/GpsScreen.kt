@@ -29,6 +29,8 @@ import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 
 @OptIn(ExperimentalPermissionsApi::class)
@@ -109,6 +111,15 @@ fun GpsScreen(
                 title = "Flag",
                 draggable = true
             )
+
+            // Line from user to flag
+            uiState.userLocation?.let { userPos ->
+                Polyline(
+                    points = listOf(userPos, markerState.position),
+                    color = Color.Cyan,
+                    width = 5f
+                )
+            }
         }
 
         // Distance Overlay
