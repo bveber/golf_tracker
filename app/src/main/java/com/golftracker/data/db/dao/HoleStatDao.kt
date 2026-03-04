@@ -23,6 +23,9 @@ interface HoleStatDao {
     @Update
     suspend fun updateHoleStat(holeStat: HoleStat)
 
+    @Query("SELECT * FROM hole_stats WHERE id = :id")
+    fun getHoleStatFlow(id: Int): Flow<HoleStat?>
+
     @Delete
     suspend fun deleteHoleStat(holeStat: HoleStat)
 }

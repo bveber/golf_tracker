@@ -371,6 +371,22 @@ fun DrivingTab(
         value = String.format("%.0f yds", d.avgDistance),
         moe = if (d.distanceMoE > 0) String.format("±%.0f yds", d.distanceMoE) else null
     )
+    
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        StatCard(
+            title = "Avg Dist (Clean)", 
+            value = String.format("%.0f yds", d.avgDistanceExMishits),
+            moe = if (d.distanceExMishitsMoE > 0) String.format("±%.0f yds", d.distanceExMishitsMoE) else null,
+            modifier = Modifier.weight(1f)
+        )
+        StatCard(
+            title = "Mishit Rate", 
+            value = String.format("%.1f%%", d.mishitPct),
+            moe = if (d.mishitMoE > 0) String.format("±%.1f%%", d.mishitMoE) else null,
+            modifier = Modifier.weight(1f)
+        )
+    }
+
     StatCard(
         title = "Trouble-Free", 
         value = String.format("%.1f%%", d.troubleFreePct),

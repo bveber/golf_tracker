@@ -14,6 +14,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -52,6 +54,7 @@ import com.golftracker.data.model.PenaltyType
 import com.golftracker.data.model.ShotOutcome
 import com.golftracker.ui.components.ChipSelector
 import com.golftracker.ui.components.NumberStepper
+import com.golftracker.ui.gps.GpsScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,6 +67,7 @@ fun HoleTrackingScreen(
     val clubs by viewModel.clubs.collectAsState()
     val holeStat = uiState.currentHoleStat
     val hole = uiState.currentHole
+    var showGps by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -116,33 +120,42 @@ fun HoleTrackingScreen(
                     IconButton(onClick = { viewModel.nextHole() }, enabled = uiState.currentHoleIndex < uiState.holes.size - 1) {
                         Icon(Icons.Default.ArrowForward, contentDescription = "Next Hole")
                     }
+                    IconButton(onClick = { showGps = !showGps }) {
+                        Icon(
+                            if (showGps) Icons.Default.List else Icons.Default.Map,
+                            contentDescription = if (showGps) "Back to Stats" else "Show GPS",
+                            tint = if (showGps) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             )
         },
         bottomBar = {
-            // Always show Finish Round button
-            Button(
-                onClick = { 
-                    viewModel.finalizeRound()
-                    onFinishRound()
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                colors = if (uiState.currentHoleIndex == uiState.holes.size - 1) {
-                    ButtonDefaults.buttonColors()
-                } else {
-                    ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+            if (!showGps) {
+                // Always show Finish Round button
+                Button(
+                    onClick = { 
+                        viewModel.finalizeRound()
+                        onFinishRound()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    colors = if (uiState.currentHoleIndex == uiState.holes.size - 1) {
+                        ButtonDefaults.buttonColors()
+                    } else {
+                        ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                    Text(
+                        if (uiState.currentHoleIndex == uiState.holes.size - 1) "Finish Round"
+                        else "Finish Round (${uiState.currentHoleIndex + 1}/${uiState.holes.size})"
                     )
                 }
-            ) {
-                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
-                Text(
-                    if (uiState.currentHoleIndex == uiState.holes.size - 1) "Finish Round"
-                    else "Finish Round (${uiState.currentHoleIndex + 1}/${uiState.holes.size})"
-                )
             }
         }
     ) { padding ->
@@ -150,12 +163,20 @@ fun HoleTrackingScreen(
             return@Scaffold
         }
 
-        LazyColumn(
-            modifier = Modifier
-                .padding(padding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+        if (showGps) {
+            GpsScreen(
+                roundId = uiState.activeRound?.id,
+                holeStatId = holeStat.id,
+                holePar = hole.par,
+                onClose = { showGps = false }
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .padding(padding)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
             // Hole Summary Header
             item {
                 Card(
@@ -185,6 +206,10 @@ fun HoleTrackingScreen(
                             SummarySgItem("Appr", holeStat.sgApproach)
                             SummarySgItem("Around", holeStat.sgAroundGreen)
                             SummarySgItem("Putt", holeStat.sgPutting)
+                            val penaltyStrokes = uiState.penalties.sumOf { it.strokes }
+                            if (penaltyStrokes > 0) {
+                                SummarySgItem("Pen", -penaltyStrokes.toDouble())
+                            }
                         }
                     }
                 }
@@ -206,7 +231,7 @@ fun HoleTrackingScreen(
                                 IntegerInput(
                                     value = holeStat.teeShotDistance,
                                     onValueChange = { 
-                                        viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, effectiveTeeClubId, it)
+                                        viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, effectiveTeeClubId, it, holeStat.teeMishit)
                                     },
                                     label = "Distance",
                                     modifier = Modifier.width(100.dp)
@@ -222,7 +247,7 @@ fun HoleTrackingScreen(
                                     clubs = teeClubs,
                                     selectedClubId = effectiveTeeClubId,
                                     onClubSelected = { cid ->
-                                        viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, cid, holeStat.teeShotDistance)
+                                        viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, cid, holeStat.teeShotDistance, holeStat.teeMishit)
                                     }
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -232,16 +257,31 @@ fun HoleTrackingScreen(
                             ChipSelector(
                                 options = ShotOutcome.values().toList(),
                                 selectedOption = holeStat.teeOutcome,
-                                onOptionSelected = { viewModel.updateTeeShot(it, holeStat.teeInTrouble, effectiveTeeClubId, holeStat.teeShotDistance) },
+                                onOptionSelected = { viewModel.updateTeeShot(it, holeStat.teeInTrouble, effectiveTeeClubId, holeStat.teeShotDistance, holeStat.teeMishit) },
                                 labelMapper = { it.name.replace("_", " ") }
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("In Trouble", modifier = Modifier.weight(1f))
-                                Switch(
-                                    checked = holeStat.teeInTrouble,
-                                    onCheckedChange = { viewModel.updateTeeShot(holeStat.teeOutcome, it, effectiveTeeClubId, holeStat.teeShotDistance) }
-                                )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("In Trouble", style = MaterialTheme.typography.bodyMedium)
+                                    Switch(
+                                        checked = holeStat.teeInTrouble,
+                                        onCheckedChange = { viewModel.updateTeeShot(holeStat.teeOutcome, it, effectiveTeeClubId, holeStat.teeShotDistance, holeStat.teeMishit) },
+                                        modifier = Modifier.padding(start = 4.dp)
+                                    )
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Mishit", style = MaterialTheme.typography.bodyMedium)
+                                    Switch(
+                                        checked = holeStat.teeMishit,
+                                        onCheckedChange = { viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, effectiveTeeClubId, holeStat.teeShotDistance, it) },
+                                        modifier = Modifier.padding(start = 4.dp)
+                                    )
+                                }
                             }
                             
                             holeStat.sgOffTee?.let { sg ->
@@ -284,7 +324,7 @@ fun HoleTrackingScreen(
                             if (currentTeeDist == null || currentTeeDist != potentialTeeDist) {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Button(
-                                    onClick = { viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, holeStat.teeClubId, potentialTeeDist) },
+                                    onClick = { viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, holeStat.teeClubId, potentialTeeDist, holeStat.teeMishit) },
                                     colors = ButtonDefaults.filledTonalButtonColors()
                                 ) {
                                     Text("Set Tee Distance to $potentialTeeDist (Calculated)")
@@ -327,6 +367,15 @@ fun HoleTrackingScreen(
                                                     viewModel.updateShotDetails(shot, shot.outcome, shot.lie, newClubId, dist, shot.isRecovery)
                                                 },
                                                 label = "Dist to Pin",
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            
+                                            IntegerInput(
+                                                value = shot.distanceTraveled,
+                                                onValueChange = { dist: Int? ->
+                                                    viewModel.updateShotDetails(shot, shot.outcome, shot.lie, shot.clubId, shot.distanceToPin, shot.isRecovery, dist)
+                                                },
+                                                label = "Shot Dist",
                                                 modifier = Modifier.weight(1f)
                                             )
                                             
@@ -645,6 +694,8 @@ fun HoleTrackingScreen(
         }
     }
 }
+}
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -746,7 +797,7 @@ private fun SummarySgItem(label: String, sg: Double?) {
         val color = if (value > 0.1) MaterialTheme.colorScheme.primary else if (value < -0.1) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
         val sign = if (value > 0) "+" else ""
         Text(
-            "$sign${String.format(java.util.Locale.US, "%.1f", value)}",
+            "$sign${String.format(java.util.Locale.US, "%.2f", value)}",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
             color = color

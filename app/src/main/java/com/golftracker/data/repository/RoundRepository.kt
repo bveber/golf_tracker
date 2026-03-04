@@ -42,6 +42,8 @@ class RoundRepository @Inject constructor(
     // Hole Stats
     fun getHoleStatsForRound(roundId: Int): Flow<List<HoleStat>> = holeStatDao.getHoleStatsForRound(roundId)
 
+    fun getHoleStatFlow(id: Int): Flow<HoleStat?> = holeStatDao.getHoleStatFlow(id)
+
     suspend fun getHoleStat(roundId: Int, holeId: Int): HoleStat? = holeStatDao.getHoleStat(roundId, holeId)
 
     suspend fun insertHoleStat(holeStat: HoleStat): Long = holeStatDao.insertHoleStat(holeStat)

@@ -61,6 +61,9 @@ data class Shot(
     @ColumnInfo(name = "distance_to_pin")
     val distanceToPin: Int? = null,
     
+    @ColumnInfo(name = "distance_traveled")
+    val distanceTraveled: Int? = null,
+    
     /**
      * Indicates if the shot was a recovery shot (e.g., played from trouble with the primary goal of advancing the ball rather than hitting the green).
      */

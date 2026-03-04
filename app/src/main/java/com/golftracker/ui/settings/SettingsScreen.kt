@@ -47,7 +47,10 @@ fun SettingsScreen(
         } catch (e: ApiException) {
             scope.launch {
                 val errorMsg = com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes.getStatusCodeString(e.statusCode)
-                snackbarHostState.showSnackbar("Sign-in failed: ${e.statusCode} ($errorMsg)")
+                snackbarHostState.showSnackbar(
+                    message = "Sign-in failed: ${e.statusCode} ($errorMsg)",
+                    actionLabel = "Dismiss"
+                )
             }
         }
     }
@@ -61,7 +64,10 @@ fun SettingsScreen(
             viewModel.exportToGoogleDrive()
         } else {
             scope.launch {
-                snackbarHostState.showSnackbar("Drive permission was not granted.")
+                snackbarHostState.showSnackbar(
+                    message = "Drive permission was not granted.",
+                    actionLabel = "Dismiss"
+                )
             }
         }
     }
@@ -92,10 +98,16 @@ fun SettingsScreen(
                     createDocumentLauncher.launch("golf_tracker_export.json")
                 }
                 is SettingsViewModel.ExportResult.DriveSuccess -> {
-                    snackbarHostState.showSnackbar("Successfully exported to Google Drive!")
+                    snackbarHostState.showSnackbar(
+                        message = "Successfully exported to Google Drive!",
+                        actionLabel = "Dismiss"
+                    )
                 }
                 is SettingsViewModel.ExportResult.Error -> {
-                    snackbarHostState.showSnackbar(result.message)
+                    snackbarHostState.showSnackbar(
+                        message = result.message,
+                        actionLabel = "Dismiss"
+                    )
                 }
                 is SettingsViewModel.ExportResult.Loading -> {
                     // Could show a progress indicator
@@ -200,7 +212,10 @@ fun SettingsScreen(
                                 permissionLauncher.launch(client.signInIntent)
                             } else {
                                 scope.launch {
-                                    snackbarHostState.showSnackbar("Please sign in first.")
+                                    snackbarHostState.showSnackbar(
+                                        message = "Please sign in first.",
+                                        actionLabel = "Dismiss"
+                                    )
                                 }
                             }
                         },

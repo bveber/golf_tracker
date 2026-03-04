@@ -29,6 +29,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import java.util.Date
 import javax.inject.Inject
 
@@ -80,6 +83,8 @@ class RoundViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(RoundUiState())
     val uiState: StateFlow<RoundUiState> = _uiState.asStateFlow()
+
+    private var holeDetailJob: Job? = null
 
     val clubs: StateFlow<List<Club>> = clubRepository.activeClubs
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -146,19 +151,40 @@ class RoundViewModel @Inject constructor(
         if (index in state.holes.indices && index in state.holeStats.indices) {
             val holeStat = state.holeStats[index]
             val hole = state.holes[index]
-            viewModelScope.launch {
-                val putts = roundRepository.getPuttsForHoleStat(holeStat.id).first()
-                val penalties = roundRepository.getPenaltiesForHoleStat(holeStat.id).first()
-                val shots = roundRepository.getShotsForHoleStat(holeStat.id).first()
+            
+            holeDetailJob?.cancel()
+            holeDetailJob = viewModelScope.launch {
+                // Update basic hole info first
                 _uiState.update { 
                     it.copy(
                         currentHoleIndex = index,
                         currentHoleStat = holeStat,
-                        currentHole = hole,
+                        currentHole = hole
+                    )
+                }
+
+                // Collect collections reactively
+                combine(
+                    roundRepository.getHoleStatFlow(holeStat.id),
+                    roundRepository.getPuttsForHoleStat(holeStat.id),
+                    roundRepository.getPenaltiesForHoleStat(holeStat.id),
+                    roundRepository.getShotsForHoleStat(holeStat.id)
+                ) { stat, putts, penalties, shots ->
+                    state.copy(
+                        currentHoleStat = stat ?: holeStat,
                         putts = putts,
                         penalties = penalties,
                         shots = shots
                     )
+                }.collect { updatedState ->
+                    _uiState.update { 
+                        it.copy(
+                            currentHoleStat = updatedState.currentHoleStat,
+                            putts = updatedState.putts,
+                            penalties = updatedState.penalties,
+                            shots = updatedState.shots
+                        )
+                    }
                 }
             }
         }
@@ -184,29 +210,19 @@ class RoundViewModel @Inject constructor(
         updateStat(updatedStat)
     }
     
-    fun updateTeeShot(outcome: ShotOutcome?, inTrouble: Boolean, clubId: Int?, distance: Int?) {
+    fun updateTeeShot(outcome: ShotOutcome?, inTrouble: Boolean, clubId: Int?, distance: Int?, mishit: Boolean = false) {
         val currentStat = uiState.value.currentHoleStat ?: return
         val updatedStat = currentStat.copy(
             teeOutcome = outcome,
             teeInTrouble = inTrouble,
+            teeMishit = mishit,
             teeClubId = clubId,
             teeShotDistance = distance
         )
         updateStat(updatedStat)
     }
     
-    // Old single-approach method - deprecated or reused if needed, but we typically use the list now. 
-    // Keeping for compatibility if UI still references it, but we are moving to list.
-    fun updateApproach(outcome: ShotOutcome?, lie: ApproachLie?, clubId: Int?, distance: Int?) {
-        val currentStat = uiState.value.currentHoleStat ?: return
-        val updatedStat = currentStat.copy(
-            approachOutcome = outcome,
-            approachLie = lie,
-            approachClubId = clubId,
-            approachShotDistance = distance
-        )
-        updateStat(updatedStat)
-    }
+
 
     fun addApproachShot() {
         val currentStat = uiState.value.currentHoleStat ?: return
@@ -237,7 +253,7 @@ class RoundViewModel @Inject constructor(
     
     // Correction: Shot entity does not have approachShotDistance field. It has distanceToPin.
     // I need to be careful with what fields I'm updating.
-    fun updateShotDetails(shot: com.golftracker.data.entity.Shot, outcome: ShotOutcome?, lie: ApproachLie?, clubId: Int?, distanceToPin: Int?, isRecovery: Boolean) {
+    fun updateShotDetails(shot: com.golftracker.data.entity.Shot, outcome: ShotOutcome?, lie: ApproachLie?, clubId: Int?, distanceToPin: Int?, isRecovery: Boolean, distanceTraveled: Int? = null) {
         viewModelScope.launch {
             roundRepository.updateShot(
                 shot.copy(
@@ -245,7 +261,8 @@ class RoundViewModel @Inject constructor(
                     lie = lie,
                     clubId = clubId,
                     distanceToPin = distanceToPin,
-                    isRecovery = isRecovery
+                    isRecovery = isRecovery,
+                    distanceTraveled = distanceTraveled ?: shot.distanceTraveled
                 )
             )
             
@@ -473,6 +490,7 @@ class RoundViewModel @Inject constructor(
             val putt = putts[i]
             val startFeet = putt.distance ?: continue
             val nextFeet = if (i + 1 < putts.size) putts[i+1].distance else null
+            // Improved 'made' logic: it's made if it's the last putt AND the final score is set OR explicit made flag
             val made = (i == putts.size - 1) && (stat.score > 0 || putt.made)
             
             if (!made && nextFeet == null) continue
@@ -505,11 +523,20 @@ class RoundViewModel @Inject constructor(
         )
         
         roundRepository.updateHoleStat(updatedStat)
+
+        // Refresh lists to get updated SG values from DB
+        val finalShots = roundRepository.getShotsForHoleStat(stat.id).first().sortedBy { it.shotNumber }
+        val finalPutts = roundRepository.getPuttsForHoleStat(stat.id).first().sortedBy { it.puttNumber }
         
         _uiState.update { 
             val newStats = it.holeStats.toMutableList()
             newStats[it.currentHoleIndex] = updatedStat
-            it.copy(currentHoleStat = updatedStat, holeStats = newStats)
+            it.copy(
+                currentHoleStat = updatedStat, 
+                holeStats = newStats,
+                shots = finalShots,
+                putts = finalPutts
+            )
         }
     }
 }
