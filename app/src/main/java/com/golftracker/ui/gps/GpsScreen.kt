@@ -27,7 +27,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
-import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerComposable
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
@@ -113,21 +113,15 @@ fun GpsScreen(
 
             // Yardage Label on Map
             uiState.distanceInYards?.let { yards ->
-                val midpoint = LatLng(
-                    ( (uiState.userLocation?.latitude ?: 0.0) + markerState.position.latitude) / 2,
-                    ( (uiState.userLocation?.longitude ?: 0.0) + markerState.position.longitude) / 2
-                )
-                
-                Marker(
+                MarkerComposable(
                     state = com.google.maps.android.compose.MarkerState(position = markerState.position),
-                    alpha = 0f, // Hide the actual marker icon
+                    anchor = androidx.compose.ui.geometry.Offset(0.5f, 1.5f), // Position above the pin
                     onClick = { false }
                 ) {
-                    // This is the Info Window content
                     Box(
                         modifier = Modifier
                             .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
-                            .padding(4.dp)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
                             "$yards yds",
