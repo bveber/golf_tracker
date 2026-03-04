@@ -34,7 +34,7 @@ import com.golftracker.data.entity.TeeSet
         Penalty::class,
         Shot::class
     ],
-    version = 7,
+    version = 10,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -51,6 +51,22 @@ abstract class GolfDatabase : RoomDatabase() {
         val MIGRATION_6_7 = object : androidx.room.migration.Migration(6, 7) {
             override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE hole_stats ADD COLUMN recovery_chip INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+        val MIGRATION_7_8 = object : androidx.room.migration.Migration(7, 8) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE hole_stats ADD COLUMN tee_lat REAL")
+                database.execSQL("ALTER TABLE hole_stats ADD COLUMN tee_lng REAL")
+            }
+        }
+        val MIGRATION_8_9 = object : androidx.room.migration.Migration(8, 9) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE shots ADD COLUMN distance_traveled INTEGER")
+            }
+        }
+        val MIGRATION_9_10 = object : androidx.room.migration.Migration(9, 10) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE hole_stats ADD COLUMN tee_mishit INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

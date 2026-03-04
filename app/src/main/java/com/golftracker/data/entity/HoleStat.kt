@@ -50,6 +50,8 @@ data class HoleStat(
     val teeOutcome: ShotOutcome? = null,
     @ColumnInfo(name = "tee_in_trouble")
     val teeInTrouble: Boolean = false,
+    @ColumnInfo(name = "tee_mishit", defaultValue = "0")
+    val teeMishit: Boolean = false,
     @ColumnInfo(name = "tee_club_id", index = true)
     val teeClubId: Int? = null,
     
@@ -78,6 +80,10 @@ data class HoleStat(
     val sandShots: Int = 0,
     @ColumnInfo(name = "tee_shot_distance")
     val teeShotDistance: Int? = null,
+    @ColumnInfo(name = "tee_lat")
+    val teeLat: Double? = null,
+    @ColumnInfo(name = "tee_lng")
+    val teeLng: Double? = null,
     @ColumnInfo(name = "approach_shot_distance")
     val approachShotDistance: Int? = null,
     

@@ -211,6 +211,25 @@ class StatsRepository @Inject constructor(
         val fairwaysHitPct = (fairwaysHit.toDouble() / totalWithOutcome) * 100
         val troubleFreePct = (troubleFreeCount.toDouble() / troubleTotal) * 100
 
+        val mishitCount = drivingHoles.count { it.holeStat.teeMishit }
+        val mishitTotal = drivingHoles.count { it.holeStat.teeOutcome != null }.coerceAtLeast(1)
+        val mishitPct = (mishitCount.toDouble() / mishitTotal) * 100
+
+        // Filtered distances (excluding mishits)
+        val cleanDistances = drivingTriples.filter { (h, _, _) -> !h.holeStat.teeMishit }.mapNotNull { (h, teeSetId, _) ->
+            if (h.holeStat.teeShotDistance != null && h.holeStat.teeShotDistance > 0) {
+                h.holeStat.teeShotDistance
+            } else {
+                val holeYardage = yardageMap[teeSetId]?.get(h.hole.id)
+                val approachDist = h.holeStat.approachShotDistance
+                if (holeYardage != null && approachDist != null && approachDist > 0) {
+                    val inferred = holeYardage - approachDist
+                    if (inferred > 50) inferred else null
+                } else null
+            }
+        }
+        val avgCleanDistance = if (cleanDistances.isNotEmpty()) cleanDistances.average() else 0.0
+
         return DrivingStats(
             fairwaysHitPct = fairwaysHitPct,
             fairwaysHitMoE = calculateProportionMoE(fairwaysHitPct, totalWithOutcome),
@@ -222,6 +241,11 @@ class StatsRepository @Inject constructor(
             missLongPct = (longMisses.toDouble() / totalWithOutcome) * 100,
             avgDistance = avgTeeDistance,
             distanceMoE = calculateMeanMoE(teeDistances.map { it.toDouble() }),
+            avgDistanceExMishits = avgCleanDistance,
+            distanceExMishitsMoE = calculateMeanMoE(cleanDistances.map { it.toDouble() }),
+            mishitPct = mishitPct,
+            mishitMoE = calculateProportionMoE(mishitPct, mishitTotal),
+            totalMishits = mishitCount,
             totalDrivingHoles = drivingHoles.size,
             perClubStats = perClub,
             selectedClubId = clubIdFilter
@@ -736,6 +760,11 @@ data class DrivingStats(
     val missLongPct: Double = 0.0,
     val avgDistance: Double = 0.0,
     val distanceMoE: Double = 0.0,
+    val avgDistanceExMishits: Double = 0.0,
+    val distanceExMishitsMoE: Double = 0.0,
+    val mishitPct: Double = 0.0,
+    val mishitMoE: Double = 0.0,
+    val totalMishits: Int = 0,
     val totalDrivingHoles: Int = 0,
     val perClubStats: Map<Int, ClubStats> = emptyMap(),
     val selectedClubId: Int? = null
