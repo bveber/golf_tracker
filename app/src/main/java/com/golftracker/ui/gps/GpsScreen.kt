@@ -90,12 +90,19 @@ fun GpsScreen(
         )
         val midpointMarkerState = com.google.maps.android.compose.rememberMarkerState()
 
-        // Sync marker position to ViewModel reliably using snapshotFlow
-        LaunchedEffect(markerState) {
-            androidx.compose.runtime.snapshotFlow { markerState.position }
-                .collect { position ->
-                    viewModel.onFlagDragged(position)
-                }
+        val userPos = uiState.userLocation
+        val flagPos = markerState.position
+
+        val currentDistanceYards = androidx.compose.runtime.remember(userPos, flagPos) {
+            if (userPos != null) {
+                val results = FloatArray(1)
+                android.location.Location.distanceBetween(
+                    userPos.latitude, userPos.longitude,
+                    flagPos.latitude, flagPos.longitude,
+                    results
+                )
+                (results[0] * 1.09361).toInt()
+            } else null
         }
 
         GoogleMap(
@@ -108,7 +115,10 @@ fun GpsScreen(
             uiSettings = MapUiSettings(
                 myLocationButtonEnabled = true,
                 zoomControlsEnabled = false
-            )
+            ),
+            onMapClick = { latLng ->
+                markerState.position = latLng // Allow tap-to-move
+            }
         ) {
             Marker(
                 state = markerState,
@@ -117,11 +127,11 @@ fun GpsScreen(
             )
 
             // Yardage Label on Map (at midpoint of the line)
-            uiState.distanceInYards?.let { yards ->
-                uiState.userLocation?.let { userPos ->
+            currentDistanceYards?.let { yards ->
+                userPos?.let {
                     val midpoint = LatLng(
-                        (userPos.latitude + markerState.position.latitude) / 2,
-                        (userPos.longitude + markerState.position.longitude) / 2
+                        (it.latitude + flagPos.latitude) / 2,
+                        (it.longitude + flagPos.longitude) / 2
                     )
                     midpointMarkerState.position = midpoint
 
@@ -148,9 +158,9 @@ fun GpsScreen(
             }
 
             // Line from user to flag
-            uiState.userLocation?.let { userPos ->
+            userPos?.let {
                 Polyline(
-                    points = listOf(userPos, markerState.position),
+                    points = listOf(it, flagPos),
                     color = Color.Cyan,
                     width = 5f
                 )
@@ -158,7 +168,7 @@ fun GpsScreen(
         }
 
         // Distance Overlay
-        uiState.distanceInYards?.let { yards ->
+        currentDistanceYards?.let { yards ->
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -194,7 +204,7 @@ fun GpsScreen(
                 .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
             Text(
-                "Drag the marker to the flag",
+                "Tap or drag the marker to the flag",
                 color = Color.White,
                 fontSize = 12.sp
             )
