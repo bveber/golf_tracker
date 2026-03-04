@@ -90,9 +90,12 @@ fun GpsScreen(
         )
         val midpointMarkerState = com.google.maps.android.compose.rememberMarkerState()
 
-        // Sync marker position to ViewModel
-        LaunchedEffect(markerState.position) {
-            viewModel.onFlagDragged(markerState.position)
+        // Sync marker position to ViewModel reliably using snapshotFlow
+        LaunchedEffect(markerState) {
+            androidx.compose.runtime.snapshotFlow { markerState.position }
+                .collect { position ->
+                    viewModel.onFlagDragged(position)
+                }
         }
 
         GoogleMap(
