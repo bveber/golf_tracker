@@ -111,6 +111,34 @@ fun GpsScreen(
                 draggable = true
             )
 
+            // Yardage Label on Map
+            uiState.distanceInYards?.let { yards ->
+                val midpoint = LatLng(
+                    ( (uiState.userLocation?.latitude ?: 0.0) + markerState.position.latitude) / 2,
+                    ( (uiState.userLocation?.longitude ?: 0.0) + markerState.position.longitude) / 2
+                )
+                
+                Marker(
+                    state = com.google.maps.android.compose.MarkerState(position = markerState.position),
+                    alpha = 0f, // Hide the actual marker icon
+                    onClick = { false }
+                ) {
+                    // This is the Info Window content
+                    Box(
+                        modifier = Modifier
+                            .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
+                            .padding(4.dp)
+                    ) {
+                        Text(
+                            "$yards yds",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
             // Line from user to flag
             uiState.userLocation?.let { userPos ->
                 Polyline(
