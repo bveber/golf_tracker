@@ -1,0 +1,108 @@
+package com.golftracker.util
+
+import com.golftracker.data.model.RoundWithDetails
+import java.util.Date
+import kotlin.math.floor
+import kotlin.math.roundToInt
+
+object HandicapCalculator {
+
+    data class Differential(
+        val roundId: Int,
+        val date: Date,
+        val value: Double
+    )
+
+    /**
+     * Calculates the handicap index based on a list of finalized rounds.
+     * This uses a simplified implementation of the World Handicap System (WHS).
+     * Future enhancements might include Net Double Bogey maximums and Playing Conditions Calculations (PCC).
+     * 
+     * @param rounds The list of rounds with their details.
+     * @return The calculated handicap index, or null if there are fewer than 3 rounds.
+     */
+    fun calculateHandicapIndex(rounds: List<RoundWithDetails>): Double? {
+        val differentials = calculateDifferentials(rounds)
+        val count = differentials.size
+        if (count < 3) return null
+
+        val sortedDiffs = differentials.sortedBy { it.value } // Ascending
+
+        // WHS Table 5.2a ( Simplified / Standard )
+        // Number of differentials to use based on number of available differentials
+        val numToUse = when (count) {
+            3, 4, 5 -> 1
+            6, 7, 8 -> 2
+            9, 10, 11 -> 3
+            12, 13, 14 -> 4
+            15, 16 -> 5
+            17, 18 -> 6
+            19 -> 7
+            else -> 8
+        }
+        
+        // Adjustments for small number of rounds (simplified WHS)
+        val adjustment = when (count) {
+            3 -> -2.0
+            4 -> -1.0
+            6 -> -1.0 // Simple soft adjustment for early stages.
+            else -> 0.0
+        }
+
+        val bestDiffs = sortedDiffs.take(numToUse)
+        val avg = bestDiffs.map { it.value }.average()
+        
+        val index = avg + adjustment
+        
+        // Truncate to 1 decimal place (standard WHS behavior is truncation, not rounding)
+        return floor(index * 10) / 10.0
+    }
+
+    /**
+     * Calculates WHS score differentials for a collection of rounds.
+     * Uses the formula: (113 / Slope Rating) * (Gross Score - Course Rating).
+     * 
+     * @param rounds The most recent rounds played.
+     * @return A list of score differentials.
+     */
+    fun calculateDifferentials(rounds: List<RoundWithDetails>): List<Differential> {
+        // Sort by date descending (newest first)
+        val sortedRounds = rounds.sortedByDescending { it.round.date }
+        
+        // Only consider up to last 20 rounds for calculation context, 
+        // but we might need more if we supported pairing 9-hole rounds.
+        // For MVP, just iterate all, or last 20 valid ones.
+        // WHS uses last 20 *scores* (differentials).
+        
+        val diffs = mutableListOf<Differential>()
+        
+        for (roundDetails in sortedRounds) {
+            if (diffs.size >= 20) break
+            
+            val round = roundDetails.round
+            val teeSet = roundDetails.teeSet
+            
+            // Basic validation
+            if (teeSet == null || teeSet.slope == 0 || teeSet.rating == 0.0) continue
+            
+            // Only 18-hole rounds for MVP v1
+            if (round.holesPlayed == 18) {
+                // Determine Gross Score
+                // MVP: Sum of strokes. 
+                // Future: Adjust max score per hole (Net Double Bogey).
+                var grossScore = 0
+                roundDetails.holeStats.forEach { grossScore += it.holeStat.score }
+                
+                if (grossScore > 0) {
+                    val differential = (113.0 / teeSet.slope.toDouble()) * (grossScore - teeSet.rating)
+                    // Standard rounding to tenths
+                    val roundedDiff = (differential * 10.0).roundToInt() / 10.0
+                    
+                    diffs.add(Differential(round.id, round.date, roundedDiff))
+                }
+            }
+        }
+        
+        return diffs
+    }
+}

@@ -1,0 +1,89 @@
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:processDebugGoogleServices UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:compressDebugAssets UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :app:mergeExtDexDebug UP-TO-DATE
+> Task :app:mergeDebugJniLibFolders
+> Task :app:mergeLibDexDebug
+> Task :app:mergeDebugNativeLibs
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+
+> Task :app:stripDebugDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so.
+
+> Task :app:writeDebugSigningConfigVersions
+> Task :app:kspDebugKotlin
+> Task :app:compileDebugKotlin
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/data/repository/AuthRepositoryImpl.kt:4:8 'class GoogleSignIn : Any' is deprecated. Deprecated in Java.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/data/repository/AuthRepositoryImpl.kt:5:8 'class GoogleSignInAccount : AbstractSafeParcelable, ReflectedParcelable' is deprecated. Deprecated in Java.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/data/repository/AuthRepositoryImpl.kt:6:8 'class GoogleSignInOptions : AbstractSafeParcelable, Api.ApiOptions.Optional, ReflectedParcelable' is deprecated. Deprecated in Java.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/data/repository/AuthRepositoryImpl.kt:24:23 'class GoogleSignIn : Any' is deprecated. Deprecated in Java.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/data/repository/AuthRepositoryImpl.kt:29:19 'class GoogleSignInOptions : AbstractSafeParcelable, Api.ApiOptions.Optional, ReflectedParcelable' is deprecated. Deprecated in Java.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/data/repository/AuthRepositoryImpl.kt:29:47 'class GoogleSignInOptions : AbstractSafeParcelable, Api.ApiOptions.Optional, ReflectedParcelable' is deprecated. Deprecated in Java.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/data/repository/AuthRepositoryImpl.kt:32:34 'class GoogleSignIn : Any' is deprecated. Deprecated in Java.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/data/repository/AuthRepositoryImpl.kt:42:17 'class GoogleSignInAccount : AbstractSafeParcelable, ReflectedParcelable' is deprecated. Deprecated in Java.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/ui/course/CourseEditScreen.kt:75:44 'val Icons.Filled.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.ArrowBack.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/ui/course/CourseImportScreen.kt:41:44 'val Icons.Filled.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.ArrowBack.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/ui/home/HomeScreen.kt:158:41 'val Icons.Filled.List: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.List.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/ui/round/HoleTrackingScreen.kt:108:44 'val Icons.Filled.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.ArrowBack.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/ui/round/HoleTrackingScreen.kt:113:44 'val Icons.Filled.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.ArrowBack.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/ui/round/HoleTrackingScreen.kt:117:44 'val Icons.Filled.ArrowForward: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.ArrowForward.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/ui/round/RoundHistoryScreen.kt:110:44 'val Icons.Filled.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.ArrowBack.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/ui/round/RoundSetupScreen.kt:64:44 'val Icons.Filled.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.ArrowBack.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/ui/settings/SettingsScreen.kt:17:8 'class GoogleSignIn : Any' is deprecated. Deprecated in Java.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/ui/settings/SettingsScreen.kt:18:8 'class GoogleSignInOptions : AbstractSafeParcelable, Api.ApiOptions.Optional, ReflectedParcelable' is deprecated. Deprecated in Java.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/ui/settings/SettingsScreen.kt:36:20 'class GoogleSignIn : Any' is deprecated. Deprecated in Java.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/ui/settings/SettingsScreen.kt:128:48 'val Icons.Filled.Logout: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Logout.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/ui/settings/SettingsScreen.kt:134:39 'class GoogleSignInOptions : AbstractSafeParcelable, Api.ApiOptions.Optional, ReflectedParcelable' is deprecated. Deprecated in Java.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/ui/settings/SettingsScreen.kt:134:67 'class GoogleSignInOptions : AbstractSafeParcelable, Api.ApiOptions.Optional, ReflectedParcelable' is deprecated. Deprecated in Java.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/ui/settings/SettingsScreen.kt:138:42 'class GoogleSignIn : Any' is deprecated. Deprecated in Java.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/ui/settings/SettingsScreen.kt:141:48 'val Icons.Filled.Login: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Login.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/ui/theme/Theme.kt:59:20 'var statusBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/util/GoogleDriveService.kt:4:8 'class GoogleSignIn : Any' is deprecated. Deprecated in Java.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/util/GoogleDriveService.kt:23:23 'class GoogleSignIn : Any' is deprecated. Deprecated in Java.
+w: file:///Users/bveber/antigravity/golf_tracker/app/src/main/java/com/golftracker/util/HandicapCalculator.kt:86:17 Condition is always 'false'.
+
+> Task :app:compileDebugJavaWithJavac
+
+> Task :app:hiltAggregateDepsDebug
+WARNING: [Processor] Library '/Users/bveber/.gradle/caches/transforms-4/f60aa4a8007170566056a43685324682/transformed/core-1.15.0-api.jar' contains references to both AndroidX and old support library. This seems like the library is partially migrated. Jetifier will try to rewrite the library anyway.
+ Example of androidX reference: 'androidx/core/util/Supplier'
+ Example of support library reference: 'android/support/v4/app/INotificationSideChannel$Default'
+
+> Task :app:hiltJavaCompileDebug
+> Task :app:processDebugJavaRes
+> Task :app:transformDebugClassesWithAsm
+> Task :app:mergeDebugJavaResource
+> Task :app:dexBuilderDebug
+> Task :app:mergeProjectDexDebug
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
+w: Detected multiple Kotlin daemon sessions at 
+
+BUILD SUCCESSFUL in 1m 26s
+41 actionable tasks: 19 executed, 22 up-to-date
