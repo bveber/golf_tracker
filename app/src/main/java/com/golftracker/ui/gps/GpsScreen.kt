@@ -88,6 +88,7 @@ fun GpsScreen(
         val markerState = com.google.maps.android.compose.rememberMarkerState(
             position = uiState.flagLocation ?: LatLng(0.0, 0.0)
         )
+        val midpointMarkerState = com.google.maps.android.compose.rememberMarkerState()
 
         // Sync marker position to ViewModel
         LaunchedEffect(markerState.position) {
@@ -119,14 +120,16 @@ fun GpsScreen(
                         (userPos.latitude + markerState.position.latitude) / 2,
                         (userPos.longitude + markerState.position.longitude) / 2
                     )
+                    midpointMarkerState.position = midpoint
 
                     MarkerComposable(
-                        state = com.google.maps.android.compose.MarkerState(position = midpoint),
+                        state = midpointMarkerState,
+                        anchor = androidx.compose.ui.geometry.Offset(0.0f, 0.5f), // Anchor left side to the midpoint
                         onClick = { false }
                     ) {
                         Box(
                             modifier = Modifier
-                                .padding(start = 24.dp) // Offset to the side of the line
+                                .padding(start = 24.dp) // Provide clear offset from the flag line
                                 .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
