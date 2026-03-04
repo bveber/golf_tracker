@@ -112,24 +112,31 @@ fun GpsScreen(
                 draggable = true
             )
 
-            // Yardage Label on Map
+            // Yardage Label on Map (at midpoint of the line)
             uiState.distanceInYards?.let { yards ->
-                MarkerComposable(
-                    state = com.google.maps.android.compose.MarkerState(position = markerState.position),
-                    anchor = androidx.compose.ui.geometry.Offset(0.5f, 1.5f), // Position above the pin
-                    onClick = { false }
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                uiState.userLocation?.let { userPos ->
+                    val midpoint = LatLng(
+                        (userPos.latitude + markerState.position.latitude) / 2,
+                        (userPos.longitude + markerState.position.longitude) / 2
+                    )
+
+                    MarkerComposable(
+                        state = com.google.maps.android.compose.MarkerState(position = midpoint),
+                        onClick = { false }
                     ) {
-                        Text(
-                            "$yards yds",
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Box(
+                            modifier = Modifier
+                                .padding(start = 24.dp) // Offset to the side of the line
+                                .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                "$yards yds",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
