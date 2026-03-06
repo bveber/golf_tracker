@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -75,27 +76,14 @@ fun HoleTrackingScreen(
                 title = { 
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Hole ${hole?.holeNumber ?: "-"}", style = MaterialTheme.typography.titleMedium)
-                            // Show hole yardage
-                            uiState.currentHoleYardage?.let { yds ->
-                                Text(
-                                    "  •  $yds yds",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                "Par ${hole?.par ?: "-"} • HCP ${hole?.handicapIndex ?: "-"}", 
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                            // Show cumulative over-par
+                            Text("Hole ${hole?.holeNumber ?: "-"}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.width(8.dp))
                             val cumulative = uiState.cumulativeOverPar
                             if (uiState.holeStats.any { it.score > 0 }) {
+                                val scoreStr = if (cumulative > 0) "+$cumulative" else if (cumulative < 0) "$cumulative" else "E"
                                 Text(
-                                    "  •  Round: ${if (cumulative > 0) "+$cumulative" else if (cumulative < 0) "$cumulative" else "E"}",
-                                    style = MaterialTheme.typography.bodySmall,
+                                    "($scoreStr)",
+                                    style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = when {
                                         cumulative < 0 -> MaterialTheme.colorScheme.primary
@@ -105,6 +93,12 @@ fun HoleTrackingScreen(
                                 )
                             }
                         }
+                        val yardageText = uiState.currentHoleYardage?.let { " • $it yds" } ?: ""
+                        Text(
+                            "Par ${hole?.par ?: "-"} • HCP ${hole?.handicapIndex ?: "-"}$yardageText", 
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 },
                 navigationIcon = {
@@ -140,7 +134,8 @@ fun HoleTrackingScreen(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .navigationBarsPadding()
+                        .padding(bottom = 16.dp, start = 16.dp, end = 16.dp),
                     colors = if (uiState.currentHoleIndex == uiState.holes.size - 1) {
                         ButtonDefaults.buttonColors()
                     } else {
@@ -177,43 +172,6 @@ fun HoleTrackingScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-            // Hole Summary Header
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                "Hole ${hole.holeNumber}",
-                                style = MaterialTheme.typography.headlineSmall,
-                                modifier = Modifier.weight(1f)
-                            )
-                            val totalSg = holeStat.strokesGained ?: 0.0
-                            val sgColor = if (totalSg > 0.1) MaterialTheme.colorScheme.primary else if (totalSg < -0.1) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-                            val sign = if (totalSg > 0) "+" else ""
-                            Text(
-                                "Total SG: $sign${String.format(java.util.Locale.US, "%.2f", totalSg)}",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = sgColor,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            SummarySgItem("Off Tee", holeStat.sgOffTee)
-                            SummarySgItem("Appr", holeStat.sgApproach)
-                            SummarySgItem("Around", holeStat.sgAroundGreen)
-                            SummarySgItem("Putt", holeStat.sgPutting)
-                            val penaltyStrokes = uiState.penalties.sumOf { it.strokes }
-                            if (penaltyStrokes > 0) {
-                                SummarySgItem("Pen", -penaltyStrokes.toDouble())
-                            }
-                        }
-                    }
-                }
-            }
 
             // Tee Shot (hidden on Par 3)
             if (hole.par > 3) {
@@ -689,6 +647,44 @@ fun HoleTrackingScreen(
                 }
             }
             
+            // Hole Summary Header (Strokes Gained Overview)
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "Strokes Gained",
+                                style = MaterialTheme.typography.headlineSmall,
+                                modifier = Modifier.weight(1f)
+                            )
+                            val totalSg = holeStat.strokesGained ?: 0.0
+                            val sgColor = if (totalSg > 0.1) MaterialTheme.colorScheme.primary else if (totalSg < -0.1) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                            val sign = if (totalSg > 0) "+" else ""
+                            Text(
+                                "Total: $sign${String.format(java.util.Locale.US, "%.2f", totalSg)}",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = sgColor,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            SummarySgItem("Off Tee", holeStat.sgOffTee)
+                            SummarySgItem("Appr", holeStat.sgApproach)
+                            SummarySgItem("Around", holeStat.sgAroundGreen)
+                            SummarySgItem("Putt", holeStat.sgPutting)
+                            val penaltyStrokes = uiState.penalties.sumOf { it.strokes }
+                            if (penaltyStrokes > 0) {
+                                SummarySgItem("Pen", -penaltyStrokes.toDouble())
+                            }
+                        }
+                    }
+                }
+            }
+
             // Bottom Spacer
             item { Spacer(modifier = Modifier.height(80.dp)) }
         }
