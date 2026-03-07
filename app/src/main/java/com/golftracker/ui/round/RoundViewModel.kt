@@ -2,9 +2,10 @@ package com.golftracker.ui.round
 
 import android.content.Context
 import androidx.lifecycle.SavedStateHandle
-import androidx.lifecycle.ViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
+import com.golftracker.util.ShotDistanceCalculator
 import com.golftracker.util.StrokesGainedCalculator
+import dagger.hilt.android.qualifiers.ApplicationContext
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.golftracker.data.entity.Club
 import com.golftracker.data.entity.Hole
@@ -279,7 +280,7 @@ class RoundViewModel @Inject constructor(
                 val startDist = prevShot?.distanceToPin ?: if (shot.shotNumber == 1 && currentHole?.par == 3) yardage else null
                 
                 if (startDist != null) {
-                    estimateShotDistance(startDist, dist, outcome)
+                    ShotDistanceCalculator.estimateShotDistance(startDist, dist, outcome)
                 } else null
             } ?: shot.distanceTraveled
 
@@ -309,46 +310,6 @@ class RoundViewModel @Inject constructor(
          val shots = roundRepository.getShotsForHoleStat(holeStatId).first()
          _uiState.update { it.copy(shots = shots) }
          recalculateSgForCurrentHole()
-    }
-
-    /**
-     * Estimates the straight-line distance a shot traveled using the Law of Cosines.
-     * a^2 = b^2 + c^2 - 2bc * cos(A)
-     * where 'a' is the distance traveled, 'b' is the starting distance to the pin,
-     * 'c' is the ending distance to the pin, and 'A' is the angle of the miss.
-     */
-    private fun estimateShotDistance(startDist: Int, endDist: Int, outcome: ShotOutcome?): Int {
-        if (endDist == 0) return startDist
-        
-        // Convert to double for math
-        val b = startDist.toDouble()
-        val c = endDist.toDouble()
-        
-        // Estimate the angle based on the outcome
-        val angleDegrees = when (outcome) {
-            ShotOutcome.MISS_LEFT, ShotOutcome.MISS_RIGHT -> 15.0 // ~15 degrees off center
-            ShotOutcome.SHORT -> 0.0 // Straight but short
-            ShotOutcome.LONG -> 180.0 // Over the green, effectively a straight line past it
-            ShotOutcome.ON_TARGET -> {
-                // If it's on target but not holed out, assume it's slightly offline or short/long
-                if (endDist < 10) 5.0 else 0.0 
-            }
-            null -> 0.0
-        }
-        
-        // Handle straight shots (angle = 0)
-        if (angleDegrees == 0.0) {
-            return kotlin.math.abs(startDist - endDist)
-        }
-        // Handle long shots (angle = 180) 
-        if (angleDegrees == 180.0) {
-            return startDist + endDist
-        }
-
-        val angleRadians = Math.toRadians(angleDegrees)
-        val aSquared = (b * b) + (c * c) - (2 * b * c * kotlin.math.cos(angleRadians))
-        
-        return kotlin.math.sqrt(aSquared).toInt()
     }
 
     /** Suggests a club ensuring we recommend the next club up if the yardage exceeds a club's stock yardage */
@@ -413,7 +374,7 @@ class RoundViewModel @Inject constructor(
             } else 0
             
             if (endDist > 0 && lastShot.distanceToPin != null) {
-                val newDistanceTraveled = estimateShotDistance(startDist, endDist, lastShot.outcome)
+                val newDistanceTraveled = ShotDistanceCalculator.estimateShotDistance(startDist, endDist, lastShot.outcome)
                 roundRepository.updateShot(lastShot.copy(distanceTraveled = newDistanceTraveled))
                 refreshShots(stat.id)
             }
