@@ -328,7 +328,7 @@ fun HoleTrackingScreen(
                                                 value = shot.distanceToPin,
                                                 onValueChange = { dist: Int? ->
                                                     val newClubId = dist?.let { d -> viewModel.suggestApproachClub(d)?.id } ?: shot.clubId
-                                                    viewModel.updateShotDetails(shot, shot.outcome, shot.lie, newClubId, dist, shot.isRecovery)
+                                                    viewModel.updateShotDetails(shot, shot.outcome, shot.lie, newClubId, dist, shot.isRecovery, shot.distanceTraveled)
                                                 },
                                                 label = "Dist to Pin",
                                                 modifier = Modifier.weight(1f)
@@ -349,7 +349,7 @@ fun HoleTrackingScreen(
                                                     checked = shot.isRecovery,
                                                     onCheckedChange = { 
                                                         val currentClubId = shot.clubId ?: shot.distanceToPin?.let { dist -> viewModel.suggestApproachClub(dist)?.id }
-                                                        viewModel.updateShotDetails(shot, shot.outcome, shot.lie, currentClubId, shot.distanceToPin, it)
+                                                        viewModel.updateShotDetails(shot, shot.outcome, shot.lie, currentClubId, shot.distanceToPin, it, shot.distanceTraveled)
                                                     }
                                                 )
                                             }
@@ -368,7 +368,7 @@ fun HoleTrackingScreen(
                                                 clubs = approachClubs,
                                                 selectedClubId = suggestedClubId,
                                                 onClubSelected = { cid ->
-                                                    viewModel.updateShotDetails(shot, shot.outcome, shot.lie, cid, shot.distanceToPin, shot.isRecovery)
+                                                    viewModel.updateShotDetails(shot, shot.outcome, shot.lie, cid, shot.distanceToPin, shot.isRecovery, shot.distanceTraveled)
                                                 }
                                             )
                                             Spacer(modifier = Modifier.height(8.dp))
@@ -379,7 +379,7 @@ fun HoleTrackingScreen(
                                         ChipSelector(
                                             options = ApproachLie.values().toList(),
                                             selectedOption = shot.lie,
-                                            onOptionSelected = { viewModel.updateShotDetails(shot, shot.outcome, it, suggestedClubId, shot.distanceToPin, shot.isRecovery) }
+                                            onOptionSelected = { viewModel.updateShotDetails(shot, shot.outcome, it, suggestedClubId, shot.distanceToPin, shot.isRecovery, shot.distanceTraveled) }
                                         )
                                         
                                         // Outcome
@@ -388,8 +388,8 @@ fun HoleTrackingScreen(
                                         ChipSelector(
                                             options = ShotOutcome.values().toList(),
                                             selectedOption = shot.outcome,
-                                            onOptionSelected = { viewModel.updateShotDetails(shot, it, shot.lie, suggestedClubId, shot.distanceToPin, shot.isRecovery) },
-                                            labelMapper = { it.name.replace("_", " ") }
+                                            onOptionSelected = { viewModel.updateShotDetails(shot, it, shot.lie, suggestedClubId, shot.distanceToPin, shot.isRecovery, shot.distanceTraveled) },
+                                            modifier = Modifier.padding(top = 4.dp)
                                         )
                                     }
                                 }

@@ -254,7 +254,7 @@ class RoundViewModel @Inject constructor(
     
     // Correction: Shot entity does not have approachShotDistance field. It has distanceToPin.
     // I need to be careful with what fields I'm updating.
-    fun updateShotDetails(shot: com.golftracker.data.entity.Shot, outcome: ShotOutcome?, lie: ApproachLie?, clubId: Int?, distanceToPin: Int?, isRecovery: Boolean, distanceTraveled: Int? = null) {
+    fun updateShotDetails(shot: com.golftracker.data.entity.Shot, outcome: ShotOutcome?, lie: ApproachLie?, clubId: Int?, distanceToPin: Int?, isRecovery: Boolean, providedDistanceTraveled: Int?) {
         viewModelScope.launch {
             // Auto-populate Tee Shot Distance if this is the first approach shot on Par 4/5
             val currentHole = uiState.value.currentHole
@@ -274,15 +274,15 @@ class RoundViewModel @Inject constructor(
                 }
             }
 
-            // Auto-populate Shot Distance using trigonometry if it wasn't provided
-            val updatedDistanceTraveled = distanceTraveled ?: distanceToPin?.let { dist ->
+            // Auto-populate Shot Distance using math only if the user left it empty (or cleared it)
+            val updatedDistanceTraveled = providedDistanceTraveled ?: distanceToPin?.let { dist ->
                 val prevShot = uiState.value.shots.find { it.shotNumber == shot.shotNumber - 1 }
                 val startDist = prevShot?.distanceToPin ?: if (shot.shotNumber == 1 && currentHole?.par == 3) yardage else null
                 
                 if (startDist != null) {
                     ShotDistanceCalculator.estimateShotDistance(startDist, dist, outcome)
                 } else null
-            } ?: shot.distanceTraveled
+            }
 
             roundRepository.updateShot(
                 shot.copy(
