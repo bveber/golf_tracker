@@ -274,16 +274,8 @@ class RoundViewModel @Inject constructor(
                 }
             }
 
-            // Auto-populate Shot Distance using math only if the user left it empty (or cleared it)
-            val updatedDistanceTraveled = providedDistanceTraveled ?: distanceToPin?.let { dist ->
-                val prevShot = uiState.value.shots.find { it.shotNumber == shot.shotNumber - 1 }
-                val startDist = prevShot?.distanceToPin ?: if (shot.shotNumber == 1 && currentHole?.par == 3) yardage else null
-                
-                if (startDist != null) {
-                    ShotDistanceCalculator.estimateShotDistance(startDist, dist, outcome)
-                } else null
-            }
-
+            // Save the shot with exactly what the user provided.
+            // Distance estimation happens in recalculateApproachDistances after all shots are loaded.
             roundRepository.updateShot(
                 shot.copy(
                     outcome = outcome,
@@ -291,7 +283,7 @@ class RoundViewModel @Inject constructor(
                     clubId = clubId,
                     distanceToPin = distanceToPin,
                     isRecovery = isRecovery,
-                    distanceTraveled = updatedDistanceTraveled
+                    distanceTraveled = providedDistanceTraveled
                 )
             )
             
@@ -309,6 +301,7 @@ class RoundViewModel @Inject constructor(
     private suspend fun refreshShots(holeStatId: Int) {
          val shots = roundRepository.getShotsForHoleStat(holeStatId).first()
          _uiState.update { it.copy(shots = shots) }
+         recalculateApproachDistances()
          recalculateSgForCurrentHole()
     }
 
@@ -336,7 +329,7 @@ class RoundViewModel @Inject constructor(
     fun updateGreen(chips: Int, sandShots: Int, chipDistance: Int?, chipLie: com.golftracker.data.model.ApproachLie? = null, recoveryChip: Boolean = false) {
         val stat = uiState.value.currentHoleStat ?: return
         updateStat(stat.copy(chips = chips, sandShots = sandShots, chipDistance = chipDistance, chipLie = chipLie, recoveryChip = recoveryChip))
-        recalculateFinalApproachDistance()
+        viewModelScope.launch { recalculateApproachDistances() }
     }
 
     private fun updateStat(stat: HoleStat) {
@@ -351,33 +344,45 @@ class RoundViewModel @Inject constructor(
         }
     }
     
-    private fun recalculateFinalApproachDistance() {
-        viewModelScope.launch {
-            val stat = uiState.value.currentHoleStat ?: return@launch
-            val yardage = uiState.value.currentHoleYardage ?: return@launch
-            val shots = roundRepository.getShotsForHoleStat(stat.id).first().sortedBy { it.shotNumber }
-            val putts = roundRepository.getPuttsForHoleStat(stat.id).first().sortedBy { it.puttNumber }
+    /**
+     * Recalculates estimated distanceTraveled for ALL approach shots on the current hole
+     * where distanceTraveled is null.
+     * 
+     * startDist = this shot's distanceToPin (where the shot starts)
+     * endDist = the next shot's distanceToPin, or chip/putt distance (where the ball ended up)
+     */
+    private suspend fun recalculateApproachDistances() {
+        val stat = uiState.value.currentHoleStat ?: return
+        val shots = roundRepository.getShotsForHoleStat(stat.id).first().sortedBy { it.shotNumber }
+        val putts = roundRepository.getPuttsForHoleStat(stat.id).first().sortedBy { it.puttNumber }
+        
+        if (shots.isEmpty()) return
+        
+        var anyUpdated = false
+        for (i in shots.indices) {
+            val shot = shots[i]
+            if (shot.distanceTraveled != null) continue  // Already has a value, skip
+            val startDist = shot.distanceToPin ?: continue  // This shot's starting distance
             
-            if (shots.isEmpty()) return@launch
-            
-            val lastShot = shots.last()
-            val startDist = if (shots.size > 1) {
-                shots[shots.size - 2].distanceToPin ?: yardage
-            } else {
-                yardage
-            }
-            
-            val endDist = if (stat.chips > 0 || stat.sandShots > 0) {
+            // Determine ending distance (where the ball ended up)
+            val endDist = if (i + 1 < shots.size) {
+                shots[i + 1].distanceToPin ?: continue
+            } else if (stat.chips > 0 || stat.sandShots > 0) {
                 stat.chipDistance ?: 15
             } else if (putts.isNotEmpty()) {
-                (putts.first().distance?.toInt() ?: 0) / 3 // Convert feet to yards roughly
-            } else 0
-            
-            if (endDist > 0 && lastShot.distanceToPin != null) {
-                val newDistanceTraveled = ShotDistanceCalculator.estimateShotDistance(startDist, endDist, lastShot.outcome)
-                roundRepository.updateShot(lastShot.copy(distanceTraveled = newDistanceTraveled))
-                refreshShots(stat.id)
+                (putts.first().distance?.toInt() ?: 0) / 3  // feet to yards
+            } else {
+                0
             }
+            
+            val estimated = ShotDistanceCalculator.estimateShotDistance(startDist, endDist, shot.outcome)
+            roundRepository.updateShot(shot.copy(distanceTraveled = estimated))
+            anyUpdated = true
+        }
+        
+        if (anyUpdated) {
+            val updatedShots = roundRepository.getShotsForHoleStat(stat.id).first()
+            _uiState.update { it.copy(shots = updatedShots) }
         }
     }
     
@@ -398,7 +403,7 @@ class RoundViewModel @Inject constructor(
             val newPutts = roundRepository.getPuttsForHoleStat(currentStat.id).first()
             _uiState.update { it.copy(putts = newPutts) }
             recalculateSgForCurrentHole()
-            recalculateFinalApproachDistance()
+            recalculateApproachDistances()
         }
     }
     
@@ -408,7 +413,7 @@ class RoundViewModel @Inject constructor(
             val newPutts = roundRepository.getPuttsForHoleStat(putt.holeStatId).first()
             _uiState.update { it.copy(putts = newPutts) }
             recalculateSgForCurrentHole()
-            recalculateFinalApproachDistance()
+            recalculateApproachDistances()
         }
     }
 
