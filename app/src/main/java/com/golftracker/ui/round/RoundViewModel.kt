@@ -483,11 +483,8 @@ class RoundViewModel @Inject constructor(
             var endLie: ApproachLie? = null
             var greenFeet: Float? = null
             
-            if (stat.teeShotDistance != null) {
-                // If user manually entered tee distance, honor it for SG
-                endDist = ShotDistanceCalculator.deriveEndDistance(holeYardage, stat.teeShotDistance!!, stat.teeOutcome)
-                endLie = if (shots.isNotEmpty()) shots.first().lie else if (stat.chips > 0 || stat.sandShots > 0) (if (stat.sandShots > 0) ApproachLie.SAND else ApproachLie.ROUGH) else null
-            } else if (shots.isNotEmpty()) {
+            // Determine the "intended" or "reported" end state
+            if (shots.isNotEmpty()) {
                 endDist = shots.first().distanceToPin ?: 0
                 endLie = shots.first().lie
             } else if (stat.chips > 0 || stat.sandShots > 0) {
@@ -496,8 +493,16 @@ class RoundViewModel @Inject constructor(
             } else if (putts.isNotEmpty()) {
                 greenFeet = putts.first().distance
             }
+
+            // If user manually entered tee distance, honor it for endDist specifically
+            if (stat.teeShotDistance != null) {
+                endDist = ShotDistanceCalculator.deriveEndDistance(holeYardage, stat.teeShotDistance!!, stat.teeOutcome)
+            }
+
+            // Apply "In Trouble" penalty by forcing the lie to recovery
+            val actualEndLie = if (stat.teeInTrouble) ApproachLie.OTHER else endLie
             
-            val teeSg = sgCalculator.calculateShotSG(startDistance, startLie, true, endDist, endLie, greenFeet, 0, teeSet.rating.toDouble(), teeSet.slope, coursePar, hole.handicapIndex)
+            val teeSg = sgCalculator.calculateShotSG(startDistance, startLie, true, endDist, actualEndLie, greenFeet, 0, teeSet.rating.toDouble(), teeSet.slope, coursePar, hole.handicapIndex)
             sgOffTee += teeSg
         }
         
@@ -513,11 +518,8 @@ class RoundViewModel @Inject constructor(
             var endLie: ApproachLie? = null
             var greenFeet: Float? = null
             
-            if (shot.distanceTraveled != null) {
-                // If user manually entered distance traveled, honor it for SG
-                endDist = ShotDistanceCalculator.deriveEndDistance(startDistance, shot.distanceTraveled!!, shot.outcome)
-                endLie = if (i + 1 < shots.size) shots[i+1].lie else if (stat.chips > 0 || stat.sandShots > 0) (if (stat.sandShots > 0) ApproachLie.SAND else ApproachLie.ROUGH) else null
-            } else if (i + 1 < shots.size) {
+            // Successor identification logic
+            if (i + 1 < shots.size) {
                 endDist = shots[i+1].distanceToPin ?: 0
                 endLie = shots[i+1].lie 
             } else if (stat.chips > 0 || stat.sandShots > 0) {
@@ -525,6 +527,11 @@ class RoundViewModel @Inject constructor(
                 endLie = if (stat.sandShots > 0) ApproachLie.SAND else ApproachLie.ROUGH
             } else if (putts.isNotEmpty()) {
                 greenFeet = putts.first().distance
+            }
+
+            // Manual distance override (doesn't change endLie/greenFeet)
+            if (shot.distanceTraveled != null) {
+                endDist = ShotDistanceCalculator.deriveEndDistance(startDistance, shot.distanceTraveled!!, shot.outcome)
             }
             
             val sg = sgCalculator.calculateShotSG(startDistance, startLie, isFirstShotOfPar3, endDist, endLie, greenFeet, 0, teeSet.rating.toDouble(), teeSet.slope, coursePar, hole.handicapIndex)
@@ -574,14 +581,8 @@ class RoundViewModel @Inject constructor(
             
         val newScore = if (calculatedScore > 0) calculatedScore else stat.score
         
-        // Fix Total SG logic: Calculate directly from baseline (Expected Tee Strokes - Final Score)
-        totalSg = if (newScore > 0) {
-            val totalExpected = sgCalculator.getExpectedStrokes(holeYardage, ApproachLie.TEE, true) +
-                                sgCalculator.getHoleAdjustment(teeSet.rating.toDouble(), teeSet.slope, coursePar, hole.handicapIndex)
-            totalExpected - newScore
-        } else {
-            0.0 // No score, no SG
-        }
+        // Total SG is the sum of its constituent parts to ensure consistency in the UI
+        totalSg = sgOffTee + sgApproach + sgAroundGreen + sgPutting - penalties.sumOf { it.strokes }
         
         val hasData = newScore > 0 || stat.teeOutcome != null || shots.isNotEmpty() || putts.isNotEmpty() || shortGameStrokes > 0
         

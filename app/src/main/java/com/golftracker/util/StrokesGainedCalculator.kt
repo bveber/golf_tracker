@@ -50,7 +50,7 @@ class StrokesGainedCalculator(private val context: Context) {
                             rough = tokens[4].trim().toDoubleOrNull(),
                             sand = tokens[5].trim().toDoubleOrNull(),
                             recovery = tokens[6].trim().toDoubleOrNull(),
-                            greenDistance = tokens[8].trim().toIntOrNull(),
+                            greenDistance = tokens[8].trim().toDoubleOrNull()?.toInt(),
                             greenPutts = tokens[9].trim().toDoubleOrNull()
                         )
                         rows.add(row)
