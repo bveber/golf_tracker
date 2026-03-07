@@ -31,6 +31,9 @@ interface CourseDao {
     suspend fun deleteCourse(course: Course)
 
     // Tee Sets
+    @Query("SELECT * FROM tee_sets")
+    fun getAllTeeSets(): Flow<List<TeeSet>>
+
     @Query("SELECT * FROM tee_sets WHERE course_id = :courseId")
     fun getTeeSets(courseId: Int): Flow<List<TeeSet>>
 

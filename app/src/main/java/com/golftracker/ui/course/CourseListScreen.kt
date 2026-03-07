@@ -43,7 +43,7 @@ fun CourseListScreen(
     onNavigateBack: () -> Unit,
     viewModel: CourseViewModel = hiltViewModel()
 ) {
-    val courses by viewModel.allCourses.collectAsState()
+    val coursesWithStats by viewModel.allCoursesWithStats.collectAsState()
     var courseToDelete by remember { mutableStateOf<Course?>(null) }
 
     Scaffold(
@@ -69,14 +69,15 @@ fun CourseListScreen(
         }
     ) { paddingValues ->
         Box(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
-            if (courses.isEmpty()) {
+            if (coursesWithStats.isEmpty()) {
                 Text(
                     text = "No courses yet. Add one!",
                     modifier = Modifier.align(Alignment.Center)
                 )
             } else {
                 LazyColumn {
-                    items(items = courses, key = { it.id }) { course ->
+                    items(items = coursesWithStats, key = { it.course.id }) { courseWithStats ->
+                        val course = courseWithStats.course
                         val dismissState = rememberSwipeToDismissBoxState(
                             confirmValueChange = {
                                 if (it == SwipeToDismissBoxValue.EndToStart) {
@@ -97,7 +98,7 @@ fun CourseListScreen(
                                 }
                             },
                             content = {
-                                CourseItem(course = course, onClick = { onCourseClick(course.id) })
+                                CourseItem(courseWithStats = courseWithStats, onClick = { onCourseClick(course.id) })
                             }
                         )
                     }
@@ -131,11 +132,21 @@ fun CourseListScreen(
 }
 
 @Composable
-fun CourseItem(course: Course, onClick: () -> Unit) {
+fun CourseItem(courseWithStats: CourseWithLongestTee, onClick: () -> Unit) {
+    val course = courseWithStats.course
     Card(modifier = Modifier.padding(8.dp).clickable(onClick = onClick)) {
         ListItem(
             headlineContent = { Text(course.name) },
-            supportingContent = { Text("${course.city}, ${course.state} • ${course.holeCount} holes") }
+            supportingContent = { 
+                var text = "${course.city}, ${course.state} • ${course.holeCount} holes"
+                if (courseWithStats.distance != null) {
+                    text += "\nLongest Tee: ${courseWithStats.distance} yds"
+                    if (courseWithStats.rating != null && courseWithStats.slope != null) {
+                        text += " • ${courseWithStats.rating}/${courseWithStats.slope}"
+                    }
+                }
+                Text(text) 
+            }
         )
     }
 }
