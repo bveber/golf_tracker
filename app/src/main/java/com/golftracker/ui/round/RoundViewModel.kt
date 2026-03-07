@@ -255,17 +255,6 @@ class RoundViewModel @Inject constructor(
     // I need to be careful with what fields I'm updating.
     fun updateShotDetails(shot: com.golftracker.data.entity.Shot, outcome: ShotOutcome?, lie: ApproachLie?, clubId: Int?, distanceToPin: Int?, isRecovery: Boolean, distanceTraveled: Int? = null) {
         viewModelScope.launch {
-            roundRepository.updateShot(
-                shot.copy(
-                    outcome = outcome,
-                    lie = lie,
-                    clubId = clubId,
-                    distanceToPin = distanceToPin,
-                    isRecovery = isRecovery,
-                    distanceTraveled = distanceTraveled ?: shot.distanceTraveled
-                )
-            )
-            
             // Auto-populate Tee Shot Distance if this is the first approach shot on Par 4/5
             val currentHole = uiState.value.currentHole
             val currentStat = uiState.value.currentHoleStat
@@ -283,6 +272,27 @@ class RoundViewModel @Inject constructor(
                     }
                 }
             }
+
+            // Auto-populate Shot Distance using trigonometry if it wasn't provided
+            val updatedDistanceTraveled = distanceTraveled ?: distanceToPin?.let { dist ->
+                val prevShot = uiState.value.shots.find { it.shotNumber == shot.shotNumber - 1 }
+                val startDist = prevShot?.distanceToPin ?: if (shot.shotNumber == 1 && currentHole?.par == 3) yardage else null
+                
+                if (startDist != null) {
+                    estimateShotDistance(startDist, dist, outcome)
+                } else null
+            } ?: shot.distanceTraveled
+
+            roundRepository.updateShot(
+                shot.copy(
+                    outcome = outcome,
+                    lie = lie,
+                    clubId = clubId,
+                    distanceToPin = distanceToPin,
+                    isRecovery = isRecovery,
+                    distanceTraveled = updatedDistanceTraveled
+                )
+            )
             
             refreshShots(shot.holeStatId)
         }
@@ -299,6 +309,46 @@ class RoundViewModel @Inject constructor(
          val shots = roundRepository.getShotsForHoleStat(holeStatId).first()
          _uiState.update { it.copy(shots = shots) }
          recalculateSgForCurrentHole()
+    }
+
+    /**
+     * Estimates the straight-line distance a shot traveled using the Law of Cosines.
+     * a^2 = b^2 + c^2 - 2bc * cos(A)
+     * where 'a' is the distance traveled, 'b' is the starting distance to the pin,
+     * 'c' is the ending distance to the pin, and 'A' is the angle of the miss.
+     */
+    private fun estimateShotDistance(startDist: Int, endDist: Int, outcome: ShotOutcome?): Int {
+        if (endDist == 0) return startDist
+        
+        // Convert to double for math
+        val b = startDist.toDouble()
+        val c = endDist.toDouble()
+        
+        // Estimate the angle based on the outcome
+        val angleDegrees = when (outcome) {
+            ShotOutcome.MISS_LEFT, ShotOutcome.MISS_RIGHT -> 15.0 // ~15 degrees off center
+            ShotOutcome.SHORT -> 0.0 // Straight but short
+            ShotOutcome.LONG -> 180.0 // Over the green, effectively a straight line past it
+            ShotOutcome.ON_TARGET -> {
+                // If it's on target but not holed out, assume it's slightly offline or short/long
+                if (endDist < 10) 5.0 else 0.0 
+            }
+            null -> 0.0
+        }
+        
+        // Handle straight shots (angle = 0)
+        if (angleDegrees == 0.0) {
+            return kotlin.math.abs(startDist - endDist)
+        }
+        // Handle long shots (angle = 180) 
+        if (angleDegrees == 180.0) {
+            return startDist + endDist
+        }
+
+        val angleRadians = Math.toRadians(angleDegrees)
+        val aSquared = (b * b) + (c * c) - (2 * b * c * kotlin.math.cos(angleRadians))
+        
+        return kotlin.math.sqrt(aSquared).toInt()
     }
 
     /** Suggests a club ensuring we recommend the next club up if the yardage exceeds a club's stock yardage */
@@ -325,6 +375,7 @@ class RoundViewModel @Inject constructor(
     fun updateGreen(chips: Int, sandShots: Int, chipDistance: Int?, chipLie: com.golftracker.data.model.ApproachLie? = null, recoveryChip: Boolean = false) {
         val stat = uiState.value.currentHoleStat ?: return
         updateStat(stat.copy(chips = chips, sandShots = sandShots, chipDistance = chipDistance, chipLie = chipLie, recoveryChip = recoveryChip))
+        recalculateFinalApproachDistance()
     }
 
     private fun updateStat(stat: HoleStat) {
@@ -336,6 +387,36 @@ class RoundViewModel @Inject constructor(
                  it.copy(currentHoleStat = stat, holeStats = newStats)
              }
              recalculateSgForCurrentHole()
+        }
+    }
+    
+    private fun recalculateFinalApproachDistance() {
+        viewModelScope.launch {
+            val stat = uiState.value.currentHoleStat ?: return@launch
+            val yardage = uiState.value.currentHoleYardage ?: return@launch
+            val shots = roundRepository.getShotsForHoleStat(stat.id).first().sortedBy { it.shotNumber }
+            val putts = roundRepository.getPuttsForHoleStat(stat.id).first().sortedBy { it.puttNumber }
+            
+            if (shots.isEmpty()) return@launch
+            
+            val lastShot = shots.last()
+            val startDist = if (shots.size > 1) {
+                shots[shots.size - 2].distanceToPin ?: yardage
+            } else {
+                yardage
+            }
+            
+            val endDist = if (stat.chips > 0 || stat.sandShots > 0) {
+                stat.chipDistance ?: 15
+            } else if (putts.isNotEmpty()) {
+                (putts.first().distance?.toInt() ?: 0) / 3 // Convert feet to yards roughly
+            } else 0
+            
+            if (endDist > 0 && lastShot.distanceToPin != null) {
+                val newDistanceTraveled = estimateShotDistance(startDist, endDist, lastShot.outcome)
+                roundRepository.updateShot(lastShot.copy(distanceTraveled = newDistanceTraveled))
+                refreshShots(stat.id)
+            }
         }
     }
     
@@ -356,6 +437,7 @@ class RoundViewModel @Inject constructor(
             val newPutts = roundRepository.getPuttsForHoleStat(currentStat.id).first()
             _uiState.update { it.copy(putts = newPutts) }
             recalculateSgForCurrentHole()
+            recalculateFinalApproachDistance()
         }
     }
     
@@ -365,6 +447,7 @@ class RoundViewModel @Inject constructor(
             val newPutts = roundRepository.getPuttsForHoleStat(putt.holeStatId).first()
             _uiState.update { it.copy(putts = newPutts) }
             recalculateSgForCurrentHole()
+            recalculateFinalApproachDistance()
         }
     }
 
@@ -507,9 +590,6 @@ class RoundViewModel @Inject constructor(
             sgPutting += sg
         }
         
-        totalSg = sgOffTee + sgApproach + sgAroundGreen + sgPutting
-        totalSg -= penalties.sumOf { it.strokes }
-        
         val calculatedScore = (if (hole.par > 3 && stat.teeOutcome != null) 1 else 0) + 
             shots.size + 
             shortGameStrokes + 
@@ -517,6 +597,15 @@ class RoundViewModel @Inject constructor(
             penalties.sumOf { it.strokes }
             
         val newScore = if (calculatedScore > 0) calculatedScore else stat.score
+        
+        // Fix Total SG logic: Calculate directly from baseline (Expected Tee Strokes - Final Score)
+        totalSg = if (newScore > 0) {
+            val totalExpected = sgCalculator.getExpectedStrokes(holeYardage, ApproachLie.TEE, true) +
+                                sgCalculator.getHoleAdjustment(teeSet.rating.toDouble(), teeSet.slope, coursePar, hole.handicapIndex)
+            totalExpected - newScore
+        } else {
+            0.0 // No score, no SG
+        }
         
         val hasData = newScore > 0 || stat.teeOutcome != null || shots.isNotEmpty() || putts.isNotEmpty() || shortGameStrokes > 0
         
