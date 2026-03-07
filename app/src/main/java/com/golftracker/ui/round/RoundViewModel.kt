@@ -86,6 +86,7 @@ class RoundViewModel @Inject constructor(
     val uiState: StateFlow<RoundUiState> = _uiState.asStateFlow()
 
     private var holeDetailJob: Job? = null
+    private var maintenanceJob: Job? = null
 
     val clubs: StateFlow<List<Club>> = clubRepository.activeClubs
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -256,26 +257,8 @@ class RoundViewModel @Inject constructor(
     // I need to be careful with what fields I'm updating.
     fun updateShotDetails(shot: com.golftracker.data.entity.Shot, outcome: ShotOutcome?, lie: ApproachLie?, clubId: Int?, distanceToPin: Int?, isRecovery: Boolean, providedDistanceTraveled: Int?) {
         viewModelScope.launch {
-            // Auto-populate Tee Shot Distance if this is the first approach shot on Par 4/5
-            val currentHole = uiState.value.currentHole
-            val currentStat = uiState.value.currentHoleStat
-            val yardage = uiState.value.currentHoleYardage
-            
-            if (shot.shotNumber == 1 && currentHole != null && currentHole.par > 3 && currentStat != null) {
-                val oldCalcTeeDist = if (shot.distanceToPin != null && yardage != null) yardage - shot.distanceToPin else null
-                val newCalcTeeDist = if (distanceToPin != null && yardage != null) yardage - distanceToPin else null
-                
-                if (currentStat.teeShotDistance == null || currentStat.teeShotDistance == oldCalcTeeDist) {
-                    if (newCalcTeeDist != null && newCalcTeeDist > 0) {
-                        updateTeeShot(currentStat.teeOutcome, currentStat.teeInTrouble, currentStat.teeClubId, newCalcTeeDist)
-                    } else if (currentStat.teeShotDistance == oldCalcTeeDist) {
-                        updateTeeShot(currentStat.teeOutcome, currentStat.teeInTrouble, currentStat.teeClubId, null)
-                    }
-                }
-            }
-
             // Save the shot with exactly what the user provided.
-            // Distance estimation happens in recalculateApproachDistances after all shots are loaded.
+            // All auto-estimations (Tee and Approach) happen in triggerMaintenance after a debounce.
             roundRepository.updateShot(
                 shot.copy(
                     outcome = outcome,
@@ -301,8 +284,16 @@ class RoundViewModel @Inject constructor(
     private suspend fun refreshShots(holeStatId: Int) {
          val shots = roundRepository.getShotsForHoleStat(holeStatId).first()
          _uiState.update { it.copy(shots = shots) }
-         recalculateApproachDistances()
+         triggerMaintenance()
          recalculateSgForCurrentHole()
+    }
+
+    private fun triggerMaintenance() {
+        maintenanceJob?.cancel()
+        maintenanceJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(1500) // 1.5s debounce to allow for typing
+            recalculateApproachDistances()
+        }
     }
 
     /** Suggests a club ensuring we recommend the next club up if the yardage exceeds a club's stock yardage */
@@ -347,15 +338,24 @@ class RoundViewModel @Inject constructor(
     /**
      * Recalculates estimated distanceTraveled for ALL approach shots on the current hole
      * where distanceTraveled is null.
-     * 
-     * startDist = this shot's distanceToPin (where the shot starts)
-     * endDist = the next shot's distanceToPin, or chip/putt distance (where the ball ended up)
      */
     private suspend fun recalculateApproachDistances() {
         val stat = uiState.value.currentHoleStat ?: return
+        val hole = uiState.value.currentHole ?: return
+        val yardage = uiState.value.currentHoleYardage ?: return
         val shots = roundRepository.getShotsForHoleStat(stat.id).first().sortedBy { it.shotNumber }
         val putts = roundRepository.getPuttsForHoleStat(stat.id).first().sortedBy { it.puttNumber }
         
+        // 1. Auto-populate Tee Shot Distance if it matches the first approach shot (Par 4/5)
+        if (hole.par > 3 && shots.isNotEmpty()) {
+            val firstShot = shots.first()
+            val oldCalcTeeDist = if (firstShot.distanceToPin != null) yardage - firstShot.distanceToPin!! else null
+            if (stat.teeShotDistance == null && oldCalcTeeDist != null && oldCalcTeeDist > 0) {
+                 updateTeeShot(stat.teeOutcome, stat.teeInTrouble, stat.teeClubId, oldCalcTeeDist)
+            }
+        }
+
+        // 2. Auto-estimate Approach distances
         if (shots.isEmpty()) return
         
         var anyUpdated = false
@@ -375,7 +375,8 @@ class RoundViewModel @Inject constructor(
                 0
             }
             
-            val estimated = ShotDistanceCalculator.estimateShotDistance(startDist, endDist, shot.outcome)
+            val isLastShot = (i == shots.size - 1)
+            val estimated = ShotDistanceCalculator.estimateShotDistance(startDist, endDist, shot.outcome, isLastShot)
             roundRepository.updateShot(shot.copy(distanceTraveled = estimated))
             anyUpdated = true
         }
@@ -383,6 +384,7 @@ class RoundViewModel @Inject constructor(
         if (anyUpdated) {
             val updatedShots = roundRepository.getShotsForHoleStat(stat.id).first()
             _uiState.update { it.copy(shots = updatedShots) }
+            recalculateSgForCurrentHole()
         }
     }
     

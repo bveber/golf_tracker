@@ -22,22 +22,25 @@ class ShotDistanceCalculatorTest {
 
     @Test
     fun testEstimateShotDistance_OnTarget() {
-        // Start 100, end 5 on target -> 100 (user expectation: "if on target and ends on green, should result in 100")
-        assertEquals(100, ShotDistanceCalculator.estimateShotDistance(100, 5, ShotOutcome.ON_TARGET))
+        // Start 100, end 5 on target, IS last shot -> 100
+        assertEquals(100, ShotDistanceCalculator.estimateShotDistance(100, 5, ShotOutcome.ON_TARGET, isLastShot = true))
+        // Start 200, end 50 on target, NOT last shot -> 150
+        assertEquals(150, ShotDistanceCalculator.estimateShotDistance(200, 50, ShotOutcome.ON_TARGET, isLastShot = false))
+        // Start 200, end 5 on target, NOT last shot -> 195 (it was a chip/layup, not a finishing shot)
+        assertEquals(195, ShotDistanceCalculator.estimateShotDistance(200, 5, ShotOutcome.ON_TARGET, isLastShot = false))
+        
         // Start 100, end 0 -> 100
         assertEquals(100, ShotDistanceCalculator.estimateShotDistance(100, 0, ShotOutcome.ON_TARGET))
-        // Start 100, end 25 -> 75 (if they were 25 yds out, they probably chunked it)
-        assertEquals(75, ShotDistanceCalculator.estimateShotDistance(100, 25, ShotOutcome.ON_TARGET))
     }
 
     @Test
     fun testEstimateShotDistance_MissLeftRight() {
-        // Start 100, miss left, end 20 -> assume they hit it pin high, distance = 100
-        assertEquals(100, ShotDistanceCalculator.estimateShotDistance(100, 20, ShotOutcome.MISS_LEFT))
-        assertEquals(100, ShotDistanceCalculator.estimateShotDistance(100, 20, ShotOutcome.MISS_RIGHT))
-        
-        // Start 200, miss right, end 100 -> they hit it wildly short, assume they advanced it somewhat
-        assertEquals(100, ShotDistanceCalculator.estimateShotDistance(200, 100, ShotOutcome.MISS_RIGHT))
+        // Start 100, miss left, end 20, IS last shot -> 100
+        assertEquals(100, ShotDistanceCalculator.estimateShotDistance(100, 20, ShotOutcome.MISS_LEFT, isLastShot = true))
+        // Start 200, miss right, end 100, NOT last shot -> 100
+        assertEquals(100, ShotDistanceCalculator.estimateShotDistance(200, 100, ShotOutcome.MISS_RIGHT, isLastShot = false))
+        // Start 200, miss right, end 10, NOT last shot -> 190 (pin high heuristic only applies to finishing shots)
+        assertEquals(190, ShotDistanceCalculator.estimateShotDistance(200, 10, ShotOutcome.MISS_RIGHT, isLastShot = false))
     }
     
     @Test
