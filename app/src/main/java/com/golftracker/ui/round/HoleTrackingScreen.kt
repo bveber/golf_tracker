@@ -76,15 +76,21 @@ fun HoleTrackingScreen(
                 title = { 
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Hole ${hole?.holeNumber ?: "-"}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Hole ${hole?.holeNumber ?: "-"}", 
+                                style = MaterialTheme.typography.titleMedium, 
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
                             val cumulative = uiState.cumulativeOverPar
                             if (uiState.holeStats.any { it.score > 0 }) {
                                 val scoreStr = if (cumulative > 0) "+$cumulative" else if (cumulative < 0) "$cumulative" else "E"
                                 Text(
-                                    "($scoreStr)",
+                                    text = "($scoreStr)",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
                                     color = when {
                                         cumulative < 0 -> MaterialTheme.colorScheme.primary
                                         cumulative > 0 -> MaterialTheme.colorScheme.error
@@ -95,8 +101,8 @@ fun HoleTrackingScreen(
                         }
                         val yardageText = uiState.currentHoleYardage?.let { " • $it yds" } ?: ""
                         Text(
-                            "Par ${hole?.par ?: "-"} • HCP ${hole?.handicapIndex ?: "-"}$yardageText", 
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = "Par ${hole?.par ?: "-"} • HCP ${hole?.handicapIndex ?: "-"}$yardageText", 
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
