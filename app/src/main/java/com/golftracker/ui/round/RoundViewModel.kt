@@ -257,19 +257,21 @@ class RoundViewModel @Inject constructor(
     // I need to be careful with what fields I'm updating.
     fun updateShotDetails(shot: com.golftracker.data.entity.Shot, outcome: ShotOutcome?, lie: ApproachLie?, clubId: Int?, distanceToPin: Int?, isRecovery: Boolean, providedDistanceTraveled: Int?) {
         viewModelScope.launch {
-            // Save the shot with exactly what the user provided.
-            // All auto-estimations (Tee and Approach) happen in triggerMaintenance after a debounce.
-            roundRepository.updateShot(
-                shot.copy(
-                    outcome = outcome,
-                    lie = lie,
-                    clubId = clubId,
-                    distanceToPin = distanceToPin,
-                    isRecovery = isRecovery,
-                    distanceTraveled = providedDistanceTraveled
+            if (outcome == null && lie == null && distanceToPin == null && providedDistanceTraveled == null) {
+                roundRepository.deleteShot(shot)
+            } else {
+                roundRepository.updateShot(
+                    shot.copy(
+                        outcome = outcome,
+                        lie = lie,
+                        clubId = clubId,
+                        distanceToPin = distanceToPin,
+                        isRecovery = isRecovery,
+                        distanceTraveled = providedDistanceTraveled,
+                        strokesGained = null
+                    )
                 )
-            )
-            
+            }
             refreshShots(shot.holeStatId)
         }
     }
@@ -411,7 +413,11 @@ class RoundViewModel @Inject constructor(
     
     fun updatePuttDistance(putt: Putt, distance: Float?) {
         viewModelScope.launch {
-            roundRepository.updatePutt(putt.copy(distance = distance))
+            if (distance == null) {
+                roundRepository.deletePutt(putt)
+            } else {
+                roundRepository.updatePutt(putt.copy(distance = distance, strokesGained = null))
+            }
             val newPutts = roundRepository.getPuttsForHoleStat(putt.holeStatId).first()
             _uiState.update { it.copy(putts = newPutts) }
             recalculateSgForCurrentHole()
@@ -459,10 +465,18 @@ class RoundViewModel @Inject constructor(
         val round = state.activeRound ?: return
         
         val teeSet = courseRepository.getTeeSets(round.courseId).first().find { it.id == round.teeSetId } ?: return
-        val coursePar = courseRepository.getHoles(round.courseId).first().sumOf { it.par }
+        val allHoles = courseRepository.getHoles(round.courseId).first()
+        val allYardages = courseRepository.getYardagesForTeeSet(round.teeSetId).first()
         
-        val yardages = courseRepository.getYardagesForTeeSet(round.teeSetId).first()
-        val holeYardage = yardages.find { it.holeId == hole.id }?.yardage ?: return
+        val holesForAdj = allHoles.map { h ->
+            val y = allYardages.find { it.holeId == h.id }?.yardage ?: 0
+            Pair(y, h.handicapIndex)
+        }
+        
+        val totalAdj = sgCalculator.calculateCourseAdjustment(teeSet.rating.toDouble(), holesForAdj)
+        val holeAdj = sgCalculator.getHoleAdjustment(totalAdj, hole.handicapIndex, allHoles.size)
+        
+        val holeYardage = allYardages.find { it.holeId == hole.id }?.yardage ?: return
         
         val shots = roundRepository.getShotsForHoleStat(stat.id).first().sortedBy { it.shotNumber }
         val putts = roundRepository.getPuttsForHoleStat(stat.id).first().sortedBy { it.puttNumber }
@@ -484,26 +498,42 @@ class RoundViewModel @Inject constructor(
             var greenFeet: Float? = null
             
             // Determine the "intended" or "reported" end state
+            var hasValidEndState = false
             if (shots.isNotEmpty()) {
-                endDist = shots.first().distanceToPin ?: 0
-                endLie = shots.first().lie
+                if (shots.first().distanceToPin != null) {
+                    endDist = shots.first().distanceToPin!!
+                    endLie = shots.first().lie
+                    hasValidEndState = true
+                }
             } else if (stat.chips > 0 || stat.sandShots > 0) {
                 endDist = stat.chipDistance ?: 15
                 endLie = if (stat.sandShots > 0) ApproachLie.SAND else ApproachLie.ROUGH
+                hasValidEndState = true
             } else if (putts.isNotEmpty()) {
-                greenFeet = putts.first().distance
+                if (putts.first().distance != null) {
+                    greenFeet = putts.first().distance
+                    hasValidEndState = true
+                }
+            } else if (stat.score > 0) {
+                // If holed out directly from tee (Hole in one on Par 4?! or just Score entered)
+                endDist = 0
+                hasValidEndState = true
             }
 
             // If user manually entered tee distance, honor it for endDist specifically
             if (stat.teeShotDistance != null) {
                 endDist = ShotDistanceCalculator.deriveEndDistance(holeYardage, stat.teeShotDistance!!, stat.teeOutcome)
+                // If we have a manual distance, we consider it a valid end state for SG purposes
+                hasValidEndState = true
             }
 
-            // Apply "In Trouble" penalty by forcing the lie to recovery
-            val actualEndLie = if (stat.teeInTrouble) ApproachLie.OTHER else endLie
-            
-            val teeSg = sgCalculator.calculateShotSG(startDistance, startLie, true, endDist, actualEndLie, greenFeet, 0, teeSet.rating.toDouble(), teeSet.slope, coursePar, hole.handicapIndex)
-            sgOffTee += teeSg
+            if (hasValidEndState) {
+                // Apply "In Trouble" penalty by forcing the lie to recovery
+                val actualEndLie = if (stat.teeInTrouble) ApproachLie.OTHER else endLie
+                
+                val teeSg = sgCalculator.calculateShotSG(startDistance, startLie, true, endDist, actualEndLie, greenFeet, 0, holeAdj)
+                sgOffTee += teeSg
+            }
         }
         
         // 2. APPROACH SHOTS
@@ -511,6 +541,13 @@ class RoundViewModel @Inject constructor(
             val shot = shots[i]
             val isFirstShotOfPar3 = (hole.par == 3 && i == 0) // UI asks for approach on par 3 tee
             
+            if (shot.distanceToPin == null && !isFirstShotOfPar3) {
+                if (shot.strokesGained != null) {
+                    roundRepository.updateShot(shot.copy(strokesGained = null))
+                }
+                continue
+            }
+
             val startDistance = shot.distanceToPin ?: if (isFirstShotOfPar3) holeYardage else continue
             val startLie = if (isFirstShotOfPar3) ApproachLie.TEE else shot.lie ?: ApproachLie.FAIRWAY
             
@@ -518,29 +555,46 @@ class RoundViewModel @Inject constructor(
             var endLie: ApproachLie? = null
             var greenFeet: Float? = null
             
+            var hasValidEndState = false
             // Successor identification logic
             if (i + 1 < shots.size) {
-                endDist = shots[i+1].distanceToPin ?: 0
-                endLie = shots[i+1].lie 
+                if (shots[i+1].distanceToPin != null) {
+                    endDist = shots[i+1].distanceToPin!!
+                    endLie = shots[i+1].lie 
+                    hasValidEndState = true
+                }
             } else if (stat.chips > 0 || stat.sandShots > 0) {
                 endDist = stat.chipDistance ?: 15
                 endLie = if (stat.sandShots > 0) ApproachLie.SAND else ApproachLie.ROUGH
+                hasValidEndState = true
             } else if (putts.isNotEmpty()) {
-                greenFeet = putts.first().distance
+                if (putts.first().distance != null) {
+                    greenFeet = putts.first().distance
+                    hasValidEndState = true
+                }
+            } else if (stat.score > 0) {
+                // Holed out
+                endDist = 0
+                hasValidEndState = true
             }
 
             // Manual distance override (doesn't change endLie/greenFeet)
             if (shot.distanceTraveled != null) {
                 endDist = ShotDistanceCalculator.deriveEndDistance(startDistance, shot.distanceTraveled!!, shot.outcome)
+                hasValidEndState = true
             }
             
-            val sg = sgCalculator.calculateShotSG(startDistance, startLie, isFirstShotOfPar3, endDist, endLie, greenFeet, 0, teeSet.rating.toDouble(), teeSet.slope, coursePar, hole.handicapIndex)
-            roundRepository.updateShot(shot.copy(strokesGained = sg))
-            
-            if (isFirstShotOfPar3) {
-                sgOffTee += sg 
-            } else {
-                sgApproach += sg
+            if (hasValidEndState) {
+                val sg = sgCalculator.calculateShotSG(startDistance, startLie, isFirstShotOfPar3, endDist, endLie, greenFeet, 0, if (isFirstShotOfPar3) holeAdj else 0.0)
+                roundRepository.updateShot(shot.copy(strokesGained = sg))
+                
+                if (isFirstShotOfPar3) {
+                    sgOffTee += sg 
+                } else {
+                    sgApproach += sg
+                }
+            } else if (shot.strokesGained != null) {
+                roundRepository.updateShot(shot.copy(strokesGained = null))
             }
         }
 
@@ -582,7 +636,8 @@ class RoundViewModel @Inject constructor(
         val newScore = if (calculatedScore > 0) calculatedScore else stat.score
         
         // Total SG is the sum of its constituent parts to ensure consistency in the UI
-        totalSg = sgOffTee + sgApproach + sgAroundGreen + sgPutting - penalties.sumOf { it.strokes }
+        val penaltyTotal = penalties.sumOf { it.strokes }.toDouble()
+        totalSg = sgOffTee + sgApproach + sgAroundGreen + sgPutting - penaltyTotal
         
         val hasData = newScore > 0 || stat.teeOutcome != null || shots.isNotEmpty() || putts.isNotEmpty() || shortGameStrokes > 0
         

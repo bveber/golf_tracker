@@ -22,10 +22,11 @@ data class StatsFilter(
     val teeSetId: Int? = null,
     val lastNRounds: Int = 20,
     val year: Int? = null,
-    val startDate: Date? = null,
-    val endDate: Date? = null,
+    val startDate: java.util.Date? = null,
+    val endDate: java.util.Date? = null,
     val drivingClubId: Int? = null,
-    val approachClubId: Int? = null
+    val approachClubId: Int? = null,
+    val excludedRoundIds: Set<Int> = emptySet()
 )
 
 // ── Repository ──────────────────────────────────────────────────────────
@@ -33,7 +34,8 @@ data class StatsFilter(
 class StatsRepository @Inject constructor(
     private val roundDao: RoundDao,
     private val courseRepository: CourseRepository,
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val sgCalculator: com.golftracker.util.StrokesGainedCalculator
 ) {
     fun getStatsData(): Flow<StatsData> = getFilteredStatsData(StatsFilter())
 
@@ -45,18 +47,21 @@ class StatsRepository @Inject constructor(
         ) { allRounds, allYardages, estimatedHandicap ->
             val filtered = applyFilter(allRounds, filter)
             
-            // Map (TeeSetId, HoleId) -> Yardage
-            val yardageMap = allYardages.groupBy { it.teeSetId }
+            // For driving: Map (TeeSetId -> HoleId -> Yardage)
+            val yardageMapForDriving = allYardages.groupBy { it.teeSetId }
                 .mapValues { (_, list) -> list.associate { it.holeId to it.yardage } }
-
+            
+            // For SG: Map (Pair(TeeSetId, HoleId) -> Yardage)
+            val yardageMapForSg = allYardages.associateBy { it.teeSetId to it.holeId }
+            
             StatsData(
                 rounds = filtered,
                 scoring = calculateScoringStats(filtered, estimatedHandicap),
-                driving = calculateDrivingStats(filtered, yardageMap, filter.drivingClubId),
+                driving = calculateDrivingStats(filtered, yardageMapForDriving, filter.drivingClubId),
                 approach = calculateApproachStats(filtered, filter.approachClubId),
                 chipping = calculateChippingStats(filtered),
                 putting = calculatePuttingStats(filtered),
-                sg = calculateSgStats(filtered)
+                sg = calculateSgStats(filtered, yardageMapForSg)
             )
         }
     }
@@ -64,12 +69,20 @@ class StatsRepository @Inject constructor(
     private fun applyFilter(rounds: List<RoundWithDetails>, filter: StatsFilter): List<RoundWithDetails> {
         var result = rounds
 
+        // 1. Exclude specific rounds
+        if (filter.excludedRoundIds.isNotEmpty()) {
+            result = result.filter { it.round.id !in filter.excludedRoundIds }
+        }
+
+        // 2. Course & Tee Set
         filter.courseId?.let { cid ->
             result = result.filter { it.round.courseId == cid }
         }
         filter.teeSetId?.let { tid ->
             result = result.filter { it.round.teeSetId == tid }
         }
+
+        // 3. Time-based filters
         filter.year?.let { y ->
             val cal = Calendar.getInstance()
             result = result.filter {
@@ -83,7 +96,8 @@ class StatsRepository @Inject constructor(
         filter.endDate?.let { e ->
             result = result.filter { it.round.date <= e }
         }
-        // Last N rounds (applied last, after other filters narrow the set)
+
+        // 4. Last N rounds (applied last, after other filters narrow the set)
         if (filter.lastNRounds > 0) {
             result = result.take(filter.lastNRounds) // already sorted DESC by date
         }
@@ -441,75 +455,67 @@ class StatsRepository @Inject constructor(
 
     private fun calculateChippingStats(rounds: List<RoundWithDetails>): ChippingStats {
         val holes = rounds.flatMap { it.holeStats }.filter { it.holeStat.score > 0 }
-        val roundCount = rounds.size.coerceAtLeast(1)
         if (holes.isEmpty()) return ChippingStats()
 
         fun isGir(h: HoleStatWithHole): Boolean {
             return GirCalculator.isGir(h.holeStat.score, h.hole.par, h.holeStat.putts)
         }
 
-        fun isUpAndDown(h: HoleStatWithHole): Boolean {
-            // Updated Logic: If missed GIR, and Score <= Par, it counts as Up & Down (Scrambling)
-            // This captures "Par Save" essentially, which is the most common definition.
-            // If we strictly want "1 putt", we could add `&& h.holeStat.putts <= 1`.
-            // But usually "Up & Down" includes chip-ins (0 putts).
-            return !isGir(h) && h.holeStat.score <= h.hole.par
-        }
-
         fun isSandSave(h: HoleStatWithHole): Boolean {
-            // Sand save: hitting from sand, and getting up-and-down for par or better
-            // Ideally we check if they *were* in a bunker.
             val wasInSand = h.holeStat.sandShots > 0 || h.holeStat.approachLie == ApproachLie.SAND || 
                             h.shots.any { it.lie == ApproachLie.SAND }
             return wasInSand && h.holeStat.score <= h.hole.par
         }
 
         fun isParSave(h: HoleStatWithHole): Boolean {
-            // Scrambling: Missed GIR but made Par or better
-            return !isGir(h) && h.holeStat.score <= h.hole.par && h.holeStat.score > 0
+            return !isGir(h) && h.holeStat.score <= h.hole.par
         }
 
         val missedGirHoles = holes.filter { !isGir(it) }
         val missedCount = missedGirHoles.size.coerceAtLeast(1)
 
-        // Up & Down: automatic definition
-        val upAndDowns = missedGirHoles.count { isUpAndDown(it) }
-        val upAndDownPct = if (missedCount > 0) (upAndDowns.toDouble() / missedCount) * 100 else 0.0
-
-        // Par Saves: automatic definition
         val parSaves = missedGirHoles.count { isParSave(it) }
-        val parSavePct = if (missedCount > 0) (parSaves.toDouble() / missedCount) * 100 else 0.0
+        val parSavePct = (parSaves.toDouble() / missedCount) * 100
 
-        // Double chips: holes with chips >= 2
-        val doubleChipHoles = holes.count { it.holeStat.chips >= 2 }
-
-        // Average chips per hole (across all holes)
-        val totalChips = holes.sumOf { it.holeStat.chips }
-        val avgChipsPerHole = totalChips.toDouble() / holes.size
-
-        // Sand saves
-        val sandHoles = missedGirHoles.filter { h -> 
-            h.holeStat.approachLie == ApproachLie.SAND || h.holeStat.sandShots > 0 || h.shots.any { it.lie == ApproachLie.SAND }
-        }
+        val sandHoles = holes.filter { it.holeStat.sandShots > 0 || it.shots.any { s -> s.lie == ApproachLie.SAND } }
         val sandSaves = sandHoles.count { isSandSave(it) }
-        val sandSaveTotal = sandHoles.size.coerceAtLeast(1)
+        val sandSavePct = if (sandHoles.isNotEmpty()) (sandSaves.toDouble() / sandHoles.size) * 100 else 0.0
 
-        val sandSavePct = if (sandSaveTotal > 0) (sandSaves.toDouble() / sandSaveTotal) * 100 else 0.0
+        val doubleChips = holes.count { it.holeStat.chips >= 2 }
+        val chipsPerHole = holes.sumOf { it.holeStat.chips }.toDouble() / holes.size
+        
+        // Proximity (Avg Next Putt Distance in feet)
+        val proximityHoles = holes.filter { it.holeStat.chips > 0 || it.holeStat.sandShots > 0 }
+        val proximities = proximityHoles.mapNotNull { it.putts.firstOrNull()?.distance }
+        val avgProximity = if (proximities.isNotEmpty()) proximities.average() else 0.0
+        
+        // Proximity by Lie
+        val proximityByLie = proximityHoles.groupBy { 
+            if (it.holeStat.sandShots > 0) ApproachLie.SAND else (it.holeStat.chipLie ?: ApproachLie.ROUGH)
+        }.mapValues { (_, holesWithLie) ->
+            val proximitiesForLie = holesWithLie.mapNotNull { it.putts.firstOrNull()?.distance }
+            if (proximitiesForLie.isNotEmpty()) proximitiesForLie.average() else 0.0
+        }
+
+        val roundCount = rounds.size.coerceAtLeast(1)
 
         return ChippingStats(
-            upAndDownPct = upAndDownPct,
-            upAndDownMoE = calculateProportionMoE(upAndDownPct, missedGirHoles.size),
+            upAndDownPct = parSavePct,
+            upAndDownMoE = calculateProportionMoE(parSavePct, missedCount),
             parSavePct = parSavePct,
-            parSaveMoE = calculateProportionMoE(parSavePct, missedGirHoles.size),
+            parSaveMoE = calculateProportionMoE(parSavePct, missedCount),
             sandSavePct = sandSavePct,
             sandSaveMoE = calculateProportionMoE(sandSavePct, sandHoles.size),
-            avgChipsPerHole = avgChipsPerHole,
+            chipsPerHole = chipsPerHole,
             chipsMoE = calculateMeanMoE(holes.map { it.holeStat.chips.toDouble() }),
-            upAndDownsPerRound = upAndDowns.toDouble() / roundCount,
+            doubleChips = doubleChips,
+            avgProximity = avgProximity,
+            proximityByLie = proximityByLie,
+            totalMissedGir = missedCount,
+            totalSandHoles = sandHoles.size,
+            upAndDownsPerRound = parSaves.toDouble() / roundCount,
             parSavesPerRound = parSaves.toDouble() / roundCount,
-            doubleChipsPerRound = doubleChipHoles.toDouble() / roundCount,
-            totalMissedGir = missedGirHoles.size,
-            totalSandHoles = sandHoles.size
+            doubleChipsPerRound = doubleChips.toDouble() / roundCount
         )
     }
 
@@ -613,82 +619,65 @@ class StatsRepository @Inject constructor(
     }
     // ── Strokes Gained ──────────────────────────────────────────────────
 
-    private fun calculateSgStats(rounds: List<RoundWithDetails>): SgStats {
+    private fun calculateSgStats(
+        rounds: List<RoundWithDetails>,
+        yardageMap: Map<Pair<Int, Int>, com.golftracker.data.entity.HoleTeeYardage>
+    ): SgStats {
         var totalSgOffTee = 0.0
         var totalSgApproach = 0.0
         var totalSgAroundGreen = 0.0
         var totalSgPutting = 0.0
-        
-        var countOffTee = 0
-        var countApproach = 0
-        var countAroundGreen = 0
+        var totalSgPenalties = 0.0
         
         val sgByLie = mutableMapOf<ApproachLie, MutableList<Double>>()
         val distanceRanges = listOf(0..30, 31..100, 101..150, 151..200, 201..Int.MAX_VALUE)
         val rangeLabels = listOf("<30y", "30-100y", "100-150y", "150-200y", "200y+")
         val sgByDistance = mutableMapOf<String, MutableList<Double>>()
         
-        for (round in rounds) {
-            for (hole in round.holeStats) {
-                val stat = hole.holeStat
-                
-                stat.sgOffTee?.let { sg ->
-                    totalSgOffTee += sg
-                    countOffTee++
-                    sgByLie.getOrPut(ApproachLie.TEE) { mutableListOf() }.add(sg)
-                    val dist = stat.teeShotDistance ?: 250 // Assumption for categorizing tee shots if missing
-                    val rangeIdx = distanceRanges.indexOfFirst { dist in it }
-                    if (rangeIdx != -1) {
-                        sgByDistance.getOrPut(rangeLabels[rangeIdx]) { mutableListOf() }.add(sg)
-                    } else {
-                        sgByDistance.getOrPut("200y+") { mutableListOf() }.add(sg)
-                    }
-                }
-                
-                stat.sgAroundGreen?.let { sg ->
-                    totalSgAroundGreen += sg
-                    countAroundGreen++
-                    val lie = if (stat.sandShots > 0) ApproachLie.SAND else ApproachLie.ROUGH
-                    sgByLie.getOrPut(lie) { mutableListOf() }.add(sg)
-                    val dist = stat.chipDistance ?: 15
-                    val rangeIdx = distanceRanges.indexOfFirst { dist in it }
-                    if (rangeIdx != -1) {
-                        sgByDistance.getOrPut(rangeLabels[rangeIdx]) { mutableListOf() }.add(sg)
-                    }
-                }
-                
-                stat.sgPutting?.let { sg ->
-                    totalSgPutting += sg
-                }
+        var totalLiveSg = 0.0
 
-                val shots = hole.shots.sortedBy { it.shotNumber }
-                for (i in shots.indices) {
-                    val shot = shots[i]
-                    val sg = shot.strokesGained ?: continue
-                    val isFirstShotOfPar3 = (hole.hole.par == 3 && i == 0)
-                    
-                    if (!isFirstShotOfPar3) {
-                        totalSgApproach += sg
-                        countApproach++
-                        
-                        // ONLY track these properties down here if it belongs to Approach
-                        val lie = shot.lie ?: ApproachLie.FAIRWAY
-                        sgByLie.getOrPut(lie) { mutableListOf() }.add(sg)
-                        
-                        val dist = shot.distanceToPin
-                        if (dist != null) {
-                            val rangeIdx = distanceRanges.indexOfFirst { dist in it }
-                            if (rangeIdx != -1) {
-                                sgByDistance.getOrPut(rangeLabels[rangeIdx]) { mutableListOf() }.add(sg)
-                            }
-                        }
-                    } else if (stat.sgOffTee == null) {
-                        // Fallback logic for legacy rounds not fully mapped
-                        totalSgOffTee += sg
-                        countOffTee++
-                        sgByLie.getOrPut(ApproachLie.TEE) { mutableListOf() }.add(sg)
-                        sgByDistance.getOrPut("150-200y") { mutableListOf() }.add(sg)
-                    }
+        for (round in rounds) {
+            val teeSet = round.round.teeSetId
+            val allHoles = round.holeStats.map { h ->
+                val y = yardageMap[teeSet to h.hole.id]?.yardage ?: 0
+                Pair(y, h.hole.handicapIndex)
+            }
+            val courseAdj = sgCalculator.calculateCourseAdjustment(round.teeSet.rating.toDouble(), allHoles)
+
+            for (hole in round.holeStats) {
+                val holeYardage = yardageMap[teeSet to hole.hole.id]?.yardage ?: 0
+                val holeAdj = sgCalculator.getHoleAdjustment(courseAdj, hole.hole.handicapIndex, allHoles.size)
+                
+                val breakdown = sgCalculator.calculateHoleSg(
+                    par = hole.hole.par,
+                    holeYardage = holeYardage,
+                    holeAdjustment = holeAdj,
+                    shots = hole.shots,
+                    putts = hole.putts,
+                    penalties = hole.penalties.sumOf { it.strokes },
+                    stat = hole.holeStat
+                )
+
+                totalSgOffTee += breakdown.offTee
+                totalSgApproach += breakdown.approach
+                totalSgAroundGreen += breakdown.aroundGreen
+                totalSgPutting += breakdown.putting
+                totalSgPenalties += breakdown.penalties
+                totalLiveSg += breakdown.total
+
+                // Categorize for distributions
+                sgByLie.getOrPut(ApproachLie.TEE) { mutableListOf() }.add(breakdown.offTee)
+                // Note: Simplified distribution logic here, but using the live breakdown
+                if (breakdown.aroundGreen != 0.0) {
+                    val lie = if (hole.holeStat.sandShots > 0) ApproachLie.SAND else ApproachLie.ROUGH
+                    sgByLie.getOrPut(lie) { mutableListOf() }.add(breakdown.aroundGreen)
+                }
+                
+                // For distance breakdown, we use the primary shot for each category
+                val dist = if (hole.hole.par > 3) holeYardage else hole.shots.firstOrNull()?.distanceToPin ?: holeYardage
+                val rangeIdx = distanceRanges.indexOfFirst { dist in it }
+                if (rangeIdx != -1) {
+                    sgByDistance.getOrPut(rangeLabels[rangeIdx]) { mutableListOf() }.add(breakdown.offTee + breakdown.approach)
                 }
             }
         }
@@ -696,15 +685,15 @@ class StatsRepository @Inject constructor(
         val avgLie = sgByLie.mapValues { if (it.value.isNotEmpty()) it.value.sum() else 0.0 }
         val avgDist = sgByDistance.mapValues { if (it.value.isNotEmpty()) it.value.sum() else 0.0 }
         
-        val totalSg = totalSgOffTee + totalSgApproach + totalSgAroundGreen + totalSgPutting
         val roundCount = rounds.size.coerceAtLeast(1)
 
         return SgStats(
-            totalSgPerRound = totalSg / roundCount,
+            totalSgPerRound = totalLiveSg / roundCount,
             sgOffTeePerRound = totalSgOffTee / roundCount,
             sgApproachPerRound = totalSgApproach / roundCount,
             sgAroundGreenPerRound = totalSgAroundGreen / roundCount,
             sgPuttingPerRound = totalSgPutting / roundCount,
+            sgPenaltiesPerRound = totalSgPenalties / roundCount,
             sgByLie = avgLie,
             sgByDistance = avgDist
         )
@@ -816,13 +805,16 @@ data class ChippingStats(
     val parSaveMoE: Double = 0.0,
     val sandSavePct: Double = 0.0,
     val sandSaveMoE: Double = 0.0,
-    val avgChipsPerHole: Double = 0.0,
+    val chipsPerHole: Double = 0.0,
     val chipsMoE: Double = 0.0,
+    val doubleChips: Int = 0,
+    val avgProximity: Double = 0.0,
+    val proximityByLie: Map<ApproachLie, Double> = emptyMap(),
+    val totalMissedGir: Int = 0,
+    val totalSandHoles: Int = 0,
     val upAndDownsPerRound: Double = 0.0,
     val parSavesPerRound: Double = 0.0,
-    val doubleChipsPerRound: Double = 0.0,
-    val totalMissedGir: Int = 0,
-    val totalSandHoles: Int = 0
+    val doubleChipsPerRound: Double = 0.0
 )
 
 data class PuttingStats(
@@ -851,6 +843,7 @@ data class SgStats(
     val sgApproachPerRound: Double = 0.0,
     val sgAroundGreenPerRound: Double = 0.0,
     val sgPuttingPerRound: Double = 0.0,
+    val sgPenaltiesPerRound: Double = 0.0,
     val sgByLie: Map<ApproachLie, Double> = emptyMap(),
     val sgByDistance: Map<String, Double> = emptyMap()
 )

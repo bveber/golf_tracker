@@ -29,10 +29,8 @@ object ShotDistanceCalculator {
                 // Similar to ON_TARGET, only assume full distance if it's the finishing shot.
                 if (isLastShot && endDist <= 25) {
                     startDist
-                } else if (endDist >= startDist / 2) {
-                    kotlin.math.max(0, startDist - endDist)
                 } else {
-                    startDist
+                    kotlin.math.max(0, startDist - endDist)
                 }
             }
             null -> kotlin.math.max(0, startDist - endDist)

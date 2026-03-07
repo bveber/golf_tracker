@@ -87,6 +87,30 @@ class StatsViewModel @Inject constructor(
         _filter.update { it.copy(year = year) }
     }
 
+    fun updateStartDate(date: java.util.Date?) {
+        _filter.update { it.copy(startDate = date, year = null) }
+    }
+
+    fun updateEndDate(date: java.util.Date?) {
+        _filter.update { it.copy(endDate = date, year = null) }
+    }
+
+    fun toggleRoundExclusion(roundId: Int) {
+        _filter.update { 
+            val newExcluded = it.excludedRoundIds.toMutableSet()
+            if (newExcluded.contains(roundId)) {
+                newExcluded.remove(roundId)
+            } else {
+                newExcluded.add(roundId)
+            }
+            it.copy(excludedRoundIds = newExcluded)
+        }
+    }
+
+    fun clearDateFilters() {
+        _filter.update { it.copy(startDate = null, endDate = null, year = null) }
+    }
+
     fun clearFilters() {
         _filter.update { StatsFilter() }
     }

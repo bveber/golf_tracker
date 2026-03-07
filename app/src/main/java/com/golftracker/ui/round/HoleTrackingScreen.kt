@@ -74,38 +74,11 @@ fun HoleTrackingScreen(
         topBar = {
             TopAppBar(
                 title = { 
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Hole ${hole?.holeNumber ?: "-"}", 
-                                style = MaterialTheme.typography.titleMedium, 
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            val cumulative = uiState.cumulativeOverPar
-                            if (uiState.holeStats.any { it.score > 0 }) {
-                                val scoreStr = if (cumulative > 0) "+$cumulative" else if (cumulative < 0) "$cumulative" else "E"
-                                Text(
-                                    text = "($scoreStr)",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    color = when {
-                                        cumulative < 0 -> MaterialTheme.colorScheme.primary
-                                        cumulative > 0 -> MaterialTheme.colorScheme.error
-                                        else -> MaterialTheme.colorScheme.onSurface
-                                    }
-                                )
-                            }
-                        }
-                        val yardageText = uiState.currentHoleYardage?.let { " • $it yds" } ?: ""
-                        Text(
-                            text = "Par ${hole?.par ?: "-"} • HCP ${hole?.handicapIndex ?: "-"}$yardageText", 
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Text(
+                        text = "Hole ${hole?.holeNumber ?: "-"}", 
+                        style = MaterialTheme.typography.titleLarge, 
+                        fontWeight = FontWeight.Bold
+                    )
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
@@ -141,7 +114,7 @@ fun HoleTrackingScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
-                        .padding(bottom = 16.dp, start = 16.dp, end = 16.dp),
+                        .padding(bottom = 32.dp, start = 16.dp, end = 16.dp),
                     colors = if (uiState.currentHoleIndex == uiState.holes.size - 1) {
                         ButtonDefaults.buttonColors()
                     } else {
@@ -172,12 +145,59 @@ fun HoleTrackingScreen(
                 onClose = { showGps = false }
             )
         } else {
-            LazyColumn(
-                modifier = Modifier
-                    .padding(padding)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
+            Column(modifier = Modifier.padding(padding)) {
+                // Hole Info Header
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Par ${hole.par} • HCP ${hole.handicapIndex}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        uiState.currentHoleYardage?.let { yardage ->
+                            Text(
+                                text = "$yardage yds",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        
+                        val cumulative = uiState.cumulativeOverPar
+                        if (uiState.holeStats.any { it.score > 0 }) {
+                            val scoreStr = if (cumulative > 0) "+$cumulative" else if (cumulative < 0) "$cumulative" else "E"
+                            Text(
+                                text = "Cumulative: $scoreStr",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = when {
+                                    cumulative < 0 -> MaterialTheme.colorScheme.primary
+                                    cumulative > 0 -> MaterialTheme.colorScheme.error
+                                    else -> MaterialTheme.colorScheme.onSurface
+                                }
+                            )
+                        }
+                    }
+                }
+
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+
 
             // Tee Shot (hidden on Par 3)
             if (hole.par > 3) {
@@ -695,6 +715,7 @@ fun HoleTrackingScreen(
             item { Spacer(modifier = Modifier.height(80.dp)) }
         }
     }
+}
 }
 }
 

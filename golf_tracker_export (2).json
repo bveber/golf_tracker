@@ -1,0 +1,2447 @@
+[
+  {
+    "course": {
+      "city": "Pebble Beach",
+      "holeCount": 18,
+      "id": 1,
+      "name": "Pebble Beach Golf Links",
+      "state": "CA"
+    },
+    "holeStats": [
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 8,
+          "holeNumber": 1,
+          "id": 1,
+          "par": 4
+        },
+        "holeStat": {
+          "chipDistance": 7,
+          "chipLie": "FAIRWAY",
+          "chips": 1,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 1,
+          "id": 361,
+          "nearGir": false,
+          "putts": 1,
+          "recoveryChip": false,
+          "roundId": 21,
+          "sandShots": 0,
+          "score": 4,
+          "sgApproach": -0.4900000000000002,
+          "sgAroundGreen": 0.18000000000000016,
+          "sgOffTee": 0.25040441442840145,
+          "sgPutting": 0.020000000000000018,
+          "strokesGained": -0.03959558557159859,
+          "teeClubId": 5,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "ON_TARGET",
+          "teeShotDistance": 220
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 2.0,
+            "holeStatId": 361,
+            "id": 41,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": 0.020000000000000018
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 9,
+            "distanceToPin": 165,
+            "distanceTraveled": 152,
+            "holeStatId": 361,
+            "id": 25,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "SHORT",
+            "shotNumber": 1,
+            "strokesGained": -0.4900000000000002
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 10,
+          "holeNumber": 2,
+          "id": 2,
+          "par": 5
+        },
+        "holeStat": {
+          "chips": 0,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 2,
+          "id": 362,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 21,
+          "sandShots": 0,
+          "score": 5,
+          "sgApproach": -0.20000000000000018,
+          "sgAroundGreen": 0.0,
+          "sgOffTee": -0.10962366092221698,
+          "sgPutting": 0.06000000000000005,
+          "strokesGained": -0.2496236609222171,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "MISS_RIGHT",
+          "teeShotDistance": 270
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 40.0,
+            "holeStatId": 362,
+            "id": 42,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": 0.020000000000000018
+          },
+          {
+            "distance": 3.0,
+            "holeStatId": 362,
+            "id": 43,
+            "made": false,
+            "puttNumber": 2,
+            "strokesGained": 0.040000000000000036
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 11,
+            "distanceToPin": 245,
+            "distanceTraveled": 127,
+            "holeStatId": 362,
+            "id": 26,
+            "isRecovery": false,
+            "lie": "SAND",
+            "outcome": "ON_TARGET",
+            "shotNumber": 1,
+            "strokesGained": 0.01200000000000001
+          },
+          {
+            "clubId": 12,
+            "distanceToPin": 119,
+            "distanceTraveled": 105,
+            "holeStatId": 362,
+            "id": 27,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "ON_TARGET",
+            "shotNumber": 2,
+            "strokesGained": -0.2120000000000002
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 12,
+          "holeNumber": 3,
+          "id": 3,
+          "par": 4
+        },
+        "holeStat": {
+          "chips": 0,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 3,
+          "id": 363,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 21,
+          "sandShots": 0,
+          "score": 4,
+          "sgApproach": -0.05200000000000027,
+          "sgAroundGreen": 0.0,
+          "sgOffTee": 0.3798482637271645,
+          "sgPutting": -0.1479999999999999,
+          "strokesGained": 0.17984826372716434,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "ON_TARGET",
+          "teeShotDistance": 290
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 19.0,
+            "holeStatId": 363,
+            "id": 44,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.1479999999999999
+          },
+          {
+            "distance": 1.0,
+            "holeStatId": 363,
+            "id": 45,
+            "made": false,
+            "puttNumber": 2,
+            "strokesGained": 0.0
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 13,
+            "distanceToPin": 100,
+            "distanceTraveled": 91,
+            "holeStatId": 363,
+            "id": 28,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "ON_TARGET",
+            "shotNumber": 1,
+            "strokesGained": -0.05200000000000027
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 16,
+          "holeNumber": 4,
+          "id": 4,
+          "par": 4
+        },
+        "holeStat": {
+          "chips": 0,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 4,
+          "id": 364,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 21,
+          "sandShots": 1,
+          "score": 5,
+          "sgApproach": -0.37600000000000033,
+          "sgAroundGreen": -0.1399999999999999,
+          "sgOffTee": -0.18670788697407215,
+          "sgPutting": -0.3899999999999999,
+          "strokesGained": -1.0927078869740723,
+          "teeClubId": 16,
+          "teeInTrouble": false,
+          "teeMishit": true,
+          "teeOutcome": "MISS_RIGHT",
+          "teeShotDistance": 210
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 10.0,
+            "holeStatId": 364,
+            "id": 46,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.3899999999999999
+          },
+          {
+            "distance": 1.0,
+            "holeStatId": 364,
+            "id": 47,
+            "made": false,
+            "puttNumber": 2,
+            "strokesGained": 0.0
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 12,
+            "distanceToPin": 126,
+            "distanceTraveled": 110,
+            "holeStatId": 364,
+            "id": 29,
+            "isRecovery": false,
+            "lie": "ROUGH",
+            "outcome": "SHORT",
+            "shotNumber": 1,
+            "strokesGained": -0.37600000000000033
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 14,
+          "holeNumber": 5,
+          "id": 5,
+          "par": 3
+        },
+        "holeStat": {
+          "chipDistance": 9,
+          "chipLie": "FAIRWAY",
+          "chips": 1,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 5,
+          "id": 365,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 21,
+          "sandShots": 0,
+          "score": 4,
+          "sgApproach": 0.0,
+          "sgAroundGreen": -0.478,
+          "sgOffTee": -0.24867981162345432,
+          "sgPutting": -0.32199999999999984,
+          "strokesGained": -1.0486798116234541,
+          "teeInTrouble": false,
+          "teeMishit": false
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 12.0,
+            "holeStatId": 365,
+            "id": 48,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.32199999999999984
+          },
+          {
+            "distance": 1.0,
+            "holeStatId": 365,
+            "id": 49,
+            "made": false,
+            "puttNumber": 2,
+            "strokesGained": 0.0
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 8,
+            "distanceToPin": 195,
+            "distanceTraveled": 195,
+            "holeStatId": 365,
+            "id": 30,
+            "isRecovery": false,
+            "lie": "TEE",
+            "outcome": "MISS_LEFT",
+            "shotNumber": 1,
+            "strokesGained": -0.24867981162345432
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 2,
+          "holeNumber": 6,
+          "id": 6,
+          "par": 5
+        },
+        "holeStat": {
+          "chipDistance": 22,
+          "chipLie": "FAIRWAY",
+          "chips": 1,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 6,
+          "id": 366,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 21,
+          "sandShots": 0,
+          "score": 5,
+          "sgApproach": -0.3500000000000001,
+          "sgAroundGreen": -0.5760000000000001,
+          "sgOffTee": 0.7429886404802568,
+          "sgPutting": -0.0040000000000000036,
+          "strokesGained": -0.18701135951974335,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "ON_TARGET",
+          "teeShotDistance": 300
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 32.0,
+            "holeStatId": 366,
+            "id": 50,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.04400000000000004
+          },
+          {
+            "distance": 3.0,
+            "holeStatId": 366,
+            "id": 51,
+            "made": false,
+            "puttNumber": 2,
+            "strokesGained": 0.040000000000000036
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 6,
+            "distanceToPin": 210,
+            "distanceTraveled": 190,
+            "holeStatId": 366,
+            "id": 31,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "SHORT",
+            "shotNumber": 1,
+            "strokesGained": -0.3500000000000001
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 18,
+          "holeNumber": 7,
+          "id": 7,
+          "par": 3
+        },
+        "holeStat": {
+          "chips": 0,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 7,
+          "id": 367,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 21,
+          "sandShots": 0,
+          "score": 3,
+          "sgApproach": 0.0,
+          "sgAroundGreen": 0.0,
+          "sgOffTee": 0.10726403767530956,
+          "sgPutting": -0.119,
+          "strokesGained": -0.01173596232469043,
+          "teeInTrouble": false,
+          "teeMishit": false
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 21.0,
+            "holeStatId": 367,
+            "id": 52,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.139
+          },
+          {
+            "distance": 2.0,
+            "holeStatId": 367,
+            "id": 53,
+            "made": false,
+            "puttNumber": 2,
+            "strokesGained": 0.020000000000000018
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 13,
+            "distanceToPin": 113,
+            "distanceTraveled": 110,
+            "holeStatId": 367,
+            "id": 32,
+            "isRecovery": false,
+            "lie": "TEE",
+            "outcome": "ON_TARGET",
+            "shotNumber": 1,
+            "strokesGained": 0.10726403767530956
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 6,
+          "holeNumber": 8,
+          "id": 8,
+          "par": 4
+        },
+        "holeStat": {
+          "chips": 0,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 8,
+          "id": 368,
+          "nearGir": false,
+          "putts": 1,
+          "recoveryChip": false,
+          "roundId": 21,
+          "sandShots": 0,
+          "score": 3,
+          "sgApproach": 1.0229999999999997,
+          "sgAroundGreen": 0.0,
+          "sgOffTee": 0.1324324897790201,
+          "sgPutting": 0.22999999999999998,
+          "strokesGained": 1.3854324897790198,
+          "teeClubId": 4,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "ON_TARGET",
+          "teeShotDistance": 220
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 5.0,
+            "holeStatId": 368,
+            "id": 54,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": 0.22999999999999998
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 7,
+            "distanceToPin": 209,
+            "distanceTraveled": 209,
+            "holeStatId": 368,
+            "id": 33,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "ON_TARGET",
+            "shotNumber": 1,
+            "strokesGained": 1.0229999999999997
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 4,
+          "holeNumber": 9,
+          "id": 9,
+          "par": 4
+        },
+        "holeStat": {
+          "chipDistance": 23,
+          "chipLie": "ROUGH",
+          "chips": 1,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 9,
+          "id": 369,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 21,
+          "sandShots": 0,
+          "score": 5,
+          "sgApproach": 0.09899999999999975,
+          "sgAroundGreen": -0.17799999999999994,
+          "sgOffTee": 0.11096056512963814,
+          "sgPutting": -0.20199999999999996,
+          "strokesGained": -0.170039434870362,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "MISS_LEFT",
+          "teeShotDistance": 320
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 16.0,
+            "holeStatId": 369,
+            "id": 55,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.20199999999999996
+          },
+          {
+            "distance": 1.0,
+            "holeStatId": 369,
+            "id": 56,
+            "made": false,
+            "puttNumber": 2,
+            "strokesGained": 0.0
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 5,
+            "distanceToPin": 227,
+            "distanceTraveled": 225,
+            "holeStatId": 369,
+            "id": 34,
+            "isRecovery": false,
+            "lie": "ROUGH",
+            "outcome": "MISS_RIGHT",
+            "shotNumber": 1,
+            "strokesGained": 0.09899999999999975
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 7,
+          "holeNumber": 10,
+          "id": 10,
+          "par": 4
+        },
+        "holeStat": {
+          "chips": 0,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 10,
+          "id": 370,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 21,
+          "sandShots": 0,
+          "score": 4,
+          "sgApproach": 0.5660000000000001,
+          "sgAroundGreen": 0.0,
+          "sgOffTee": 0.040168452103710894,
+          "sgPutting": -0.18399999999999994,
+          "strokesGained": 0.422168452103711,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "MISS_RIGHT",
+          "teeShotDistance": 302
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 17.0,
+            "holeStatId": 370,
+            "id": 57,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.20399999999999996
+          },
+          {
+            "distance": 2.0,
+            "holeStatId": 370,
+            "id": 58,
+            "made": false,
+            "puttNumber": 2,
+            "strokesGained": 0.020000000000000018
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 9,
+            "distanceToPin": 192,
+            "distanceTraveled": 188,
+            "holeStatId": 370,
+            "id": 35,
+            "isRecovery": false,
+            "lie": "ROUGH",
+            "outcome": "ON_TARGET",
+            "shotNumber": 1,
+            "strokesGained": 0.5660000000000001
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 5,
+          "holeNumber": 11,
+          "id": 11,
+          "par": 4
+        },
+        "holeStat": {
+          "chips": 0,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 11,
+          "id": 371,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 21,
+          "sandShots": 0,
+          "score": 4,
+          "sgApproach": -0.262,
+          "sgAroundGreen": 0.0,
+          "sgOffTee": 0.5446965274543292,
+          "sgPutting": 0.06000000000000005,
+          "strokesGained": 0.3426965274543292,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "ON_TARGET",
+          "teeShotDistance": 288
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 40.0,
+            "holeStatId": 371,
+            "id": 59,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.06999999999999984
+          },
+          {
+            "distance": 4.0,
+            "holeStatId": 371,
+            "id": 60,
+            "made": false,
+            "puttNumber": 2,
+            "strokesGained": 0.1299999999999999
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 13,
+            "distanceToPin": 99,
+            "distanceTraveled": 90,
+            "holeStatId": 371,
+            "id": 36,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "ON_TARGET",
+            "shotNumber": 1,
+            "strokesGained": -0.262
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 17,
+          "holeNumber": 12,
+          "id": 12,
+          "par": 3
+        },
+        "holeStat": {
+          "chipDistance": 33,
+          "chipLie": "ROUGH",
+          "chips": 1,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 12,
+          "id": 372,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 21,
+          "sandShots": 0,
+          "score": 4,
+          "sgApproach": 0.0,
+          "sgAroundGreen": -0.2679999999999998,
+          "sgOffTee": -0.5154719246493817,
+          "sgPutting": -0.01200000000000001,
+          "strokesGained": -0.7954719246493815,
+          "teeInTrouble": false,
+          "teeMishit": false
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 31.0,
+            "holeStatId": 372,
+            "id": 61,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.052000000000000046
+          },
+          {
+            "distance": 3.0,
+            "holeStatId": 372,
+            "id": 62,
+            "made": false,
+            "puttNumber": 2,
+            "strokesGained": 0.040000000000000036
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 7,
+            "distanceToPin": 214,
+            "distanceTraveled": 220,
+            "holeStatId": 372,
+            "id": 37,
+            "isRecovery": false,
+            "lie": "TEE",
+            "outcome": "MISS_LEFT",
+            "shotNumber": 1,
+            "strokesGained": -0.5154719246493817
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 9,
+          "holeNumber": 13,
+          "id": 13,
+          "par": 4
+        },
+        "holeStat": {
+          "chips": 0,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 13,
+          "id": 373,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 21,
+          "sandShots": 0,
+          "score": 4,
+          "sgApproach": 0.19399999999999973,
+          "sgAroundGreen": 0.0,
+          "sgOffTee": 0.5611403767530923,
+          "sgPutting": -0.3899999999999999,
+          "strokesGained": 0.3651403767530921,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "ON_TARGET",
+          "teeShotDistance": 344
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 10.0,
+            "holeStatId": 373,
+            "id": 63,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.3899999999999999
+          },
+          {
+            "distance": 1.0,
+            "holeStatId": 373,
+            "id": 64,
+            "made": false,
+            "puttNumber": 2,
+            "strokesGained": 0.0
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 13,
+            "distanceToPin": 102,
+            "distanceTraveled": 100,
+            "holeStatId": 373,
+            "id": 38,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "ON_TARGET",
+            "shotNumber": 1,
+            "strokesGained": 0.19399999999999973
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 1,
+          "holeNumber": 14,
+          "id": 14,
+          "par": 5
+        },
+        "holeStat": {
+          "chipDistance": 31,
+          "chipLie": "ROUGH",
+          "chips": 2,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 14,
+          "id": 374,
+          "nearGir": false,
+          "putts": 1,
+          "recoveryChip": false,
+          "roundId": 21,
+          "sandShots": 0,
+          "score": 6,
+          "sgApproach": -0.8580000000000001,
+          "sgAroundGreen": -0.4299999999999997,
+          "sgOffTee": 0.42075267815556616,
+          "sgPutting": 0.1299999999999999,
+          "strokesGained": -0.7372473218444338,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "MISS_RIGHT",
+          "teeShotDistance": 275
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 4.0,
+            "holeStatId": 374,
+            "id": 65,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": 0.1299999999999999
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 8,
+            "distanceToPin": 283,
+            "distanceTraveled": 162,
+            "holeStatId": 374,
+            "id": 39,
+            "isRecovery": false,
+            "lie": "ROUGH",
+            "outcome": "ON_TARGET",
+            "shotNumber": 1,
+            "strokesGained": -0.03399999999999981
+          },
+          {
+            "clubId": 11,
+            "distanceToPin": 129,
+            "distanceTraveled": 136,
+            "holeStatId": 374,
+            "id": 40,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "MISS_LEFT",
+            "shotNumber": 2,
+            "strokesGained": -0.8240000000000003
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 13,
+          "holeNumber": 15,
+          "id": 15,
+          "par": 4
+        },
+        "holeStat": {
+          "chips": 0,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 15,
+          "id": 375,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 21,
+          "sandShots": 0,
+          "score": 4,
+          "sgApproach": -0.10299999999999998,
+          "sgAroundGreen": 0.0,
+          "sgOffTee": 0.3210842260518554,
+          "sgPutting": -0.07499999999999996,
+          "strokesGained": 0.14308422605185545,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "ON_TARGET",
+          "teeShotDistance": 297
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 25.0,
+            "holeStatId": 375,
+            "id": 66,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.09499999999999997
+          },
+          {
+            "distance": 2.0,
+            "holeStatId": 375,
+            "id": 67,
+            "made": false,
+            "puttNumber": 2,
+            "strokesGained": 0.020000000000000018
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 13,
+            "distanceToPin": 108,
+            "distanceTraveled": 100,
+            "holeStatId": 375,
+            "id": 41,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "ON_TARGET",
+            "shotNumber": 1,
+            "strokesGained": -0.10299999999999998
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 11,
+          "holeNumber": 16,
+          "id": 16,
+          "par": 4
+        },
+        "holeStat": {
+          "chips": 0,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 16,
+          "id": 376,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 21,
+          "sandShots": 0,
+          "score": 4,
+          "sgApproach": 0.34199999999999986,
+          "sgAroundGreen": 0.0,
+          "sgOffTee": 0.18461230140247364,
+          "sgPutting": -0.32199999999999984,
+          "strokesGained": 0.20461230140247366,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "MISS_RIGHT",
+          "teeShotDistance": 301
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 12.0,
+            "holeStatId": 376,
+            "id": 68,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.32199999999999984
+          },
+          {
+            "distance": 1.0,
+            "holeStatId": 376,
+            "id": 69,
+            "made": false,
+            "puttNumber": 2,
+            "strokesGained": 0.0
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 13,
+            "distanceToPin": 100,
+            "distanceTraveled": 103,
+            "holeStatId": 376,
+            "id": 42,
+            "isRecovery": false,
+            "lie": "ROUGH",
+            "outcome": "ON_TARGET",
+            "shotNumber": 1,
+            "strokesGained": 0.34199999999999986
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 15,
+          "holeNumber": 17,
+          "id": 17,
+          "par": 3
+        },
+        "holeStat": {
+          "chipDistance": 6,
+          "chipLie": "FAIRWAY",
+          "chips": 1,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 17,
+          "id": 377,
+          "nearGir": false,
+          "putts": 1,
+          "recoveryChip": false,
+          "roundId": 21,
+          "sandShots": 1,
+          "score": 4,
+          "sgApproach": 0.0,
+          "sgAroundGreen": -0.8199999999999998,
+          "sgOffTee": -0.25894384929876324,
+          "sgPutting": 0.020000000000000018,
+          "strokesGained": -1.058943849298763,
+          "teeInTrouble": false,
+          "teeMishit": false
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 2.0,
+            "holeStatId": 377,
+            "id": 70,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": 0.020000000000000018
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 8,
+            "distanceToPin": 178,
+            "distanceTraveled": 180,
+            "holeStatId": 377,
+            "id": 43,
+            "isRecovery": false,
+            "lie": "TEE",
+            "outcome": "MISS_LEFT",
+            "shotNumber": 1,
+            "strokesGained": -0.25894384929876324
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 3,
+          "holeNumber": 18,
+          "id": 18,
+          "par": 5
+        },
+        "holeStat": {
+          "chipDistance": 24,
+          "chipLie": "FAIRWAY",
+          "chips": 1,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 18,
+          "id": 378,
+          "nearGir": false,
+          "putts": 1,
+          "recoveryChip": false,
+          "roundId": 21,
+          "sandShots": 0,
+          "score": 4,
+          "sgApproach": -0.3770000000000002,
+          "sgAroundGreen": 0.31000000000000005,
+          "sgOffTee": 0.8307246028049478,
+          "sgPutting": 0.1299999999999999,
+          "strokesGained": 0.8937246028049475,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "ON_TARGET",
+          "teeShotDistance": 315
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 4.0,
+            "holeStatId": 378,
+            "id": 71,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": 0.1299999999999999
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 7,
+            "distanceToPin": 209,
+            "distanceTraveled": 185,
+            "holeStatId": 378,
+            "id": 44,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "MISS_RIGHT",
+            "shotNumber": 1,
+            "strokesGained": -0.3770000000000002
+          }
+        ]
+      }
+    ],
+    "round": {
+      "courseId": 1,
+      "date": "2026-03-06T16:03:07.643-0600",
+      "holesPlayed": 18,
+      "id": 21,
+      "isFinalized": true,
+      "notes": "",
+      "teeSetId": 1
+    },
+    "teeSet": {
+      "courseId": 1,
+      "id": 1,
+      "name": "Black",
+      "rating": 75.5,
+      "slope": 145
+    }
+  },
+  {
+    "course": {
+      "city": "Pebble Beach",
+      "holeCount": 18,
+      "id": 1,
+      "name": "Pebble Beach Golf Links",
+      "state": "CA"
+    },
+    "holeStats": [
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 8,
+          "holeNumber": 1,
+          "id": 1,
+          "par": 4
+        },
+        "holeStat": {
+          "approachClubId": 12,
+          "approachOutcome": "ON_TARGET",
+          "approachShotDistance": 83,
+          "chips": 0,
+          "gir": true,
+          "girOverride": false,
+          "holeId": 1,
+          "id": 1,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 1,
+          "sandShots": 0,
+          "score": 4,
+          "sgApproach": -0.119,
+          "sgAroundGreen": 0.0,
+          "sgOffTee": 0.48840441442840143,
+          "sgPutting": -0.119,
+          "strokesGained": 0.25040441442840145,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "ON_TARGET",
+          "teeShotDistance": 298
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 21.0,
+            "holeStatId": 1,
+            "id": 1,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.15688768291473387
+          },
+          {
+            "distance": 2.8943841,
+            "holeStatId": 1,
+            "id": 2,
+            "made": true,
+            "puttNumber": 2,
+            "strokesGained": 0.03788768291473388
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 12,
+            "distanceToPin": 83,
+            "distanceTraveled": 85,
+            "holeStatId": 1,
+            "id": 1,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "ON_TARGET",
+            "shotNumber": 1,
+            "strokesGained": -0.119
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 10,
+          "holeNumber": 2,
+          "id": 2,
+          "par": 5
+        },
+        "holeStat": {
+          "approachClubId": 12,
+          "approachOutcome": "ON_TARGET",
+          "approachShotDistance": 242,
+          "chips": 0,
+          "gir": true,
+          "girOverride": false,
+          "holeId": 2,
+          "id": 2,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 1,
+          "sandShots": 0,
+          "score": 5,
+          "sgApproach": -0.472,
+          "sgAroundGreen": 0.0,
+          "sgOffTee": 0.2863763390777829,
+          "sgPutting": -0.06400000000000006,
+          "strokesGained": -0.2496236609222171,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "ON_TARGET",
+          "teeShotDistance": 274
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 26.0,
+            "holeStatId": 2,
+            "id": 3,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.08354368114471433
+          },
+          {
+            "distance": 1.977184,
+            "holeStatId": 2,
+            "id": 4,
+            "made": true,
+            "puttNumber": 2,
+            "strokesGained": 0.019543681144714276
+          }
+        ],
+        "shots": [
+          {
+            "distanceToPin": 242,
+            "distanceTraveled": 125,
+            "holeStatId": 2,
+            "id": 2,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "ON_TARGET",
+            "shotNumber": 1,
+            "strokesGained": -0.33999999999999986
+          },
+          {
+            "clubId": 12,
+            "distanceToPin": 102,
+            "distanceTraveled": 108,
+            "holeStatId": 2,
+            "id": 3,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "ON_TARGET",
+            "shotNumber": 2,
+            "strokesGained": -0.13200000000000012
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 12,
+          "holeNumber": 3,
+          "id": 3,
+          "par": 4
+        },
+        "holeStat": {
+          "approachClubId": 12,
+          "approachOutcome": "MISS_LEFT",
+          "approachShotDistance": 112,
+          "chipLie": "ROUGH",
+          "chips": 1,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 3,
+          "id": 3,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 1,
+          "sandShots": 0,
+          "score": 5,
+          "sgApproach": -0.492,
+          "sgAroundGreen": -0.07000000000000006,
+          "sgOffTee": 0.1318482637271643,
+          "sgPutting": -0.3899999999999999,
+          "strokesGained": -0.8201517362728357,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "MISS_RIGHT",
+          "teeShotDistance": 292
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 10.0,
+            "holeStatId": 3,
+            "id": 5,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.3945260572433471
+          },
+          {
+            "distance": 1.2263029,
+            "holeStatId": 3,
+            "id": 6,
+            "made": true,
+            "puttNumber": 2,
+            "strokesGained": 0.0045260572433472035
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 12,
+            "distanceToPin": 112,
+            "distanceTraveled": 112,
+            "holeStatId": 3,
+            "id": 4,
+            "isRecovery": false,
+            "lie": "ROUGH",
+            "outcome": "MISS_LEFT",
+            "shotNumber": 1,
+            "strokesGained": -0.492
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 16,
+          "holeNumber": 4,
+          "id": 4,
+          "par": 4
+        },
+        "holeStat": {
+          "approachClubId": 12,
+          "approachOutcome": "ON_TARGET",
+          "approachShotDistance": 54,
+          "chips": 0,
+          "gir": true,
+          "girOverride": false,
+          "holeId": 4,
+          "id": 4,
+          "nearGir": false,
+          "putts": 1,
+          "recoveryChip": false,
+          "roundId": 1,
+          "sandShots": 0,
+          "score": 3,
+          "sgApproach": -0.30300000000000016,
+          "sgAroundGreen": 0.0,
+          "sgOffTee": 0.2412921130259278,
+          "sgPutting": 0.9690000000000001,
+          "strokesGained": 0.9072921130259277,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "ON_TARGET",
+          "teeShotDistance": 277
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 29.0,
+            "holeStatId": 4,
+            "id": 7,
+            "made": true,
+            "puttNumber": 1,
+            "strokesGained": 0.9690000000000001
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 12,
+            "distanceToPin": 54,
+            "distanceTraveled": 54,
+            "holeStatId": 4,
+            "id": 5,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "ON_TARGET",
+            "shotNumber": 1,
+            "strokesGained": -0.30300000000000016
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 14,
+          "holeNumber": 5,
+          "id": 5,
+          "par": 3
+        },
+        "holeStat": {
+          "approachClubId": 6,
+          "approachShotDistance": 195,
+          "chipDistance": 15,
+          "chipLie": "ROUGH",
+          "chips": 1,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 5,
+          "id": 5,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 1,
+          "sandShots": 0,
+          "score": 4,
+          "sgApproach": 0.0,
+          "sgAroundGreen": -0.24,
+          "sgOffTee": -0.29867981162345414,
+          "sgPutting": -0.21999999999999997,
+          "strokesGained": -0.7586798116234541,
+          "teeInTrouble": false,
+          "teeMishit": false
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 15.0,
+            "holeStatId": 5,
+            "id": 8,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.22996779680252066
+          },
+          {
+            "distance": 1.4983898,
+            "holeStatId": 5,
+            "id": 9,
+            "made": true,
+            "puttNumber": 2,
+            "strokesGained": 0.00996779680252069
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 6,
+            "distanceToPin": 195,
+            "distanceTraveled": 180,
+            "holeStatId": 5,
+            "id": 6,
+            "isRecovery": false,
+            "lie": "TEE",
+            "shotNumber": 1,
+            "strokesGained": -0.29867981162345414
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 2,
+          "holeNumber": 6,
+          "id": 6,
+          "par": 5
+        },
+        "holeStat": {
+          "approachClubId": 12,
+          "approachOutcome": "ON_TARGET",
+          "approachShotDistance": 218,
+          "chips": 0,
+          "gir": true,
+          "girOverride": false,
+          "holeId": 6,
+          "id": 6,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 1,
+          "sandShots": 0,
+          "score": 5,
+          "sgApproach": -0.5840000000000003,
+          "sgAroundGreen": 0.0,
+          "sgOffTee": 1.3899772809605135,
+          "sgPutting": -0.10799999999999987,
+          "strokesGained": 0.6979772809605134,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "ON_TARGET",
+          "teeShotDistance": 305
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 22.0,
+            "holeStatId": 6,
+            "id": 10,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.13829719352722147
+          },
+          {
+            "distance": 2.5148597,
+            "holeStatId": 6,
+            "id": 11,
+            "made": true,
+            "puttNumber": 2,
+            "strokesGained": 0.0302971935272216
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 6,
+            "distanceToPin": 218,
+            "distanceTraveled": 106,
+            "holeStatId": 6,
+            "id": 7,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "SHORT",
+            "shotNumber": 1,
+            "strokesGained": -0.5260000000000002
+          },
+          {
+            "clubId": 12,
+            "distanceToPin": 112,
+            "distanceTraveled": 112,
+            "holeStatId": 6,
+            "id": 8,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "ON_TARGET",
+            "shotNumber": 2,
+            "strokesGained": -0.05800000000000005
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 18,
+          "holeNumber": 7,
+          "id": 7,
+          "par": 3
+        },
+        "holeStat": {
+          "approachClubId": 12,
+          "approachShotDistance": 106,
+          "chipLie": "ROUGH",
+          "chips": 1,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 7,
+          "id": 7,
+          "nearGir": false,
+          "putts": 1,
+          "recoveryChip": false,
+          "roundId": 1,
+          "sandShots": 0,
+          "score": 3,
+          "sgApproach": 0.0,
+          "sgAroundGreen": 0.52,
+          "sgOffTee": -0.5797359623246905,
+          "sgPutting": 0.020000000000000018,
+          "strokesGained": -0.039735962324690455,
+          "teeInTrouble": false,
+          "teeMishit": false
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 2.0,
+            "holeStatId": 7,
+            "id": 12,
+            "made": true,
+            "puttNumber": 1,
+            "strokesGained": 0.020000000000000018
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 12,
+            "distanceToPin": 106,
+            "distanceTraveled": 91,
+            "holeStatId": 7,
+            "id": 9,
+            "isRecovery": false,
+            "lie": "TEE",
+            "outcome": "SHORT",
+            "shotNumber": 1,
+            "strokesGained": -0.5797359623246905
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 6,
+          "holeNumber": 8,
+          "id": 8,
+          "par": 4
+        },
+        "holeStat": {
+          "approachClubId": 8,
+          "approachOutcome": "MISS_LEFT",
+          "approachShotDistance": 177,
+          "chipLie": "ROUGH",
+          "chips": 1,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 8,
+          "id": 8,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 1,
+          "sandShots": 0,
+          "score": 5,
+          "sgApproach": -0.472,
+          "sgAroundGreen": -0.276,
+          "sgOffTee": 0.3174324897790197,
+          "sgPutting": -0.18399999999999994,
+          "strokesGained": -0.6145675102209802,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "ON_TARGET",
+          "teeShotDistance": 251
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 17.0,
+            "holeStatId": 8,
+            "id": 13,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.20858606719970707
+          },
+          {
+            "distance": 2.2293034,
+            "holeStatId": 8,
+            "id": 14,
+            "made": true,
+            "puttNumber": 2,
+            "strokesGained": 0.02458606719970713
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 8,
+            "distanceToPin": 177,
+            "distanceTraveled": 177,
+            "holeStatId": 8,
+            "id": 10,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "MISS_LEFT",
+            "shotNumber": 1,
+            "strokesGained": -0.472
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 4,
+          "holeNumber": 9,
+          "id": 9,
+          "par": 4
+        },
+        "holeStat": {
+          "approachClubId": 6,
+          "approachShotDistance": 199,
+          "chipDistance": 12,
+          "chipLie": "ROUGH",
+          "chips": 1,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 9,
+          "id": 9,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 1,
+          "sandShots": 0,
+          "score": 5,
+          "sgApproach": -0.31400000000000006,
+          "sgAroundGreen": -0.23599999999999977,
+          "sgOffTee": 0.699921130259276,
+          "sgPutting": -0.254,
+          "strokesGained": -0.10407886974072378,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "MISS_RIGHT",
+          "teeShotDistance": 305
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 14.0,
+            "holeStatId": 9,
+            "id": 15,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.26651348018646237
+          },
+          {
+            "distance": 1.625674,
+            "holeStatId": 9,
+            "id": 16,
+            "made": true,
+            "puttNumber": 2,
+            "strokesGained": 0.012513480186462367
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 6,
+            "distanceToPin": 199,
+            "distanceTraveled": 199,
+            "holeStatId": 9,
+            "id": 11,
+            "isRecovery": false,
+            "lie": "ROUGH",
+            "outcome": "MISS_LEFT",
+            "shotNumber": 1,
+            "strokesGained": -0.31400000000000006
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 7,
+          "holeNumber": 10,
+          "id": 10,
+          "par": 4
+        },
+        "holeStat": {
+          "approachClubId": 6,
+          "approachShotDistance": 196,
+          "chipDistance": 11,
+          "chipLie": "ROUGH",
+          "chips": 1,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 10,
+          "id": 10,
+          "nearGir": false,
+          "putts": 1,
+          "recoveryChip": false,
+          "roundId": 1,
+          "sandShots": 0,
+          "score": 4,
+          "sgApproach": -0.13600000000000012,
+          "sgAroundGreen": 0.27,
+          "sgOffTee": -0.04366309579257788,
+          "sgPutting": 0.22999999999999998,
+          "strokesGained": 0.320336904207422,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "MISS_RIGHT",
+          "teeShotDistance": 250
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 5.0,
+            "holeStatId": 10,
+            "id": 17,
+            "made": true,
+            "puttNumber": 1,
+            "strokesGained": 0.22999999999999998
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 6,
+            "distanceToPin": 196,
+            "distanceTraveled": 181,
+            "holeStatId": 10,
+            "id": 12,
+            "isRecovery": false,
+            "lie": "ROUGH",
+            "shotNumber": 1,
+            "strokesGained": -0.13600000000000012
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 5,
+          "holeNumber": 11,
+          "id": 11,
+          "par": 4
+        },
+        "holeStat": {
+          "approachClubId": 12,
+          "approachOutcome": "ON_TARGET",
+          "approachShotDistance": 94,
+          "chips": 0,
+          "gir": true,
+          "girOverride": false,
+          "holeId": 11,
+          "id": 11,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 1,
+          "sandShots": 0,
+          "score": 4,
+          "sgApproach": -0.010000000000000231,
+          "sgAroundGreen": 0.0,
+          "sgOffTee": 0.5546965274543294,
+          "sgPutting": -0.20199999999999996,
+          "strokesGained": 0.3426965274543292,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "ON_TARGET",
+          "teeShotDistance": 296
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 16.0,
+            "holeStatId": 11,
+            "id": 18,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.20940186691284168
+          },
+          {
+            "distance": 1.3700933,
+            "holeStatId": 11,
+            "id": 19,
+            "made": true,
+            "puttNumber": 2,
+            "strokesGained": 0.007401866912841726
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 12,
+            "distanceToPin": 94,
+            "distanceTraveled": 94,
+            "holeStatId": 11,
+            "id": 13,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "ON_TARGET",
+            "shotNumber": 1,
+            "strokesGained": -0.010000000000000231
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 17,
+          "holeNumber": 12,
+          "id": 12,
+          "par": 3
+        },
+        "holeStat": {
+          "approachClubId": 6,
+          "approachShotDistance": 202,
+          "chipDistance": 20,
+          "chipLie": "FAIRWAY",
+          "chips": 1,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 12,
+          "id": 12,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 1,
+          "sandShots": 0,
+          "score": 4,
+          "sgApproach": 0.0,
+          "sgAroundGreen": -0.5250000000000001,
+          "sgOffTee": -0.41347192464938143,
+          "sgPutting": -0.07499999999999996,
+          "strokesGained": -1.0134719246493815,
+          "teeInTrouble": false,
+          "teeMishit": false
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 25.0,
+            "holeStatId": 12,
+            "id": 20,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.08979932785034173
+          },
+          {
+            "distance": 1.7399664,
+            "holeStatId": 12,
+            "id": 21,
+            "made": true,
+            "puttNumber": 2,
+            "strokesGained": 0.01479932785034177
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 6,
+            "distanceToPin": 202,
+            "distanceTraveled": 222,
+            "holeStatId": 12,
+            "id": 14,
+            "isRecovery": false,
+            "lie": "TEE",
+            "outcome": "LONG",
+            "shotNumber": 1,
+            "strokesGained": -0.41347192464938143
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 9,
+          "holeNumber": 13,
+          "id": 13,
+          "par": 4
+        },
+        "holeStat": {
+          "approachClubId": 8,
+          "approachOutcome": "MISS_LEFT",
+          "approachShotDistance": 167,
+          "chipDistance": 18,
+          "chipLie": "ROUGH",
+          "chips": 1,
+          "gir": false,
+          "girOverride": false,
+          "holeId": 13,
+          "id": 13,
+          "nearGir": false,
+          "putts": 1,
+          "recoveryChip": false,
+          "roundId": 1,
+          "sandShots": 0,
+          "score": 4,
+          "sgApproach": -0.6680000000000001,
+          "sgAroundGreen": 0.5499999999999998,
+          "sgOffTee": 0.7062807535061841,
+          "sgPutting": 0.020000000000000018,
+          "strokesGained": 0.6082807535061838,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "ON_TARGET",
+          "teeShotDistance": 278
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 2.0,
+            "holeStatId": 13,
+            "id": 22,
+            "made": true,
+            "puttNumber": 1,
+            "strokesGained": 0.020000000000000018
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 8,
+            "distanceToPin": 167,
+            "distanceTraveled": 167,
+            "holeStatId": 13,
+            "id": 15,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "MISS_LEFT",
+            "shotNumber": 1,
+            "strokesGained": -0.6680000000000001
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 1,
+          "holeNumber": 14,
+          "id": 14,
+          "par": 5
+        },
+        "holeStat": {
+          "approachClubId": 12,
+          "approachOutcome": "ON_TARGET",
+          "approachShotDistance": 307,
+          "chips": 0,
+          "gir": true,
+          "girOverride": false,
+          "holeId": 14,
+          "id": 14,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 1,
+          "sandShots": 0,
+          "score": 5,
+          "sgApproach": 0.08899999999999975,
+          "sgAroundGreen": 0.0,
+          "sgOffTee": 0.9235053563111331,
+          "sgPutting": -0.28800000000000003,
+          "strokesGained": 0.7245053563111328,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "ON_TARGET",
+          "teeShotDistance": 273
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 13.0,
+            "holeStatId": 14,
+            "id": 23,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.29055509138107305
+          },
+          {
+            "distance": 1.1277546,
+            "holeStatId": 14,
+            "id": 24,
+            "made": true,
+            "puttNumber": 2,
+            "strokesGained": 0.002555091381073016
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 16,
+            "distanceToPin": 307,
+            "distanceTraveled": 188,
+            "holeStatId": 14,
+            "id": 16,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "SHORT",
+            "shotNumber": 1,
+            "strokesGained": -0.04700000000000015
+          },
+          {
+            "clubId": 12,
+            "distanceToPin": 119,
+            "distanceTraveled": 119,
+            "holeStatId": 14,
+            "id": 17,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "ON_TARGET",
+            "shotNumber": 2,
+            "strokesGained": 0.1359999999999999
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 13,
+          "holeNumber": 15,
+          "id": 15,
+          "par": 4
+        },
+        "holeStat": {
+          "approachClubId": 10,
+          "approachOutcome": "ON_TARGET",
+          "approachShotDistance": 135,
+          "chips": 0,
+          "gir": true,
+          "girOverride": false,
+          "holeId": 15,
+          "id": 15,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 1,
+          "sandShots": 0,
+          "score": 4,
+          "sgApproach": 0.15399999999999991,
+          "sgAroundGreen": 0.0,
+          "sgOffTee": 0.24308422605185553,
+          "sgPutting": -0.254,
+          "strokesGained": 0.14308422605185545,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "ON_TARGET",
+          "teeShotDistance": 262
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 14.0,
+            "holeStatId": 15,
+            "id": 25,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.254
+          },
+          {
+            "distance": 1.0,
+            "holeStatId": 15,
+            "id": 26,
+            "made": true,
+            "puttNumber": 2,
+            "strokesGained": 0.0
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 10,
+            "distanceToPin": 135,
+            "distanceTraveled": 135,
+            "holeStatId": 15,
+            "id": 18,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "ON_TARGET",
+            "shotNumber": 1,
+            "strokesGained": 0.15399999999999991
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 11,
+          "holeNumber": 16,
+          "id": 16,
+          "par": 4
+        },
+        "holeStat": {
+          "approachClubId": 12,
+          "approachOutcome": "ON_TARGET",
+          "approachShotDistance": 116,
+          "chips": 0,
+          "gir": true,
+          "girOverride": false,
+          "holeId": 16,
+          "id": 16,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 1,
+          "sandShots": 0,
+          "score": 4,
+          "sgApproach": -0.06099999999999994,
+          "sgAroundGreen": 0.0,
+          "sgOffTee": 0.7252246028049472,
+          "sgPutting": -0.09699999999999998,
+          "strokesGained": 0.5672246028049472,
+          "teeClubId": 1,
+          "teeInTrouble": false,
+          "teeMishit": false,
+          "teeOutcome": "ON_TARGET",
+          "teeShotDistance": 287
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 23.0,
+            "holeStatId": 16,
+            "id": 27,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.10994736862182619
+          },
+          {
+            "distance": 1.6473684,
+            "holeStatId": 16,
+            "id": 28,
+            "made": true,
+            "puttNumber": 2,
+            "strokesGained": 0.012947368621826216
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 12,
+            "distanceToPin": 116,
+            "distanceTraveled": 116,
+            "holeStatId": 16,
+            "id": 19,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "ON_TARGET",
+            "shotNumber": 1,
+            "strokesGained": -0.06099999999999994
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 15,
+          "holeNumber": 17,
+          "id": 17,
+          "par": 3
+        },
+        "holeStat": {
+          "approachClubId": 8,
+          "approachOutcome": "ON_TARGET",
+          "approachShotDistance": 178,
+          "chips": 0,
+          "gir": true,
+          "girOverride": false,
+          "holeId": 17,
+          "id": 17,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 1,
+          "sandShots": 0,
+          "score": 3,
+          "sgApproach": 0.0,
+          "sgAroundGreen": 0.0,
+          "sgOffTee": 0.19305615070123694,
+          "sgPutting": -0.04200000000000004,
+          "strokesGained": 0.1510561507012369,
+          "teeInTrouble": false,
+          "teeMishit": false
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 28.0,
+            "holeStatId": 17,
+            "id": 29,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.17887890052795408
+          },
+          {
+            "distance": 4.068789,
+            "holeStatId": 17,
+            "id": 30,
+            "made": true,
+            "puttNumber": 2,
+            "strokesGained": 0.13687890052795404
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 8,
+            "distanceToPin": 178,
+            "distanceTraveled": 178,
+            "holeStatId": 17,
+            "id": 20,
+            "isRecovery": false,
+            "lie": "TEE",
+            "outcome": "ON_TARGET",
+            "shotNumber": 1,
+            "strokesGained": 0.19305615070123694
+          }
+        ]
+      },
+      {
+        "hole": {
+          "courseId": 1,
+          "handicapIndex": 3,
+          "holeNumber": 18,
+          "id": 18,
+          "par": 5
+        },
+        "holeStat": {
+          "approachClubId": 12,
+          "approachOutcome": "ON_TARGET",
+          "approachShotDistance": 239,
+          "chips": 0,
+          "gir": true,
+          "girOverride": false,
+          "holeId": 18,
+          "id": 18,
+          "nearGir": false,
+          "putts": 2,
+          "recoveryChip": false,
+          "roundId": 1,
+          "sandShots": 0,
+          "score": 5,
+          "sgApproach": 0.22199999999999998,
+          "sgAroundGreen": 0.0,
+          "sgOffTee": 0.17344920560989507,
+          "sgPutting": -0.254,
+          "strokesGained": 0.14144920560989505,
+          "teeClubId": 1,
+          "teeInTrouble": true,
+          "teeMishit": false,
+          "teeOutcome": "MISS_RIGHT",
+          "teeShotDistance": 304
+        },
+        "penalties": [],
+        "putts": [
+          {
+            "distance": 14.0,
+            "holeStatId": 18,
+            "id": 31,
+            "made": false,
+            "puttNumber": 1,
+            "strokesGained": -0.2668527164459229
+          },
+          {
+            "distance": 1.6426358,
+            "holeStatId": 18,
+            "id": 32,
+            "made": true,
+            "puttNumber": 2,
+            "strokesGained": 0.012852716445922896
+          }
+        ],
+        "shots": [
+          {
+            "clubId": 6,
+            "distanceToPin": 239,
+            "distanceTraveled": 156,
+            "holeStatId": 18,
+            "id": 21,
+            "isRecovery": false,
+            "lie": "OTHER",
+            "outcome": "ON_TARGET",
+            "shotNumber": 1,
+            "strokesGained": 0.20599999999999996
+          },
+          {
+            "clubId": 12,
+            "distanceToPin": 83,
+            "distanceTraveled": 83,
+            "holeStatId": 18,
+            "id": 22,
+            "isRecovery": false,
+            "lie": "FAIRWAY",
+            "outcome": "ON_TARGET",
+            "shotNumber": 2,
+            "strokesGained": 0.016000000000000014
+          }
+        ]
+      }
+    ],
+    "round": {
+      "courseId": 1,
+      "date": "2026-03-01T23:46:32.469-0600",
+      "holesPlayed": 18,
+      "id": 1,
+      "isFinalized": true,
+      "notes": "",
+      "teeSetId": 1
+    },
+    "teeSet": {
+      "courseId": 1,
+      "id": 1,
+      "name": "Black",
+      "rating": 75.5,
+      "slope": 145
+    }
+  }
+]

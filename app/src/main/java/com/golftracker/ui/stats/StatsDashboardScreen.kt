@@ -1,6 +1,7 @@
 package com.golftracker.ui.stats
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -13,6 +14,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.FilterList
+import java.util.Date
+import java.util.Locale
+import java.text.SimpleDateFormat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.golftracker.data.entity.Club
 import com.golftracker.data.model.ApproachLie
@@ -41,6 +46,9 @@ fun StatsDashboardScreen(
     val clubs by viewModel.clubs.collectAsState()
     val availableYears by viewModel.availableYears.collectAsState()
 
+    var showDateRangePicker by remember { mutableStateOf(false) }
+    var showManageRounds by remember { mutableStateOf(false) }
+
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val tabs = listOf("Scoring", "Driving", "Approach", "Chipping", "Putting", "Strokes Gained")
 
@@ -64,9 +72,14 @@ fun StatsDashboardScreen(
                 selectedCourseId = filter.courseId,
                 selectedYear = filter.year,
                 lastNRounds = filter.lastNRounds,
+                startDate = filter.startDate,
+                endDate = filter.endDate,
+                excludedCount = filter.excludedRoundIds.size,
                 onCourseSelected = { viewModel.updateCourseFilter(it) },
                 onYearSelected = { viewModel.updateYearFilter(it) },
                 onLastNChanged = { viewModel.updateLastNRounds(it) },
+                onShowDateRange = { showDateRangePicker = true },
+                onShowManageRounds = { showManageRounds = true },
                 onClearFilters = { viewModel.clearFilters() }
             )
 
@@ -133,6 +146,28 @@ fun StatsDashboardScreen(
                 }
             }
         }
+
+        if (showDateRangePicker) {
+            DateRangePickerDialog(
+                initialStartDate = filter.startDate,
+                initialEndDate = filter.endDate,
+                onDismiss = { showDateRangePicker = false },
+                onDatesSelected = { start, end ->
+                    viewModel.updateStartDate(start)
+                    viewModel.updateEndDate(end)
+                    showDateRangePicker = false
+                }
+            )
+        }
+
+        if (showManageRounds && uiState is StatsUiState.Success) {
+            ManageRoundsDialog(
+                rounds = (uiState as StatsUiState.Success).data.rounds,
+                excludedRoundIds = filter.excludedRoundIds,
+                onDismiss = { showManageRounds = false },
+                onToggleExclusion = { viewModel.toggleRoundExclusion(it) }
+            )
+        }
     }
 }
 
@@ -145,23 +180,51 @@ fun FilterBar(
     selectedCourseId: Int?,
     selectedYear: Int?,
     lastNRounds: Int,
+    startDate: Date?,
+    endDate: Date?,
+    excludedCount: Int,
     onCourseSelected: (Int?) -> Unit,
     onYearSelected: (Int?) -> Unit,
     onLastNChanged: (Int) -> Unit,
+    onShowDateRange: () -> Unit,
+    onShowManageRounds: () -> Unit,
     onClearFilters: () -> Unit
 ) {
     var courseExpanded by remember { mutableStateOf(false) }
     var yearExpanded by remember { mutableStateOf(false) }
     var lastNExpanded by remember { mutableStateOf(false) }
     val lastNOptions = listOf(5, 10, 20, 50, 0) // 0 = all
+    val dateFormat = remember { SimpleDateFormat("MM/dd", Locale.getDefault()) }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Manage Rounds
+        FilterChip(
+            selected = excludedCount > 0,
+            onClick = onShowManageRounds,
+            label = { 
+                Text(
+                    if (excludedCount > 0) "Rounds (-$excludedCount)" else "Rounds",
+                    style = MaterialTheme.typography.labelSmall 
+                ) 
+            },
+            leadingIcon = {
+                if (excludedCount > 0) {
+                    Icon(
+                        androidx.compose.material.icons.Icons.Default.FilterList,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        )
+
         // Course filter
         Box {
             FilterChip(
@@ -189,23 +252,40 @@ fun FilterBar(
             }
         }
 
-        // Year filter
-        Box {
-            FilterChip(
-                selected = selectedYear != null,
-                onClick = { yearExpanded = true },
-                label = { Text(selectedYear?.toString() ?: "Year", style = MaterialTheme.typography.labelSmall) }
-            )
-            DropdownMenu(expanded = yearExpanded, onDismissRequest = { yearExpanded = false }) {
-                DropdownMenuItem(
-                    text = { Text("All Years") },
-                    onClick = { onYearSelected(null); yearExpanded = false }
+        // Date Range
+        FilterChip(
+            selected = startDate != null || endDate != null,
+            onClick = onShowDateRange,
+            label = {
+                val text = when {
+                    startDate != null && endDate != null -> "${dateFormat.format(startDate)} - ${dateFormat.format(endDate)}"
+                    startDate != null -> "From ${dateFormat.format(startDate)}"
+                    endDate != null -> "To ${dateFormat.format(endDate)}"
+                    else -> "Dates"
+                }
+                Text(text, style = MaterialTheme.typography.labelSmall)
+            }
+        )
+
+        // Year filter (secondary to Date Range)
+        if (startDate == null && endDate == null) {
+            Box {
+                FilterChip(
+                    selected = selectedYear != null,
+                    onClick = { yearExpanded = true },
+                    label = { Text(selectedYear?.toString() ?: "Year", style = MaterialTheme.typography.labelSmall) }
                 )
-                availableYears.forEach { year ->
+                DropdownMenu(expanded = yearExpanded, onDismissRequest = { yearExpanded = false }) {
                     DropdownMenuItem(
-                        text = { Text(year.toString()) },
-                        onClick = { onYearSelected(year); yearExpanded = false }
+                        text = { Text("All Years") },
+                        onClick = { onYearSelected(null); yearExpanded = false }
                     )
+                    availableYears.forEach { year ->
+                        DropdownMenuItem(
+                            text = { Text(year.toString()) },
+                            onClick = { onYearSelected(year); yearExpanded = false }
+                        )
+                    }
                 }
             }
         }
@@ -228,12 +308,122 @@ fun FilterBar(
         }
 
         // Clear
-        if (selectedCourseId != null || selectedYear != null || lastNRounds != 20) {
+        if (selectedCourseId != null || selectedYear != null || lastNRounds != 20 || startDate != null || endDate != null || excludedCount > 0) {
             TextButton(onClick = onClearFilters) {
                 Text("Clear", style = MaterialTheme.typography.labelSmall)
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DateRangePickerDialog(
+    initialStartDate: Date?,
+    initialEndDate: Date?,
+    onDismiss: () -> Unit,
+    onDatesSelected: (Date?, Date?) -> Unit
+) {
+    val dateRangePickerState = rememberDateRangePickerState(
+        initialSelectedStartDateMillis = initialStartDate?.time,
+        initialSelectedEndDateMillis = initialEndDate?.time
+    )
+
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = {
+                val start = dateRangePickerState.selectedStartDateMillis?.let { Date(it) }
+                val end = dateRangePickerState.selectedEndDateMillis?.let { Date(it) }
+                onDatesSelected(start, end)
+            }) {
+                Text("Apply")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    ) {
+        DateRangePicker(
+            state = dateRangePickerState,
+            modifier = Modifier.height(400.dp),
+            title = { Text("Select Date Range", modifier = Modifier.padding(16.dp)) },
+            headline = {
+                val start = dateRangePickerState.selectedStartDateMillis
+                val end = dateRangePickerState.selectedEndDateMillis
+                val sdf = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+                Text(
+                    text = if (start != null && end != null) "${sdf.format(Date(start))} - ${sdf.format(Date(end))}" else "Select dates",
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            },
+            showModeToggle = false
+        )
+    }
+}
+
+@Composable
+fun ManageRoundsDialog(
+    rounds: List<com.golftracker.data.model.RoundWithDetails>,
+    excludedRoundIds: Set<Int>,
+    onDismiss: () -> Unit,
+    onToggleExclusion: (Int) -> Unit
+) {
+    val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Include/Exclude Rounds") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 400.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    "Deselect rounds to exclude them from calculations. All active filters still apply.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                rounds.forEach { roundWithDetails ->
+                    val round = roundWithDetails.round
+                    val isIncluded = round.id !in excludedRoundIds
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onToggleExclusion(round.id) }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = isIncluded,
+                            onCheckedChange = { onToggleExclusion(round.id) }
+                        )
+                        Column {
+                            Text(
+                                "Round ${round.id} at ${roundWithDetails.course?.name ?: "Unknown Course"}",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                dateFormat.format(round.date),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Done")
+            }
+        }
+    )
 }
 
 // ── Scoring Tab ─────────────────────────────────────────────────────────
@@ -585,7 +775,7 @@ fun ChippingTab(c: ChippingStats, sg: com.golftracker.data.repository.SgStats) {
 
     StatCard(
         title = "Avg Chips / Hole", 
-        value = String.format("%.2f", c.avgChipsPerHole),
+        value = String.format("%.2f", c.chipsPerHole),
         moe = if (c.chipsMoE > 0) String.format("±%.2f", c.chipsMoE) else null
     )
     StatCard(
@@ -597,6 +787,37 @@ fun ChippingTab(c: ChippingStats, sg: com.golftracker.data.repository.SgStats) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         StatCard(title = "Missed GIR Holes", value = c.totalMissedGir.toString(), modifier = Modifier.weight(1f))
         StatCard(title = "Sand Holes", value = c.totalSandHoles.toString(), modifier = Modifier.weight(1f))
+    }
+
+    // Proximity
+    StatCard(
+        title = "Avg Proximity", 
+        value = if (c.avgProximity > 0) String.format("%.1f ft", c.avgProximity) else "-"
+    )
+
+    if (c.proximityByLie.isNotEmpty()) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Proximity by Lie", style = MaterialTheme.typography.titleSmall)
+                Spacer(modifier = Modifier.height(8.dp))
+                ApproachLie.values().forEach { lie ->
+                    val prox = c.proximityByLie[lie]
+                    if (prox != null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(lie.name, style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                String.format("%.1f ft", prox),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -697,6 +918,10 @@ fun SgTab(sg: com.golftracker.data.repository.SgStats) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         StatCard(title = "Around Green", value = String.format(java.util.Locale.US, "%+.2f", sg.sgAroundGreenPerRound), modifier = Modifier.weight(1f))
         StatCard(title = "Putting", value = String.format(java.util.Locale.US, "%+.2f", sg.sgPuttingPerRound), modifier = Modifier.weight(1f))
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        StatCard(title = "Penalties", value = String.format(java.util.Locale.US, "%+.2f", sg.sgPenaltiesPerRound), modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.weight(1f))
     }
     
     // SG By Lie
