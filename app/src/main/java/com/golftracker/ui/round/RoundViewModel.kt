@@ -481,7 +481,11 @@ class RoundViewModel @Inject constructor(
             var endLie: ApproachLie? = null
             var greenFeet: Float? = null
             
-            if (shots.isNotEmpty()) {
+            if (stat.teeShotDistance != null) {
+                // If user manually entered tee distance, honor it for SG
+                endDist = ShotDistanceCalculator.deriveEndDistance(holeYardage, stat.teeShotDistance!!, stat.teeOutcome)
+                endLie = if (shots.isNotEmpty()) shots.first().lie else if (stat.chips > 0 || stat.sandShots > 0) (if (stat.sandShots > 0) ApproachLie.SAND else ApproachLie.ROUGH) else null
+            } else if (shots.isNotEmpty()) {
                 endDist = shots.first().distanceToPin ?: 0
                 endLie = shots.first().lie
             } else if (stat.chips > 0 || stat.sandShots > 0) {
@@ -507,7 +511,11 @@ class RoundViewModel @Inject constructor(
             var endLie: ApproachLie? = null
             var greenFeet: Float? = null
             
-            if (i + 1 < shots.size) {
+            if (shot.distanceTraveled != null) {
+                // If user manually entered distance traveled, honor it for SG
+                endDist = ShotDistanceCalculator.deriveEndDistance(startDistance, shot.distanceTraveled!!, shot.outcome)
+                endLie = if (i + 1 < shots.size) shots[i+1].lie else if (stat.chips > 0 || stat.sandShots > 0) (if (stat.sandShots > 0) ApproachLie.SAND else ApproachLie.ROUGH) else null
+            } else if (i + 1 < shots.size) {
                 endDist = shots[i+1].distanceToPin ?: 0
                 endLie = shots[i+1].lie 
             } else if (stat.chips > 0 || stat.sandShots > 0) {

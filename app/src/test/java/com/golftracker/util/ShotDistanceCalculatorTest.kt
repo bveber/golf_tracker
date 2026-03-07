@@ -45,4 +45,22 @@ class ShotDistanceCalculatorTest {
         // Null outcome falls back to simple subtraction
         assertEquals(80, ShotDistanceCalculator.estimateShotDistance(100, 20, null))
     }
+
+    @Test
+    fun testDeriveEndDistance_Basic() {
+        // Start 100, hit it 80 short -> 20 left
+        assertEquals(20, ShotDistanceCalculator.deriveEndDistance(100, 80, ShotOutcome.SHORT))
+        // Start 100, hit it 120 long -> 20 left
+        assertEquals(20, ShotDistanceCalculator.deriveEndDistance(100, 120, ShotOutcome.LONG))
+        // Start 100, hit it 100 on target -> 0 left
+        assertEquals(0, ShotDistanceCalculator.deriveEndDistance(100, 100, ShotOutcome.ON_TARGET))
+    }
+
+    @Test
+    fun testDeriveEndDistance_Miss() {
+        // Start 100, hit it 100 but missed 10 deg -> should be ~17.4 yds
+        // sqrt(100^2 + 100^2 - 2*100*100*cos(10deg)) = sqrt(20000 - 20000*0.9848) = sqrt(304) = 17.4
+        val endDist = ShotDistanceCalculator.deriveEndDistance(100, 100, ShotOutcome.MISS_LEFT)
+        assertEquals(17, endDist)
+    }
 }
