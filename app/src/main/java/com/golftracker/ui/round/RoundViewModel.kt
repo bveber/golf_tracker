@@ -301,13 +301,20 @@ class RoundViewModel @Inject constructor(
          recalculateSgForCurrentHole()
     }
 
-    /** Find the club with the closest stock distance to a given yardage */
+    /** Suggests a club ensuring we recommend the next club up if the yardage exceeds a club's stock yardage */
     fun suggestApproachClub(yardage: Int): Club? {
         val allClubs = clubs.value
         if (allClubs.isEmpty() || yardage <= 0) return null
-        return allClubs
-            .filter { it.stockDistance != null && it.type != "DRIVER" && it.type != "PUTTER" }
-            .minByOrNull { kotlin.math.abs(it.stockDistance!! - yardage) }
+        
+        val validClubs = allClubs.filter { it.stockDistance != null && it.type != "DRIVER" && it.type != "PUTTER" }
+        if (validClubs.isEmpty()) return null
+
+        // Find the shortest club that hits at least the required yardage
+        val clubUp = validClubs.filter { it.stockDistance!! >= yardage }
+            .minByOrNull { it.stockDistance!! }
+            
+        // If no club goes that far, suggest the longest club we have
+        return clubUp ?: validClubs.maxByOrNull { it.stockDistance!! }
     }
 
     /** Get the default tee club (first DRIVER in the bag) */
