@@ -55,16 +55,24 @@ class HomeViewModel @Inject constructor(
                 for (i in shots.indices) {
                     val shot = shots[i]
                     if (shot.distanceTraveled == null && shot.distanceToPin != null) {
-                        // Calculate missing distance
-                        val startDist = if (i == 0) {
-                            if (holeStatWithHole.hole.par == 3) holeYardage else holeStatWithHole.holeStat.teeShotDistance ?: holeYardage
+                        // Calculate missing distance for shot[i]
+                        // startDist is WHERE THIS SHOT STARTED (shot.distanceToPin)
+                        // endDist is WHERE THIS SHOT ENDED (the next shot's start dist, or chip/putt dist)
+                        val startDist = shot.distanceToPin ?: continue
+                        
+                        val endDist = if (i + 1 < shots.size) {
+                            shots[i + 1].distanceToPin ?: 0
+                        } else if (holeStatWithHole.holeStat.chips > 0 || holeStatWithHole.holeStat.sandShots > 0) {
+                            holeStatWithHole.holeStat.chipDistance ?: 15
+                        } else if (holeStatWithHole.putts.isNotEmpty()) {
+                            (holeStatWithHole.putts.first().distance?.toInt() ?: 0) / 3 // feet to yards
                         } else {
-                            shots[i - 1].distanceToPin ?: holeYardage
+                            0
                         }
                         
                         val newDistanceTraveled = ShotDistanceCalculator.estimateShotDistance(
-                            startDist = startDist as? Int ?: 0, 
-                            endDist = shot.distanceToPin, 
+                            startDist = startDist, 
+                            endDist = endDist, 
                             outcome = shot.outcome
                         )
                         roundRepository.updateShot(shot.copy(distanceTraveled = newDistanceTraveled))
