@@ -24,6 +24,7 @@ data class RoundSetupUiState(
     val selectedTeeSet: TeeSet? = null,
     val date: Date = Date(),
     val notes: String = "",
+    val teeYardages: Map<Int, Int> = emptyMap(), // teeSetId to totalYardage
     val isLoading: Boolean = false,
     val createdRoundId: Int? = null
 )
@@ -51,12 +52,20 @@ class RoundSetupViewModel @Inject constructor(
 
     fun selectCourse(course: Course) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, selectedCourse = course, teeSets = emptyList(), selectedTeeSet = null) }
+            _uiState.update { it.copy(isLoading = true, selectedCourse = course, teeSets = emptyList(), selectedTeeSet = null, teeYardages = emptyMap()) }
             val teeSets = courseRepository.getTeeSets(course.id).first()
+            
+            val yardagesMap = mutableMapOf<Int, Int>()
+            for (teeSet in teeSets) {
+                val yardages = courseRepository.getYardagesForTeeSet(teeSet.id).first()
+                yardagesMap[teeSet.id] = yardages.sumOf { it.yardage }
+            }
+
             _uiState.update { 
                 it.copy(
                     teeSets = teeSets, 
                     selectedTeeSet = teeSets.firstOrNull(), // Default to first
+                    teeYardages = yardagesMap,
                     isLoading = false
                 ) 
             }

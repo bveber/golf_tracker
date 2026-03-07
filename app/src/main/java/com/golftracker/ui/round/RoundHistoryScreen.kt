@@ -121,8 +121,9 @@ fun RoundHistoryScreen(
                 )
             } else {
                 LazyColumn {
-                    items(items = roundsWithDetails, key = { it.round.id }) { roundDetail ->
-                        val roundScore = viewModel.getRoundScore(roundDetail)
+                    items(items = roundsWithDetails, key = { it.roundWithDetails.round.id }) { item ->
+                        val roundDetail = item.roundWithDetails
+                        val roundScore = item.scoreData
                         val scoreString = if (roundScore.score > 0) {
                             val sign = if (roundScore.toPar > 0) "+" else ""
                             "Score: ${roundScore.score} ($sign${roundScore.toPar})"
@@ -142,6 +143,10 @@ fun RoundHistoryScreen(
                             dateFormat = dateFormat,
                             scoreDisplay = scoreString,
                             sgDisplay = sgString,
+                            teeName = roundScore.teeName,
+                            distance = roundScore.totalDistance,
+                            rating = roundScore.rating,
+                            slope = roundScore.slope,
                             onClick = { onRoundClick(roundDetail.round.id) },
                             onExportClick = { viewModel.exportRound(roundDetail.round.id) },
                             onDeleteClick = { roundToDelete = roundDetail.round }
@@ -160,6 +165,10 @@ fun RoundItem(
     dateFormat: SimpleDateFormat,
     scoreDisplay: String,
     sgDisplay: String,
+    teeName: String,
+    distance: Int,
+    rating: Double,
+    slope: Int,
     onClick: () -> Unit,
     onExportClick: () -> Unit,
     onDeleteClick: () -> Unit
@@ -170,6 +179,11 @@ fun RoundItem(
             supportingContent = { 
                 Column {
                     Text(dateFormat.format(round.date))
+                    Text(
+                        text = "$teeName • $distance yds • $rating/$slope",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Row {
                         Text(scoreDisplay, fontWeight = FontWeight.Bold)
                         if (sgDisplay.isNotEmpty()) {
@@ -179,7 +193,7 @@ fun RoundItem(
                         }
                     }
                     val status = if (round.isFinalized) "Finalized" else "In Progress"
-                    Text(status, color = if (round.isFinalized) Color.Green else Color.Gray)
+                    Text(status, color = if (round.isFinalized) Color.Green else Color.Gray, style = MaterialTheme.typography.labelSmall)
                 }
             },
             trailingContent = {

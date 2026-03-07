@@ -26,6 +26,8 @@ class CourseRepository @Inject constructor(
     suspend fun deleteCourse(course: Course) = courseDao.deleteCourse(course)
 
     // Tee Sets
+    val allTeeSets: Flow<List<TeeSet>> = courseDao.getAllTeeSets()
+
     fun getTeeSets(courseId: Int): Flow<List<TeeSet>> = courseDao.getTeeSets(courseId)
 
     suspend fun getTeeSet(teeSetId: Int): TeeSet? = courseDao.getTeeSet(teeSetId)

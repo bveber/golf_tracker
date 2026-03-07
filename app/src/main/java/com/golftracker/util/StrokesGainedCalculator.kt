@@ -3,8 +3,11 @@ package com.golftracker.util
 import android.content.Context
 import com.golftracker.R
 import com.golftracker.data.model.ApproachLie
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.math.abs
 
 data class BaselineRow(
@@ -18,7 +21,18 @@ data class BaselineRow(
     val greenPutts: Double?
 )
 
-class StrokesGainedCalculator(private val context: Context) {
+data class HoleSgBreakdown(
+    val offTee: Double = 0.0,
+    val approach: Double = 0.0,
+    val aroundGreen: Double = 0.0,
+    val putting: Double = 0.0,
+    val penalties: Double = 0.0
+) {
+    val total: Double get() = offTee + approach + aroundGreen + putting - penalties
+}
+
+@Singleton
+class StrokesGainedCalculator @Inject constructor(@ApplicationContext private val context: Context) {
 
     private val baselineData: List<BaselineRow>
     
@@ -50,7 +64,7 @@ class StrokesGainedCalculator(private val context: Context) {
                             rough = tokens[4].trim().toDoubleOrNull(),
                             sand = tokens[5].trim().toDoubleOrNull(),
                             recovery = tokens[6].trim().toDoubleOrNull(),
-                            greenDistance = tokens[8].trim().toIntOrNull(),
+                            greenDistance = tokens[8].trim().toDoubleOrNull()?.toInt(),
                             greenPutts = tokens[9].trim().toDoubleOrNull()
                         )
                         rows.add(row)
@@ -176,21 +190,45 @@ class StrokesGainedCalculator(private val context: Context) {
     }
 
     /**
-     * Calculate Hole Difficulty Adjustment to apply to the Tee shot.
-     * This adjusts the PGA Tour baseline (which assumes a scratch golfer on an average difficulty course)
-     * to account for the specific difficulty of the course and hole being played.
-     * 
+     * Calculate the total adjustment needed to align the PGA Tour Pro baseline
+     * with a Scratch Golfer for the given course and tees.
+     *
      * @param courseRating USGA Course Rating.
-     * @param courseSlope USGA Course Slope.
-     * @param coursePar Total par for the course.
-     * @param holeIndex Handicap index of the specific hole (1 = hardest, 18 = easiest).
-     * @return The adjustment value in strokes.
+     * @param holes A list of hole yardages and their handicap indices.
+     * @return The total adjustment in strokes for the 18-hole round.
      */
-    fun getHoleAdjustment(courseRating: Double, courseSlope: Int, coursePar: Int, holeIndex: Int?): Double {
-        val courseScratchDifference = (courseRating - coursePar) * (courseSlope / 113.0)
-        // Hardest hole (index 1) gets the highest adjustment, easiest (18) gets lowest.
-        val validIndex = holeIndex ?: 9 // default to middle if unknown
-        return courseScratchDifference * (19.0 - validIndex) / 171.0
+    fun calculateCourseAdjustment(
+        courseRating: Double,
+        holes: List<Pair<Int, Int?>> // Yardage, HandicapIndex
+    ): Double {
+        var totalProExpected = 0.0
+        for ((yardage, _) in holes) {
+            totalProExpected += getExpectedStrokes(yardage, ApproachLie.TEE, true)
+        }
+        return courseRating - totalProExpected
+    }
+
+    /**
+     * Calculate Hole Difficulty Adjustment to apply to the Tee shot.
+     * This adjusts the PGA Tour baseline to account for the specific difficulty
+     * of the course and hole being played, anchored to the Course Rating.
+     *
+     * @param totalCourseAdjustment The result from calculateCourseAdjustment.
+     * @param holeIndex Handicap index of the specific hole (1 = hardest, 18 = easiest).
+     * @param holeCount Number of holes in the round (usually 18).
+     * @return The adjustment value for this specific hole in strokes.
+     */
+    fun getHoleAdjustment(totalCourseAdjustment: Double, holeIndex: Int?, holeCount: Int = 18): Double {
+        val validIndex = holeIndex ?: 9
+        // Distribute the total adjustment. Harder holes get slightly more of the "scratch gap".
+        // This formula ensures Sum(holeAdjustments) == totalCourseAdjustment.
+        // weight = (19 - index) / Sum(19 - i for i in 1..18)
+        // Sum(1..18) of (19-i) is 171.
+        val factor = if (holeCount == 18) 171.0 else 45.0 // 45 for 9 holes (Sum 1..9 of 10-i)
+        val maxIdx = holeCount + 1
+        val weight = (maxIdx - validIndex).toDouble() / (holeCount * (maxIdx + 1) / 2.0 - holeCount * (holeCount + 1) / 2.0 + (holeCount * (maxIdx)))
+        // Simpler: just use (19-index)/171 for 18 holes.
+        return totalCourseAdjustment * (19.0 - validIndex) / 171.0
     }
 
     /**
@@ -203,10 +241,7 @@ class StrokesGainedCalculator(private val context: Context) {
      * @param endLie The ending lie of the ball, or null if on the green/holed.
      * @param endDistanceFeetOnGreen The ending distance in feet if the ball landed on the green.
      * @param penaltyStrokes Any penalty strokes incurred on this shot.
-     * @param courseRating The USGA course rating.
-     * @param courseSlope The USGA course slope.
-     * @param coursePar The course par.
-     * @param holeIndex The handicap index of the hole (1 is hardest, 18 is easiest).
+     * @param holeAdjustment The difficulty adjustment for this specific hole (from getHoleAdjustment).
      * @return The Strokes Gained value for this shot.
      */
     fun calculateShotSG(
@@ -217,16 +252,13 @@ class StrokesGainedCalculator(private val context: Context) {
         endLie: ApproachLie?, // GREEN if on green, null if holed
         endDistanceFeetOnGreen: Float?, // if landed on green
         penaltyStrokes: Int,
-        courseRating: Double,
-        courseSlope: Int,
-        coursePar: Int,
-        holeIndex: Int?
+        holeAdjustment: Double
     ): Double {
         var expectedStart = getExpectedStrokes(startDistanceYs, startLie, isTeeShot)
         
         // Add difficulty adjustment entirely to the tee shot
         if (isTeeShot) {
-            expectedStart += getHoleAdjustment(courseRating, courseSlope, coursePar, holeIndex)
+            expectedStart += holeAdjustment
         }
         
         val expectedEnd = if (endDistanceYs == 0 && endDistanceFeetOnGreen == null) {
@@ -256,5 +288,122 @@ class StrokesGainedCalculator(private val context: Context) {
         val expectedStart = getExpectedPutts(startDistanceFeet)
         val expectedEnd = if (made || nextPuttDistanceFeet == null) 0.0 else getExpectedPutts(nextPuttDistanceFeet)
         return expectedStart - expectedEnd - 1.0
+    }
+
+    /**
+     * Comprehensive Hole Strokes Gained Calculation.
+     * Use this for both live playing and historical reports.
+     */
+    fun calculateHoleSg(
+        par: Int,
+        holeYardage: Int,
+        holeAdjustment: Double,
+        shots: List<com.golftracker.data.entity.Shot>,
+        putts: List<com.golftracker.data.entity.Putt>,
+        penalties: Int,
+        stat: com.golftracker.data.entity.HoleStat
+    ): HoleSgBreakdown {
+        var offTee = 0.0
+        var approach = 0.0
+        var aroundGreen = 0.0
+        var putting = 0.0
+
+        val sortedShots = shots.sortedBy { it.shotNumber }
+        val sortedPutts = putts.sortedBy { it.puttNumber }
+
+        // 1. TEE SHOT (Par 4/5)
+        if (par > 3 && (stat.score > 0 || stat.teeOutcome != null)) {
+            var endDist = 0
+            var endLie: ApproachLie? = null
+            var greenFeet: Float? = null
+            var hasEnd = false
+
+            if (sortedShots.isNotEmpty()) {
+                endDist = sortedShots.first().distanceToPin ?: 0
+                endLie = sortedShots.first().lie
+                hasEnd = true
+            } else if (stat.chips > 0 || stat.sandShots > 0) {
+                endDist = stat.chipDistance ?: 15
+                endLie = if (stat.sandShots > 0) ApproachLie.SAND else ApproachLie.ROUGH
+                hasEnd = true
+            } else if (sortedPutts.isNotEmpty()) {
+                greenFeet = sortedPutts.first().distance
+                hasEnd = true
+            } else if (stat.score > 0) {
+                endDist = 0
+                hasEnd = true
+            }
+
+            // Manual distance override
+            if (stat.teeShotDistance != null) {
+                endDist = ShotDistanceCalculator.deriveEndDistance(holeYardage, stat.teeShotDistance!!, stat.teeOutcome)
+                hasEnd = true
+            }
+
+            if (hasEnd) {
+                val actualLie = if (stat.teeInTrouble) ApproachLie.OTHER else endLie
+                offTee = calculateShotSG(holeYardage, ApproachLie.TEE, true, endDist, actualLie, greenFeet, 0, holeAdjustment)
+            }
+        }
+
+        // 2. APPROACH SHOTS
+        for (i in sortedShots.indices) {
+            val shot = sortedShots[i]
+            val isFirstShotOfPar3 = (par == 3 && i == 0)
+            val startDist = shot.distanceToPin ?: if (isFirstShotOfPar3) holeYardage else continue
+            val startLie = if (isFirstShotOfPar3) ApproachLie.TEE else shot.lie ?: ApproachLie.FAIRWAY
+
+            var endDist = 0
+            var endLie: ApproachLie? = null
+            var greenFeet: Float? = null
+            var hasEnd = false
+
+            if (i + 1 < sortedShots.size) {
+                endDist = sortedShots[i+1].distanceToPin ?: 0
+                endLie = sortedShots[i+1].lie
+                hasEnd = true
+            } else if (stat.chips > 0 || stat.sandShots > 0) {
+                endDist = stat.chipDistance ?: 15
+                endLie = if (stat.sandShots > 0) ApproachLie.SAND else ApproachLie.ROUGH
+                hasEnd = true
+            } else if (sortedPutts.isNotEmpty()) {
+                greenFeet = sortedPutts.first().distance
+                hasEnd = true
+            } else if (stat.score > 0) {
+                endDist = 0
+                hasEnd = true
+            }
+
+            if (shot.distanceTraveled != null) {
+                endDist = ShotDistanceCalculator.deriveEndDistance(startDist, shot.distanceTraveled!!, shot.outcome)
+                hasEnd = true
+            }
+
+            if (hasEnd) {
+                val sg = calculateShotSG(startDist, startLie, isFirstShotOfPar3, endDist, endLie, greenFeet, 0, if (isFirstShotOfPar3) holeAdjustment else 0.0)
+                if (isFirstShotOfPar3) offTee += sg else approach += sg
+            }
+        }
+
+        // 3. SHORT GAME
+        if (stat.chips > 0 || stat.sandShots > 0) {
+            val startDist = stat.chipDistance ?: 15
+            val startLie = if (stat.sandShots > 0) ApproachLie.SAND else (stat.chipLie ?: ApproachLie.ROUGH)
+            var greenFeet: Float? = null
+            if (sortedPutts.isNotEmpty()) {
+                greenFeet = sortedPutts.first().distance 
+            }
+            val sg = calculateShotSG(startDist, startLie, false, 0, ApproachLie.FAIRWAY, greenFeet, 0, 0.0)
+            aroundGreen = sg
+        }
+
+        // 4. PUTTING
+        for (i in sortedPutts.indices) {
+            val putt = sortedPutts[i]
+            val nextDist = if (i + 1 < sortedPutts.size) sortedPutts[i+1].distance else null
+            putting += calculatePuttSG(putt.distance ?: 0f, putt.made, nextDist)
+        }
+
+        return HoleSgBreakdown(offTee, approach, aroundGreen, putting, penalties.toDouble())
     }
 }

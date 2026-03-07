@@ -8,8 +8,8 @@ import com.golftracker.data.repository.RoundRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -27,6 +27,7 @@ class RoundHistoryViewModel @Inject constructor(
     private val roundRepository: RoundRepository,
     private val courseRepository: CourseRepository,
     private val jsonExporter: JsonExporter,
+    private val sgCalculator: com.golftracker.util.StrokesGainedCalculator,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -44,36 +45,92 @@ class RoundHistoryViewModel @Inject constructor(
             val courses = courseRepository.allCourses.first()
             _courseNames.value = courses.associate { it.id to it.name }
         }
-    }// To get course name, we need a relation.
-    // I'll stick to simple Round list for now, maybe add Course name fetching later if complex.
-    
-    val roundsWithDetails: StateFlow<List<com.golftracker.data.model.RoundWithDetails>> = roundRepository.finalizedRoundsWithDetails
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
+    }
+    val roundsWithDetails: StateFlow<List<RoundHistoryItem>> = combine(
+        roundRepository.finalizedRoundsWithDetails,
+        courseRepository.allYardages
+    ) { rounds, yardages ->
+        val yardageMap = yardages.associateBy { it.teeSetId to it.holeId }
+        val distSumMap = yardages.groupBy { it.teeSetId }
+            .mapValues { (_, holes) -> holes.sumOf { it.yardage } }
+            
+        rounds.map { round ->
+            RoundHistoryItem(
+                roundWithDetails = round,
+                scoreData = calculateRoundScore(round, yardageMap, distSumMap)
+            )
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    data class RoundHistoryItem(
+        val roundWithDetails: com.golftracker.data.model.RoundWithDetails,
+        val scoreData: RoundScoreData
+    )
 
     private val _exportFileEvent = MutableSharedFlow<File?>()
     val exportFileEvent: SharedFlow<File?> = _exportFileEvent.asSharedFlow()
 
-    data class RoundScoreData(val score: Int, val toPar: Int, val totalSg: Double)
+    data class RoundScoreData(
+        val score: Int, 
+        val toPar: Int, 
+        val totalSg: Double,
+        val teeName: String,
+        val rating: Double,
+        val slope: Int,
+        val totalDistance: Int
+    )
 
-    fun getRoundScore(roundWithDetails: com.golftracker.data.model.RoundWithDetails): RoundScoreData {
+    private fun calculateRoundScore(
+        roundWithDetails: com.golftracker.data.model.RoundWithDetails,
+        yardageMap: Map<Pair<Int, Int>, com.golftracker.data.entity.HoleTeeYardage>,
+        distSumMap: Map<Int, Int>
+    ): RoundScoreData {
         val stats = roundWithDetails.holeStats
         var totalScore = 0
         var totalPar = 0
-        var totalSg = 0.0
-        stats.forEach { stat ->
-             if (stat.holeStat.score > 0) {
-                 totalScore += stat.holeStat.score
-                 totalPar += stat.hole.par
-             }
-             if (stat.holeStat.strokesGained != null) {
-                 totalSg += stat.holeStat.strokesGained
-             }
+        var totalLiveSg = 0.0
+        
+        val teeSetId = roundWithDetails.round.teeSetId
+        val allHoles = stats.map { h ->
+            val y = yardageMap[teeSetId to h.hole.id]?.yardage ?: 0
+            Pair(y, h.hole.handicapIndex)
         }
-        return RoundScoreData(totalScore, totalScore - totalPar, totalSg)
+        val courseAdj = sgCalculator.calculateCourseAdjustment(roundWithDetails.teeSet.rating.toDouble(), allHoles)
+
+        stats.forEach { hole ->
+            if (hole.holeStat.score > 0) {
+                totalScore += hole.holeStat.score
+                totalPar += hole.hole.par
+            }
+            
+            val holeYardage = yardageMap[teeSetId to hole.hole.id]?.yardage ?: 0
+            val holeAdj = sgCalculator.getHoleAdjustment(courseAdj, hole.hole.handicapIndex, allHoles.size)
+            
+            val breakdown = sgCalculator.calculateHoleSg(
+                par = hole.hole.par,
+                holeYardage = holeYardage,
+                holeAdjustment = holeAdj,
+                shots = hole.shots,
+                putts = hole.putts,
+                penalties = hole.penalties.sumOf { it.strokes },
+                stat = hole.holeStat
+            )
+            totalLiveSg += breakdown.total
+        }
+        
+        return RoundScoreData(
+            score = totalScore,
+            toPar = if (totalScore > 0) totalScore - totalPar else 0,
+            totalSg = totalLiveSg,
+            teeName = roundWithDetails.teeSet.name,
+            rating = roundWithDetails.teeSet.rating.toDouble(),
+            slope = roundWithDetails.teeSet.slope,
+            totalDistance = distSumMap[teeSetId] ?: 0
+        )
     }
 
     fun exportRound(roundId: Int) {

@@ -22,7 +22,12 @@ interface RoundDao {
     fun getFinalizedRounds(): Flow<List<Round>>
 
     @Transaction // Required because of @Relation
-    @Query("SELECT * FROM rounds WHERE is_finalized = 1 ORDER BY date DESC")
+    @Query("""
+        SELECT DISTINCT r.* FROM rounds r
+        LEFT JOIN hole_stats hs ON r.id = hs.round_id
+        WHERE r.is_finalized = 1 
+        ORDER BY r.date DESC
+    """)
     fun getFinalizedRoundsWithDetails(): Flow<List<com.golftracker.data.model.RoundWithDetails>>
 
     @Transaction

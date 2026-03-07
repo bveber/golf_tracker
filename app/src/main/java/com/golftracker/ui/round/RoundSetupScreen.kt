@@ -108,7 +108,11 @@ fun RoundSetupScreen(
                 var teeDropdownExpanded by remember { mutableStateOf(false) }
                 Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
-                        value = uiState.selectedTeeSet?.let { "${it.name} (CR: ${it.rating} / Slope: ${it.slope})" } ?: "",
+                        value = uiState.selectedTeeSet?.let { set -> 
+                            val yds = uiState.teeYardages[set.id] ?: 0
+                            val ydsStr = if (yds > 0) "$yds yds / " else ""
+                            "${set.name} (${ydsStr}CR: ${set.rating} / Slope: ${set.slope})" 
+                        } ?: "",
                         onValueChange = {},
                         label = { Text("Select Tee Set") },
                         readOnly = true,
@@ -122,7 +126,11 @@ fun RoundSetupScreen(
                     ) {
                         uiState.teeSets.forEach { teeSet ->
                             DropdownMenuItem(
-                                text = { Text("${teeSet.name} (${teeSet.rating}/${teeSet.slope})") },
+                                text = { 
+                                    val yds = uiState.teeYardages[teeSet.id] ?: 0
+                                    val ydsStr = if (yds > 0) "$yds yds / " else ""
+                                    Text("${teeSet.name} ($ydsStr${teeSet.rating}/${teeSet.slope})") 
+                                },
                                 onClick = {
                                     viewModel.selectTeeSet(teeSet)
                                     teeDropdownExpanded = false

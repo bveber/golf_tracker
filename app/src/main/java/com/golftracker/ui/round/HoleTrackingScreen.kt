@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -73,39 +74,11 @@ fun HoleTrackingScreen(
         topBar = {
             TopAppBar(
                 title = { 
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Hole ${hole?.holeNumber ?: "-"}", style = MaterialTheme.typography.titleMedium)
-                            // Show hole yardage
-                            uiState.currentHoleYardage?.let { yds ->
-                                Text(
-                                    "  •  $yds yds",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                "Par ${hole?.par ?: "-"} • HCP ${hole?.handicapIndex ?: "-"}", 
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                            // Show cumulative over-par
-                            val cumulative = uiState.cumulativeOverPar
-                            if (uiState.holeStats.any { it.score > 0 }) {
-                                Text(
-                                    "  •  Round: ${if (cumulative > 0) "+$cumulative" else if (cumulative < 0) "$cumulative" else "E"}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = when {
-                                        cumulative < 0 -> MaterialTheme.colorScheme.primary
-                                        cumulative > 0 -> MaterialTheme.colorScheme.error
-                                        else -> MaterialTheme.colorScheme.onSurface
-                                    }
-                                )
-                            }
-                        }
-                    }
+                    Text(
+                        text = "Hole ${hole?.holeNumber ?: "-"}", 
+                        style = MaterialTheme.typography.titleLarge, 
+                        fontWeight = FontWeight.Bold
+                    )
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
@@ -140,7 +113,8 @@ fun HoleTrackingScreen(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .navigationBarsPadding()
+                        .padding(bottom = 32.dp, start = 16.dp, end = 16.dp),
                     colors = if (uiState.currentHoleIndex == uiState.holes.size - 1) {
                         ButtonDefaults.buttonColors()
                     } else {
@@ -171,49 +145,59 @@ fun HoleTrackingScreen(
                 onClose = { showGps = false }
             )
         } else {
-            LazyColumn(
-                modifier = Modifier
-                    .padding(padding)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-            // Hole Summary Header
-            item {
+            Column(modifier = Modifier.padding(padding)) {
+                // Hole Info Header
                 Card(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Par ${hole.par} • HCP ${hole.handicapIndex}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        uiState.currentHoleYardage?.let { yardage ->
                             Text(
-                                "Hole ${hole.holeNumber}",
-                                style = MaterialTheme.typography.headlineSmall,
-                                modifier = Modifier.weight(1f)
-                            )
-                            val totalSg = holeStat.strokesGained ?: 0.0
-                            val sgColor = if (totalSg > 0.1) MaterialTheme.colorScheme.primary else if (totalSg < -0.1) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-                            val sign = if (totalSg > 0) "+" else ""
-                            Text(
-                                "Total SG: $sign${String.format(java.util.Locale.US, "%.2f", totalSg)}",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = sgColor,
-                                fontWeight = FontWeight.Bold
+                                text = "$yardage yds",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            SummarySgItem("Off Tee", holeStat.sgOffTee)
-                            SummarySgItem("Appr", holeStat.sgApproach)
-                            SummarySgItem("Around", holeStat.sgAroundGreen)
-                            SummarySgItem("Putt", holeStat.sgPutting)
-                            val penaltyStrokes = uiState.penalties.sumOf { it.strokes }
-                            if (penaltyStrokes > 0) {
-                                SummarySgItem("Pen", -penaltyStrokes.toDouble())
-                            }
+                        
+                        val cumulative = uiState.cumulativeOverPar
+                        if (uiState.holeStats.any { it.score > 0 }) {
+                            val scoreStr = if (cumulative > 0) "+$cumulative" else if (cumulative < 0) "$cumulative" else "E"
+                            Text(
+                                text = "Cumulative: $scoreStr",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = when {
+                                    cumulative < 0 -> MaterialTheme.colorScheme.primary
+                                    cumulative > 0 -> MaterialTheme.colorScheme.error
+                                    else -> MaterialTheme.colorScheme.onSurface
+                                }
+                            )
                         }
                     }
                 }
-            }
+
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+
 
             // Tee Shot (hidden on Par 3)
             if (hole.par > 3) {
@@ -364,7 +348,7 @@ fun HoleTrackingScreen(
                                                 value = shot.distanceToPin,
                                                 onValueChange = { dist: Int? ->
                                                     val newClubId = dist?.let { d -> viewModel.suggestApproachClub(d)?.id } ?: shot.clubId
-                                                    viewModel.updateShotDetails(shot, shot.outcome, shot.lie, newClubId, dist, shot.isRecovery)
+                                                    viewModel.updateShotDetails(shot, shot.outcome, shot.lie, newClubId, dist, shot.isRecovery, shot.distanceTraveled)
                                                 },
                                                 label = "Dist to Pin",
                                                 modifier = Modifier.weight(1f)
@@ -385,7 +369,7 @@ fun HoleTrackingScreen(
                                                     checked = shot.isRecovery,
                                                     onCheckedChange = { 
                                                         val currentClubId = shot.clubId ?: shot.distanceToPin?.let { dist -> viewModel.suggestApproachClub(dist)?.id }
-                                                        viewModel.updateShotDetails(shot, shot.outcome, shot.lie, currentClubId, shot.distanceToPin, it)
+                                                        viewModel.updateShotDetails(shot, shot.outcome, shot.lie, currentClubId, shot.distanceToPin, it, shot.distanceTraveled)
                                                     }
                                                 )
                                             }
@@ -404,7 +388,7 @@ fun HoleTrackingScreen(
                                                 clubs = approachClubs,
                                                 selectedClubId = suggestedClubId,
                                                 onClubSelected = { cid ->
-                                                    viewModel.updateShotDetails(shot, shot.outcome, shot.lie, cid, shot.distanceToPin, shot.isRecovery)
+                                                    viewModel.updateShotDetails(shot, shot.outcome, shot.lie, cid, shot.distanceToPin, shot.isRecovery, shot.distanceTraveled)
                                                 }
                                             )
                                             Spacer(modifier = Modifier.height(8.dp))
@@ -415,7 +399,7 @@ fun HoleTrackingScreen(
                                         ChipSelector(
                                             options = ApproachLie.values().toList(),
                                             selectedOption = shot.lie,
-                                            onOptionSelected = { viewModel.updateShotDetails(shot, shot.outcome, it, suggestedClubId, shot.distanceToPin, shot.isRecovery) }
+                                            onOptionSelected = { viewModel.updateShotDetails(shot, shot.outcome, it, suggestedClubId, shot.distanceToPin, shot.isRecovery, shot.distanceTraveled) }
                                         )
                                         
                                         // Outcome
@@ -424,8 +408,8 @@ fun HoleTrackingScreen(
                                         ChipSelector(
                                             options = ShotOutcome.values().toList(),
                                             selectedOption = shot.outcome,
-                                            onOptionSelected = { viewModel.updateShotDetails(shot, it, shot.lie, suggestedClubId, shot.distanceToPin, shot.isRecovery) },
-                                            labelMapper = { it.name.replace("_", " ") }
+                                            onOptionSelected = { viewModel.updateShotDetails(shot, it, shot.lie, suggestedClubId, shot.distanceToPin, shot.isRecovery, shot.distanceTraveled) },
+                                            modifier = Modifier.padding(top = 4.dp)
                                         )
                                     }
                                 }
@@ -689,10 +673,49 @@ fun HoleTrackingScreen(
                 }
             }
             
+            // Hole Summary Header (Strokes Gained Overview)
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "Strokes Gained",
+                                style = MaterialTheme.typography.headlineSmall,
+                                modifier = Modifier.weight(1f)
+                            )
+                            val totalSg = holeStat.strokesGained ?: 0.0
+                            val sgColor = if (totalSg > 0.1) MaterialTheme.colorScheme.primary else if (totalSg < -0.1) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                            val sign = if (totalSg > 0) "+" else ""
+                            Text(
+                                "Total: $sign${String.format(java.util.Locale.US, "%.2f", totalSg)}",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = sgColor,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            SummarySgItem("Off Tee", holeStat.sgOffTee)
+                            SummarySgItem("Appr", holeStat.sgApproach)
+                            SummarySgItem("Around", holeStat.sgAroundGreen)
+                            SummarySgItem("Putt", holeStat.sgPutting)
+                            val penaltyStrokes = uiState.penalties.sumOf { it.strokes }
+                            if (penaltyStrokes > 0) {
+                                SummarySgItem("Pen", -penaltyStrokes.toDouble())
+                            }
+                        }
+                    }
+                }
+            }
+
             // Bottom Spacer
             item { Spacer(modifier = Modifier.height(80.dp)) }
         }
     }
+}
 }
 }
 
