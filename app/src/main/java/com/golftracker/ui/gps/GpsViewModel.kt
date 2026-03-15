@@ -120,7 +120,8 @@ data class GpsUiState(
     val holeStatId: Int? = null,
     val holePar: Int? = null,
     val currentHole: com.golftracker.data.entity.Hole? = null,
-    val pendingLocationUpdate: LocationUpdate? = null
+    val pendingLocationUpdate: LocationUpdate? = null,
+    val knownHoleFrame: Pair<LatLng, LatLng>? = null
 )
 
 /**
@@ -235,17 +236,31 @@ class GpsViewModel @Inject constructor(
                 _uiState.update { it.copy(currentHole = hole) }
 
                 // Seed markers from persistent hole data if available
-                _uiState.update { state ->
-                    state.copy(
-                        playerLocation = state.playerLocation ?: hole?.teeLat?.let { lat -> hole.teeLng?.let { lng -> LatLng(lat, lng) } },
-                        flagLocation = state.flagLocation ?: hole?.greenLat?.let { lat -> hole.greenLng?.let { lng -> LatLng(lat, lng) } }
-                    )
-                }
+                val knownTee = hole?.teeLat?.let { lat -> hole.teeLng?.let { lng -> LatLng(lat, lng) } }
+                val knownGreen = hole?.greenLat?.let { lat -> hole.greenLng?.let { lng -> LatLng(lat, lng) } }
 
-                // If flag is still null, reset it relative to player
-                if (_uiState.value.flagLocation == null) {
-                   _uiState.value.playerLocation?.let { playerLoc ->
-                        _uiState.update { it.copy(flagLocation = resetFlagLocation(playerLoc)) }
+                if (knownTee != null && knownGreen != null) {
+                    // Authoritatively set markers to known locations and emit frame data
+                    _uiState.update { state ->
+                        state.copy(
+                            playerLocation = knownTee,
+                            flagLocation = knownGreen,
+                            knownHoleFrame = Pair(knownTee, knownGreen)
+                        )
+                    }
+                } else {
+                    // Fallback: seed from partial data or leave for GPS to fill in
+                    _uiState.update { state ->
+                        state.copy(
+                            playerLocation = state.playerLocation ?: knownTee,
+                            flagLocation = state.flagLocation ?: knownGreen
+                        )
+                    }
+                    // If flag is still null, reset it relative to player
+                    if (_uiState.value.flagLocation == null) {
+                        _uiState.value.playerLocation?.let { playerLoc ->
+                            _uiState.update { it.copy(flagLocation = resetFlagLocation(playerLoc)) }
+                        }
                     }
                 }
             }
@@ -608,6 +623,11 @@ class GpsViewModel @Inject constructor(
 
     fun dismissLocationUpdate() {
         _uiState.update { it.copy(pendingLocationUpdate = null) }
+    }
+
+    /** Clears the known hole frame after the camera has animated to it. */
+    fun onHoleFrameConsumed() {
+        _uiState.update { it.copy(knownHoleFrame = null) }
     }
 
     /** Removes the tracked shot at [index] from the UI list and the database. */

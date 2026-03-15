@@ -72,6 +72,8 @@ import com.google.maps.android.compose.MarkerComposable
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.LatLngBounds
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -168,6 +170,24 @@ fun GpsScreen(
         position = CameraPosition.fromLatLngZoom(initialPlayer, 17f)
     }
     var hasCentered by remember { mutableStateOf(false) }
+
+    // Frame camera to known tee/green bounds when available
+    LaunchedEffect(uiState.knownHoleFrame) {
+        val frame = uiState.knownHoleFrame
+        if (frame != null) {
+            val bounds = LatLngBounds.builder()
+                .include(frame.first)   // tee
+                .include(frame.second)  // green
+                .build()
+            cameraPositionState.animate(
+                CameraUpdateFactory.newLatLngBounds(bounds, 120)
+            )
+            viewModel.onHoleFrameConsumed()
+            hasCentered = true
+        }
+    }
+
+    // Fallback: center on GPS if no known hole frame was used
     LaunchedEffect(uiState.playerLocation) {
         if (!hasCentered) {
             cameraPositionState.position = CameraPosition.fromLatLngZoom(initialPlayer, 17f)
