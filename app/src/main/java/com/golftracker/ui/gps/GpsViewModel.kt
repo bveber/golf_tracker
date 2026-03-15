@@ -113,6 +113,7 @@ data class GpsUiState(
     val pendingShotType: ShotType = ShotType.APPROACH,
     val pendingClubId: Int? = null,
     val dispersionEllipses: List<DispersionEllipse> = emptyList(),
+    val dispersionPoints: List<Pair<Double, Double>> = emptyList(),
     val showShotPanel: Boolean = false,
     val isSyncing: Boolean = false,
     val clubs: List<Club> = emptyList(),
@@ -403,7 +404,7 @@ class GpsViewModel @Inject constructor(
 
     private suspend fun calculateDispersion(clubId: Int?) = withContext(Dispatchers.Default) {
         if (clubId == null) {
-            _uiState.update { it.copy(dispersionEllipses = emptyList()) }
+            _uiState.update { it.copy(dispersionEllipses = emptyList(), dispersionPoints = emptyList()) }
             return@withContext
         }
         
@@ -422,28 +423,29 @@ class GpsViewModel @Inject constructor(
             statsData.approach.rawDispersion
         }
         
-        // 2. Perform statistical analysis if enough data points exist
+        // Always convert raw points for dot rendering, regardless of count
         val points = rawDispersion.points as List<com.golftracker.data.repository.DispersionPoint>
-        if (points.size >= 5) {
-            val rawPoints = points.map { pt ->
-                Pair(((pt.right ?: 0) - (pt.left ?: 0)).toDouble(), ((pt.long ?: 0) - (pt.short ?: 0)).toDouble())
-            }
-            
+        val rawPoints = points.map { pt ->
+            Pair(((pt.right ?: 0) - (pt.left ?: 0)).toDouble(), ((pt.long ?: 0) - (pt.short ?: 0)).toDouble())
+        }
+
+        // 2. Perform statistical analysis if enough data points exist
+        if (rawPoints.size >= 5) {
             val filteredPoints = filterOutliers(rawPoints)
             if (filteredPoints.isNotEmpty()) {
                 val ellipses = calculateEllipsesFromPoints(filteredPoints)
-                _uiState.update { it.copy(dispersionEllipses = ellipses) }
+                _uiState.update { it.copy(dispersionEllipses = ellipses, dispersionPoints = rawPoints) }
                 return@withContext
             }
         }
         
-        // 3. Sparse data fallback: use handicap-based formula
+        // 3. Sparse data fallback: use handicap-based formula, but still show dots
         val estimatedHandicap = userPreferencesRepository.estimatedHandicapFlow.first()
         val actualHandicap = statsData.scoring.handicapIndex
         val activeHandicap = actualHandicap ?: estimatedHandicap ?: 15.0
         
         val ellipses = calculateFallbackEllipses(stockDistance.toDouble(), activeHandicap)
-        _uiState.update { it.copy(dispersionEllipses = ellipses) }
+        _uiState.update { it.copy(dispersionEllipses = ellipses, dispersionPoints = rawPoints) }
     }
 
     /**

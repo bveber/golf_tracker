@@ -464,6 +464,29 @@ private fun MapOverlays(
         }
     }
 
+    // Raw dispersion shot outcome dots
+    if (uiState.dispersionPoints.isNotEmpty()) {
+        val bearing = GpsUtils.calculateBearing(playerMarkerState.position, targetLoc)
+        for ((index, point) in uiState.dispersionPoints.withIndex()) {
+            val (xYards, yYards) = point
+            // Convert (x=right/left, y=long/short) yard offsets to a LatLng relative to flag
+            // Y offset goes along the bearing, X offset goes perpendicular (bearing + 90)
+            val depthOffset = GpsUtils.computeOffset(targetLoc, yYards, bearing)
+            val dotLocation = GpsUtils.computeOffset(depthOffset, xYards, (bearing + 90.0) % 360.0)
+
+            key("dispersion_dot_$index") {
+                com.google.maps.android.compose.Circle(
+                    center = dotLocation,
+                    radius = 0.75, // meters — renders as a small dot
+                    fillColor = Color.White.copy(alpha = 0.85f),
+                    strokeColor = Color.White,
+                    strokeWidth = 1f,
+                    zIndex = 3f
+                )
+            }
+        }
+    }
+
     // Previous shots markers and polyline
     if (uiState.trackedShots.isNotEmpty()) {
         val shotPoints = uiState.trackedShots.map { it.location }
