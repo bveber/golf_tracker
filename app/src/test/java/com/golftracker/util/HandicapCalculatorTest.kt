@@ -36,7 +36,7 @@ class HandicapCalculatorTest {
 
     @Test
     fun `9 hole rounds are skipped`() {
-        val round = TestDataFactory.roundWithDetails(holesPlayed = 9, scorePerHole = 4)
+        val round = TestDataFactory.roundWithDetails(totalHoles = 9, scorePerHole = 4)
         val diffs = HandicapCalculator.calculateDifferentials(listOf(round))
         assertEquals(0, diffs.size)
     }

@@ -220,14 +220,9 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
      */
     fun getHoleAdjustment(totalCourseAdjustment: Double, holeIndex: Int?, holeCount: Int = 18): Double {
         val validIndex = holeIndex ?: 9
-        // Distribute the total adjustment. Harder holes get slightly more of the "scratch gap".
-        // This formula ensures Sum(holeAdjustments) == totalCourseAdjustment.
-        // weight = (19 - index) / Sum(19 - i for i in 1..18)
-        // Sum(1..18) of (19-i) is 171.
-        val factor = if (holeCount == 18) 171.0 else 45.0 // 45 for 9 holes (Sum 1..9 of 10-i)
-        val maxIdx = holeCount + 1
-        val weight = (maxIdx - validIndex).toDouble() / (holeCount * (maxIdx + 1) / 2.0 - holeCount * (holeCount + 1) / 2.0 + (holeCount * (maxIdx)))
-        // Simpler: just use (19-index)/171 for 18 holes.
+        // Distribute the total 18-hole scratch adjustment across the holes.
+        // Harder holes (lower handicap index) are weighted slightly more.
+        // Sum of (19 - i) for i in 1..18 is 171.
         return totalCourseAdjustment * (19.0 - validIndex) / 171.0
     }
 

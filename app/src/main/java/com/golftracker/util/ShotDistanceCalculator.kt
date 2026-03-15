@@ -33,6 +33,7 @@ object ShotDistanceCalculator {
                     kotlin.math.max(0, startDist - endDist)
                 }
             }
+            ShotOutcome.HOLED_OUT -> startDist
             null -> kotlin.math.max(0, startDist - endDist)
         }
     }
@@ -61,6 +62,7 @@ object ShotDistanceCalculator {
                 val cSquared = (a * a) + (b * b) - (2 * a * b * kotlin.math.cos(angleRad))
                 kotlin.math.sqrt(kotlin.math.max(0.0, cSquared)).toInt()
             }
+            ShotOutcome.HOLED_OUT -> 0
             null -> kotlin.math.max(0, startDist - distanceTraveled)
         }
     }

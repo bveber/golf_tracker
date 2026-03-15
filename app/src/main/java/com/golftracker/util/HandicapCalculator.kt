@@ -86,7 +86,7 @@ object HandicapCalculator {
             if (teeSet == null || teeSet.slope == 0 || teeSet.rating == 0.0) continue
             
             // Only 18-hole rounds for MVP v1
-            if (round.holesPlayed == 18) {
+            if (round.totalHoles == 18) {
                 // Determine Gross Score
                 // MVP: Sum of strokes. 
                 // Future: Adjust max score per hole (Net Double Bogey).

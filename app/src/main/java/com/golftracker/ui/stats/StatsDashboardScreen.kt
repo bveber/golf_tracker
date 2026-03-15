@@ -522,6 +522,21 @@ fun ScoringTab(s: com.golftracker.data.repository.ScoringStats, sg: com.golftrac
             }
         }
     }
+
+    // By Par Breakdown
+    if (s.byPar.isNotEmpty()) {
+        ByParBreakdownCard(
+            byPar = s.byPar,
+            metrics = listOf(
+                "Avg Score" to { it.avgScore },
+                "To Par" to { it.avgToPar ?: 0.0 }
+            ),
+            formatters = listOf(
+                { String.format("%.1f", it) },
+                { String.format("%+.1f", it) }
+            )
+        )
+    }
 }
 
 // ── Driving Tab ─────────────────────────────────────────────────────────
@@ -597,8 +612,33 @@ fun DrivingTab(
             }
         }
     }
+    
+    // Raw Miss Dispersion Scatter Plot
+    if (d.rawDispersion.points.size >= 1) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                com.golftracker.ui.components.RawDispersionVisual(data = d.rawDispersion)
+            }
+        }
+    }
 
     StatCard(title = "Driving Holes Tracked", value = d.totalDrivingHoles.toString())
+
+    // By Par Breakdown
+    if (d.byPar.isNotEmpty()) {
+        ByParBreakdownCard(
+            byPar = d.byPar.filterKeys { it > 3 }, // Only Par 4/5 for driving
+            metrics = listOf(
+                "Fairways" to { it.fairwaysHitPct ?: 0.0 },
+                "Avg Dist" to { it.avgScore } // avgScore was used for distance in DrivingByPar
+            ),
+            formatters = listOf(
+                { String.format("%.1f%%", it) },
+                { String.format("%.0fy", it) }
+            )
+        )
+    }
 }
 
 // ── Approach Tab ────────────────────────────────────────────────────────
@@ -742,8 +782,31 @@ fun ApproachTab(
         }
     }
 
+    // Raw Miss Dispersion Scatter Plot
+    if (a.rawDispersion.points.size >= 1) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                com.golftracker.ui.components.RawDispersionVisual(data = a.rawDispersion)
+            }
+        }
+    }
+
     Spacer(modifier = Modifier.height(8.dp))
     StatCard(title = "Approach Shots Tracked", value = a.totalShots.toString())
+
+    // By Par Breakdown
+    if (a.byPar.isNotEmpty()) {
+        ByParBreakdownCard(
+            byPar = a.byPar,
+            metrics = listOf(
+                "GIR %" to { it.girPct ?: 0.0 }
+            ),
+            formatters = listOf(
+                { String.format("%.1f%%", it) }
+            )
+        )
+    }
 }
 
 // ── Chipping Tab ────────────────────────────────────────────────────────
@@ -970,6 +1033,52 @@ fun SgTab(sg: com.golftracker.data.repository.SgStats) {
                                 color = if (value > 0) MaterialTheme.colorScheme.primary else if (value < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
                             )
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ByParBreakdownCard(
+    byPar: Map<Int, com.golftracker.data.repository.ParBreakdown>,
+    metrics: List<Pair<String, (com.golftracker.data.repository.ParBreakdown) -> Double>>,
+    formatters: List<(Double) -> String>
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Breakdown by Par", style = MaterialTheme.typography.titleSmall)
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Header
+            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+                Text("Hole", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                metrics.forEach { (name, _) ->
+                    Text(
+                        name, 
+                        style = MaterialTheme.typography.labelSmall, 
+                        modifier = Modifier.weight(1f),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.End
+                    )
+                }
+            }
+            
+            Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
+            
+            byPar.keys.sorted().forEach { par ->
+                val stats = byPar[par]!!
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Par $par", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    metrics.forEachIndexed { index, (_, selector) ->
+                        val value = selector(stats)
+                        Text(
+                            formatters[index](value),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.End
+                        )
                     }
                 }
             }

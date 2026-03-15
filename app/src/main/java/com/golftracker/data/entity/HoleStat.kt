@@ -44,6 +44,9 @@ data class HoleStat(
     @ColumnInfo(name = "hole_id", index = true)
     val holeId: Int,
     
+    @ColumnInfo(name = "adjusted_yardage")
+    val adjustedYardage: Int? = null,
+    
     val score: Int = 0,
     
     @ColumnInfo(name = "tee_outcome")
@@ -52,6 +55,20 @@ data class HoleStat(
     val teeInTrouble: Boolean = false,
     @ColumnInfo(name = "tee_mishit", defaultValue = "0")
     val teeMishit: Boolean = false,
+    @ColumnInfo(name = "tee_slope")
+    val teeSlope: com.golftracker.data.model.LieSlope? = null,
+    @ColumnInfo(name = "tee_stance")
+    val teeStance: com.golftracker.data.model.LieStance? = null,
+    
+    @ColumnInfo(name = "tee_dispersion_left")
+    val teeDispersionLeft: Int? = null,
+    @ColumnInfo(name = "tee_dispersion_right")
+    val teeDispersionRight: Int? = null,
+    @ColumnInfo(name = "tee_dispersion_short")
+    val teeDispersionShort: Int? = null,
+    @ColumnInfo(name = "tee_dispersion_long")
+    val teeDispersionLong: Int? = null,
+    
     @ColumnInfo(name = "tee_club_id", index = true)
     val teeClubId: Int? = null,
     
@@ -84,14 +101,35 @@ data class HoleStat(
     val teeLat: Double? = null,
     @ColumnInfo(name = "tee_lng")
     val teeLng: Double? = null,
+    
+    @ColumnInfo(name = "tee_target_lat")
+    val teeTargetLat: Double? = null,
+    @ColumnInfo(name = "tee_target_lng")
+    val teeTargetLng: Double? = null,
+    
     @ColumnInfo(name = "approach_shot_distance")
     val approachShotDistance: Int? = null,
     
     @ColumnInfo(name = "chip_distance")
     val chipDistance: Int? = null,
     
+    @ColumnInfo(name = "sand_shot_distance")
+    val sandShotDistance: Int? = null,
+    
     @ColumnInfo(name = "chip_lie")
     val chipLie: ApproachLie? = null,
+    
+    @ColumnInfo(name = "chip_slope")
+    val chipSlope: com.golftracker.data.model.LieSlope? = null,
+    
+    @ColumnInfo(name = "chip_stance")
+    val chipStance: com.golftracker.data.model.LieStance? = null,
+    
+    @ColumnInfo(name = "sand_shot_slope")
+    val sandShotSlope: com.golftracker.data.model.LieSlope? = null,
+    
+    @ColumnInfo(name = "sand_shot_stance")
+    val sandShotStance: com.golftracker.data.model.LieStance? = null,
     
     @ColumnInfo(name = "recovery_chip", defaultValue = "0")
     val recoveryChip: Boolean = false,

@@ -1,13 +1,16 @@
 package com.golftracker.ui.round
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -138,6 +141,37 @@ fun RoundSetupScreen(
                             )
                         }
                     }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Holes to Play Selection
+            Text("Number of Holes", style = MaterialTheme.typography.labelMedium)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                com.golftracker.ui.components.ChipSelector(
+                    options = listOf(18, 9),
+                    selectedOption = uiState.holesToPlay,
+                    onOptionSelected = { viewModel.updateHolesToPlay(it) },
+                    labelMapper = { "$it Holes" }
+                )
+            }
+
+            if (uiState.holesToPlay == 9) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Select Nine", style = MaterialTheme.typography.labelMedium)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    com.golftracker.ui.components.ChipSelector(
+                        options = listOf("Front", "Back"),
+                        selectedOption = uiState.nineSelection,
+                        onOptionSelected = { viewModel.updateNineSelection(it) },
+                        labelMapper = { "$it 9" }
+                    )
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))

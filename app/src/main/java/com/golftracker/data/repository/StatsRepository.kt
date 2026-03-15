@@ -118,6 +118,11 @@ class StatsRepository @Inject constructor(
         val worstToPar = roundToPars.maxOrNull() ?: 0
 
         val allHoles = rounds.flatMap { it.holeStats }.filter { it.holeStat.score > 0 }
+        val totalHolesPlayed = allHoles.size
+        // Normalization factor: multiply by 18, divide by total holes played.
+        // If no holes, we use 18 as a safety to avoid div by zero (but rounds.isEmpty already handles this).
+        val normFactor = if (totalHolesPlayed > 0) 18.0 / totalHolesPlayed else 1.0
+
         val eagles = allHoles.count { it.holeStat.score <= it.hole.par - 2 }
         val birdies = allHoles.count { it.holeStat.score == it.hole.par - 1 }
         val pars = allHoles.count { it.holeStat.score == it.hole.par }
@@ -127,27 +132,49 @@ class StatsRepository @Inject constructor(
 
         val handicap = HandicapCalculator.calculateHandicapIndex(rounds) ?: estimatedHandicap
 
-        val scores = roundScores.map { it.toDouble() }
-        val toPars = roundToPars.map { it.toDouble() }
-        val avgScore = totalScore.toDouble() / rounds.size
-        val avgToPar = (totalScore - totalPar).toDouble() / rounds.size
+        // Normalize per-round scores to 18-hole equivalent
+        val normalizedScores = rounds.map { r ->
+            val playedHoles = r.holeStats.count { it.holeStat.score > 0 }
+            val score = r.holeStats.filter { it.holeStat.score > 0 }.sumOf { it.holeStat.score }
+            if (playedHoles > 0) (score.toDouble() / playedHoles) * 18 else score.toDouble()
+        }
+        val normalizedToPars = rounds.map { r ->
+            val playedHoles = r.holeStats.count { it.holeStat.score > 0 }
+            val toPar = r.holeStats.filter { it.holeStat.score > 0 }.sumOf { it.holeStat.score - it.hole.par }
+            if (playedHoles > 0) (toPar.toDouble() / playedHoles) * 18 else toPar.toDouble()
+        }
+
+        val avgScore = (totalScore.toDouble() / totalHolesPlayed) * 18
+        val avgToPar = ((totalScore - totalPar).toDouble() / totalHolesPlayed) * 18
 
         val diffs = HandicapCalculator.calculateDifferentials(rounds)
         val diffMap = diffs.associateBy { it.roundId }
         val trend = rounds.mapIndexed { index, r ->
+            val playedHoles = r.holeStats.count { it.holeStat.score > 0 }
+            val toPar = r.holeStats.filter { it.holeStat.score > 0 }.sumOf { it.holeStat.score - it.hole.par }
+            val normToPar = if (playedHoles > 0) (toPar.toDouble() / playedHoles) * 18 else toPar.toDouble()
             RoundScoreSummary(
                 roundId = r.round.id,
                 date = r.round.date,
-                toPar = roundToPars[index],
+                toPar = normToPar.toInt(),
                 differential = diffMap[r.round.id]?.value
             )
         }.sortedBy { it.date }
 
+        val scoringByPar = allHoles.groupBy { it.hole.par }.mapValues { (par, holes) ->
+            ParBreakdown(
+                label = "Par $par",
+                avgScore = holes.averageOf { it.holeStat.score.toDouble() },
+                avgToPar = holes.averageOf { (it.holeStat.score - it.hole.par).toDouble() },
+                sampleCount = holes.size
+            )
+        }
+
         return ScoringStats(
             avgScore = avgScore,
-            scoreMoE = calculateMeanMoE(scores),
+            scoreMoE = calculateMeanMoE(normalizedScores),
             avgToPar = avgToPar,
-            toParMoE = calculateMeanMoE(toPars),
+            toParMoE = calculateMeanMoE(normalizedToPars),
             roundsPlayed = rounds.size,
             handicapIndex = handicap,
             bestRoundToPar = bestToPar,
@@ -158,8 +185,9 @@ class StatsRepository @Inject constructor(
             bogeyCount = bogeys,
             doubles = doubles,
             worse = worse,
-            scoreDistribution = scores,
-            trend = trend
+            scoreDistribution = normalizedScores,
+            trend = trend,
+            byPar = scoringByPar
         )
     }
 
@@ -201,6 +229,20 @@ class StatsRepository @Inject constructor(
         val rightMisses = teeShots.count { it == ShotOutcome.MISS_RIGHT }
         val shortMisses = teeShots.count { it == ShotOutcome.SHORT }
         val longMisses = teeShots.count { it == ShotOutcome.LONG }
+        
+        // Extract raw dispersion points
+        val rawPoints = drivingHoles.mapNotNull { h ->
+            val stat = h.holeStat
+            if (stat.teeOutcome != null && stat.teeOutcome != ShotOutcome.ON_TARGET && 
+                (stat.teeDispersionLeft != null || stat.teeDispersionRight != null || stat.teeDispersionShort != null || stat.teeDispersionLong != null)) {
+                DispersionPoint(
+                    left = stat.teeDispersionLeft,
+                    right = stat.teeDispersionRight,
+                    short = stat.teeDispersionShort,
+                    long = stat.teeDispersionLong
+                )
+            } else null
+        }
 
         val troubleFreeCount = drivingHoles.count { it.holeStat.teeOutcome != null && !it.holeStat.teeInTrouble }
         val troubleTotal = drivingHoles.count { it.holeStat.teeOutcome != null }.coerceAtLeast(1)
@@ -244,6 +286,18 @@ class StatsRepository @Inject constructor(
         }
         val avgCleanDistance = if (cleanDistances.isNotEmpty()) cleanDistances.average() else 0.0
 
+        val drivingByPar = drivingHoles.groupBy { it.hole.par }.mapValues { (par, holes) ->
+            val totalWithOutcome = holes.count { it.holeStat.teeOutcome != null }.coerceAtLeast(1)
+            val fairways = holes.count { it.holeStat.teeOutcome == ShotOutcome.ON_TARGET }
+            val distances = holes.mapNotNull { it.holeStat.teeShotDistance }.filter { it > 0 }
+            ParBreakdown(
+                label = "Par $par",
+                fairwaysHitPct = (fairways.toDouble() / totalWithOutcome) * 100,
+                avgScore = if (distances.isNotEmpty()) distances.average() else 0.0,
+                sampleCount = holes.count { it.holeStat.teeOutcome != null }
+            )
+        }
+
         return DrivingStats(
             fairwaysHitPct = fairwaysHitPct,
             fairwaysHitMoE = calculateProportionMoE(fairwaysHitPct, totalWithOutcome),
@@ -262,7 +316,9 @@ class StatsRepository @Inject constructor(
             totalMishits = mishitCount,
             totalDrivingHoles = drivingHoles.size,
             perClubStats = perClub,
-            selectedClubId = clubIdFilter
+            selectedClubId = clubIdFilter,
+            rawDispersion = RawDispersionData(rawPoints),
+            byPar = drivingByPar
         )
     }
 
@@ -335,14 +391,9 @@ class StatsRepository @Inject constructor(
         }
 
         // Apply club filter for main stats
-        // We filter HOLES based on whether they have a *relevant* approach shot with that club?
-        // Or if the *final* approach shot used that club?
-        // Usually filtering stats by club implies "Show me stats when I used X club".
-        // If we filter by club, we should probably stick to holes where the *primary* (final) approach was with that club.
         val holes = if (clubIdFilter != null) {
             allHoles.filter { h -> 
                 val finalShot = h.shots.maxByOrNull { it.shotNumber }
-                // Fallback to holeStat if no shots (old data)
                 if (finalShot != null) finalShot.clubId == clubIdFilter
                 else h.holeStat.approachClubId == clubIdFilter
             }
@@ -354,13 +405,23 @@ class StatsRepository @Inject constructor(
         val nearGirCount = holes.count { isNearGir(it) }
 
         // Determine effective approach details for each hole (Final Shot)
-        // Pair of <HoleStatWithHole, EffectiveOutcome?, EffectiveLie?, EffectiveDistance?>
         val holeDetails = holes.map { h ->
             val finalShot = h.shots.maxByOrNull { it.shotNumber }
             val outcome = finalShot?.outcome ?: h.holeStat.approachOutcome
             val lie = finalShot?.lie ?: h.holeStat.approachLie
             val distance = finalShot?.distanceToPin ?: h.holeStat.approachShotDistance
-            DataPoint(h, outcome, lie, distance)
+            val dLeft = finalShot?.dispersionLeft
+            val dRight = finalShot?.dispersionRight
+            val dShort = finalShot?.dispersionShort
+            val dLong = finalShot?.dispersionLong
+            DataPoint(h, outcome, lie, distance, dLeft, dRight, dShort, dLong)
+        }
+        
+        val rawPoints = holeDetails.mapNotNull { d ->
+            if (d.outcome != null && d.outcome != ShotOutcome.ON_TARGET && 
+                (d.dLeft != null || d.dRight != null || d.dShort != null || d.dLong != null)) {
+                DispersionPoint(d.dLeft, d.dRight, d.dShort, d.dLong)
+            } else null
         }
 
         // GIR by lie
@@ -419,6 +480,15 @@ class StatsRepository @Inject constructor(
             )
         }
 
+        val approachByPar = holes.groupBy { it.hole.par }.mapValues { (par, parHoles) ->
+            val gir = parHoles.count { h -> GirCalculator.isGir(h.holeStat.score, h.hole.par, h.holeStat.putts) }
+            ParBreakdown(
+                label = "Par $par",
+                girPct = (gir.toDouble() / parHoles.size) * 100,
+                sampleCount = parHoles.size
+            )
+        }
+
         return ApproachStats(
             girPct = girPct,
             girMoE = calculateProportionMoE(girPct, holes.size),
@@ -439,7 +509,9 @@ class StatsRepository @Inject constructor(
             selectedClubId = clubIdFilter,
             onTargetByRange = onTargetByRange,
             onTargetByLie = onTargetByLie,
-            totalShots = approachShots.size
+            totalShots = approachShots.size,
+            rawDispersion = RawDispersionData(rawPoints),
+            byPar = approachByPar
         )
     }
 
@@ -447,7 +519,11 @@ class StatsRepository @Inject constructor(
         val h: HoleStatWithHole,
         val outcome: ShotOutcome?,
         val lie: ApproachLie?,
-        val distance: Int?
+        val distance: Int?,
+        val dLeft: Int? = null,
+        val dRight: Int? = null,
+        val dShort: Int? = null,
+        val dLong: Int? = null
     )
 
 
@@ -497,7 +573,10 @@ class StatsRepository @Inject constructor(
             if (proximitiesForLie.isNotEmpty()) proximitiesForLie.average() else 0.0
         }
 
-        val roundCount = rounds.size.coerceAtLeast(1)
+        val totalHolesPlayed = holes.size
+        val chipsPerRound = (holes.sumOf { it.holeStat.chips }.toDouble() / totalHolesPlayed) * 18
+        val parSavesPerRound = (parSaves.toDouble() / totalHolesPlayed) * 18
+        val doubleChipsPerRound = (doubleChips.toDouble() / totalHolesPlayed) * 18
 
         return ChippingStats(
             upAndDownPct = parSavePct,
@@ -513,9 +592,9 @@ class StatsRepository @Inject constructor(
             proximityByLie = proximityByLie,
             totalMissedGir = missedCount,
             totalSandHoles = sandHoles.size,
-            upAndDownsPerRound = parSaves.toDouble() / roundCount,
-            parSavesPerRound = parSaves.toDouble() / roundCount,
-            doubleChipsPerRound = doubleChips.toDouble() / roundCount
+            upAndDownsPerRound = parSavesPerRound,
+            parSavesPerRound = parSavesPerRound,
+            doubleChipsPerRound = doubleChipsPerRound
         )
     }
 
@@ -562,17 +641,25 @@ class StatsRepository @Inject constructor(
             madePutts.mapNotNull { it.distance?.toDouble() }.average()
         } else 0.0
 
-        // Per-round putting distributions
-        val puttsPerRoundList = rounds.map { r ->
-            r.holeStats.filter { it.holeStat.score > 0 }.sumOf { it.holeStat.putts }.toDouble()
+        // Normalize per-round putting totals to 18-hole equivalent
+        val normalizedPuttsPerRound = rounds.map { r ->
+            val playedHoles = r.holeStats.count { it.holeStat.score > 0 }
+            val putts = r.holeStats.filter { it.holeStat.score > 0 }.sumOf { it.holeStat.putts }
+            if (playedHoles > 0) (putts.toDouble() / playedHoles) * 18 else putts.toDouble()
         }
+
+        val totalHolesPlayed = holes.size
+        val avgPuttsPerRound = (totalPutts.toDouble() / totalHolesPlayed) * 18
+        val onePuttsPerRound = (onePutts.toDouble() / totalHolesPlayed) * 18
+        val twoPuttsPerRound = (twoPutts.toDouble() / totalHolesPlayed) * 18
+        val threePlusPuttsPerRound = (threePlusPutts.toDouble() / totalHolesPlayed) * 18
 
         val onePuttPct = if (holes.isNotEmpty()) (onePutts.toDouble() / holes.size) * 100 else 0.0
 
         return PuttingStats(
             totalPutts = totalPutts,
-            avgPuttsPerRound = totalPutts.toDouble() / roundCount,
-            puttsMoE = calculateMeanMoE(puttsPerRoundList),
+            avgPuttsPerRound = avgPuttsPerRound,
+            puttsMoE = calculateMeanMoE(normalizedPuttsPerRound),
             puttsPerGir = if (girHoles.isNotEmpty()) puttsOnGir.toDouble() / girHoles.size else 0.0,
             puttsPerGirMoE = calculateMeanMoE(girHoles.map { it.holeStat.putts.toDouble() }),
             avgFirstPuttDistance = avgFirstPuttDist,
@@ -583,10 +670,10 @@ class StatsRepository @Inject constructor(
             onePuttMoE = calculateProportionMoE(onePuttPct, holes.size),
             twoPuttPct = if (holes.isNotEmpty()) (twoPutts.toDouble() / holes.size) * 100 else 0.0,
             threePlusPuttPct = if (holes.isNotEmpty()) (threePlusPutts.toDouble() / holes.size) * 100 else 0.0,
-            onePuttsPerRound = onePutts.toDouble() / roundCount,
-            twoPuttsPerRound = twoPutts.toDouble() / roundCount,
-            threePlusPuttsPerRound = threePlusPutts.toDouble() / roundCount,
-            puttsPerRoundDistribution = puttsPerRoundList
+            onePuttsPerRound = onePuttsPerRound,
+            twoPuttsPerRound = twoPuttsPerRound,
+            threePlusPuttsPerRound = threePlusPuttsPerRound,
+            puttsPerRoundDistribution = normalizedPuttsPerRound
         )
     }
 
@@ -617,6 +704,12 @@ class StatsRepository @Inject constructor(
         
         return 1.96 * (stdDev / sqrt(n.toDouble()))
     }
+
+    private fun <T> List<T>.averageOf(selector: (T) -> Double): Double {
+        if (this.isEmpty()) return 0.0
+        return this.sumOf(selector) / this.size
+    }
+
     // ── Strokes Gained ──────────────────────────────────────────────────
 
     private fun calculateSgStats(
@@ -638,15 +731,15 @@ class StatsRepository @Inject constructor(
 
         for (round in rounds) {
             val teeSet = round.round.teeSetId
-            val allHoles = round.holeStats.map { h ->
-                val y = yardageMap[teeSet to h.hole.id]?.yardage ?: 0
-                Pair(y, h.hole.handicapIndex)
-            }
-            val courseAdj = sgCalculator.calculateCourseAdjustment(round.teeSet.rating.toDouble(), allHoles)
+            // We need ALL yardages for this tee set to calculate the course adjustment correctly (18 holes)
+            val allCourseYardages = yardageMap.filterKeys { it.first == teeSet }.values
+                .map { Pair(it.yardage, null as Int?) }
+            
+            val courseAdj = sgCalculator.calculateCourseAdjustment(round.teeSet.rating.toDouble(), allCourseYardages)
 
             for (hole in round.holeStats) {
                 val holeYardage = yardageMap[teeSet to hole.hole.id]?.yardage ?: 0
-                val holeAdj = sgCalculator.getHoleAdjustment(courseAdj, hole.hole.handicapIndex, allHoles.size)
+                val holeAdj = sgCalculator.getHoleAdjustment(courseAdj, hole.hole.handicapIndex, 18)
                 
                 val breakdown = sgCalculator.calculateHoleSg(
                     par = hole.hole.par,
@@ -685,15 +778,16 @@ class StatsRepository @Inject constructor(
         val avgLie = sgByLie.mapValues { if (it.value.isNotEmpty()) it.value.sum() else 0.0 }
         val avgDist = sgByDistance.mapValues { if (it.value.isNotEmpty()) it.value.sum() else 0.0 }
         
-        val roundCount = rounds.size.coerceAtLeast(1)
+        val allHolesPlayed = rounds.sumOf { it.holeStats.count { h -> h.holeStat.score > 0 } }
+        val normalizationFactor = if (allHolesPlayed > 0) 18.0 / allHolesPlayed else 1.0
 
         return SgStats(
-            totalSgPerRound = totalLiveSg / roundCount,
-            sgOffTeePerRound = totalSgOffTee / roundCount,
-            sgApproachPerRound = totalSgApproach / roundCount,
-            sgAroundGreenPerRound = totalSgAroundGreen / roundCount,
-            sgPuttingPerRound = totalSgPutting / roundCount,
-            sgPenaltiesPerRound = totalSgPenalties / roundCount,
+            totalSgPerRound = totalLiveSg * normalizationFactor,
+            sgOffTeePerRound = totalSgOffTee * normalizationFactor,
+            sgApproachPerRound = totalSgApproach * normalizationFactor,
+            sgAroundGreenPerRound = totalSgAroundGreen * normalizationFactor,
+            sgPuttingPerRound = totalSgPutting * normalizationFactor,
+            sgPenaltiesPerRound = totalSgPenalties * normalizationFactor,
             sgByLie = avgLie,
             sgByDistance = avgDist
         )
@@ -735,7 +829,17 @@ data class ScoringStats(
     val doubles: Int = 0,
     val worse: Int = 0,
     val scoreDistribution: List<Double> = emptyList(),
-    val trend: List<RoundScoreSummary> = emptyList()
+    val trend: List<RoundScoreSummary> = emptyList(),
+    val byPar: Map<Int, ParBreakdown> = emptyMap()
+)
+
+data class ParBreakdown(
+    val label: String = "",
+    val avgScore: Double = 0.0, // Or whatever metric is relevant for the tab
+    val avgToPar: Double? = null,
+    val fairwaysHitPct: Double? = null,
+    val girPct: Double? = null,
+    val sampleCount: Int = 0
 )
 
 data class DrivingStats(
@@ -756,7 +860,9 @@ data class DrivingStats(
     val totalMishits: Int = 0,
     val totalDrivingHoles: Int = 0,
     val perClubStats: Map<Int, ClubStats> = emptyMap(),
-    val selectedClubId: Int? = null
+    val selectedClubId: Int? = null,
+    val rawDispersion: RawDispersionData = RawDispersionData(),
+    val byPar: Map<Int, ParBreakdown> = emptyMap()
 )
 
 data class ApproachStats(
@@ -779,7 +885,9 @@ data class ApproachStats(
     val selectedClubId: Int? = null,
     val onTargetByRange: List<OnTargetBreakdown> = emptyList(),
     val onTargetByLie: List<OnTargetBreakdown> = emptyList(),
-    val totalShots: Int = 0
+    val totalShots: Int = 0,
+    val rawDispersion: RawDispersionData = RawDispersionData(),
+    val byPar: Map<Int, ParBreakdown> = emptyMap()
 )
 
 data class ClubStats(
@@ -790,6 +898,17 @@ data class ClubStats(
     val missLongPct: Double = 0.0,
     val avgDistance: Double = 0.0,
     val sampleCount: Int = 0
+)
+
+data class RawDispersionData(
+    val points: List<DispersionPoint> = emptyList()
+)
+
+data class DispersionPoint(
+    val left: Int? = null,
+    val right: Int? = null,
+    val short: Int? = null,
+    val long: Int? = null
 )
 
 data class OnTargetBreakdown(

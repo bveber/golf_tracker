@@ -53,6 +53,9 @@ interface CourseDao {
     @Upsert
     suspend fun insertHole(hole: Hole): Long
     
+    @Update
+    suspend fun updateHole(hole: Hole)
+    
     @Upsert
     suspend fun insertHoles(holes: List<Hole>)
     

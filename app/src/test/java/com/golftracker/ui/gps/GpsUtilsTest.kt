@@ -85,4 +85,48 @@ class GpsUtilsTest {
         assertEquals(20.0, mid.latitude, 1e-10)
         assertEquals(30.0, mid.longitude, 1e-10)
     }
+
+    // --- calculateDispersionOffsets ---
+
+    @Test
+    fun `perfect shot returns all zero offsets`() {
+        val start = LatLng(0.0, 0.0)
+        val target = LatLng(0.01, 0.0) // ~1200 yards North
+        val actual = LatLng(0.01, 0.0)
+        val offsets = GpsUtils.calculateDispersionOffsets(start, target, actual)
+        assertEquals(0, offsets.left)
+        assertEquals(0, offsets.right)
+        assertEquals(0, offsets.short)
+        assertEquals(0, offsets.long)
+    }
+
+    @Test
+    fun `short left miss returns correct offsets`() {
+        val start = LatLng(0.0, 0.0)
+        val target = LatLng(0.001, 0.0) // ~120 yards North
+        // Move slightly South (Short) and West (Left)
+        val actual = LatLng(0.0009, -0.00005)
+        val offsets = GpsUtils.calculateDispersionOffsets(start, target, actual)
+        
+        // At the equator, 0.0001 degrees latitude is ~11 meters (~12 yards)
+        // 0.00005 degrees longitude is ~5.5 meters (~6 yards)
+        assertTrue("Expected short to be > 0, got ${offsets.short}", (offsets.short ?: 0) > 0)
+        assertTrue("Expected left to be > 0, got ${offsets.left}", (offsets.left ?: 0) > 0)
+        assertEquals(0, offsets.right)
+        assertEquals(0, offsets.long)
+    }
+
+    @Test
+    fun `long right miss returns correct offsets`() {
+        val start = LatLng(0.0, 0.0)
+        val target = LatLng(0.001, 0.0)
+        // Move slightly North (Long) and East (Right)
+        val actual = LatLng(0.0011, 0.00005)
+        val offsets = GpsUtils.calculateDispersionOffsets(start, target, actual)
+        
+        assertTrue("Expected long to be > 0, got ${offsets.long}", (offsets.long ?: 0) > 0)
+        assertTrue("Expected right to be > 0, got ${offsets.right}", (offsets.right ?: 0) > 0)
+        assertEquals(0, offsets.left)
+        assertEquals(0, offsets.short)
+    }
 }

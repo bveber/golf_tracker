@@ -1,6 +1,7 @@
 package com.golftracker.ui.round
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -35,6 +37,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
@@ -69,6 +72,7 @@ fun HoleTrackingScreen(
     val holeStat = uiState.currentHoleStat
     val hole = uiState.currentHole
     var showGps by remember { mutableStateOf(false) }
+    var showFinishConfirmation by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -108,8 +112,13 @@ fun HoleTrackingScreen(
                 // Always show Finish Round button
                 Button(
                     onClick = { 
-                        viewModel.finalizeRound()
-                        onFinishRound()
+                        val incomplete = uiState.holeStats.any { it.score == 0 }
+                        if (incomplete) {
+                            showFinishConfirmation = true
+                        } else {
+                            viewModel.finalizeRound()
+                            onFinishRound()
+                        }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -133,68 +142,95 @@ fun HoleTrackingScreen(
             }
         }
     ) { padding ->
+        if (showFinishConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showFinishConfirmation = false },
+                title = { Text("Incomplete Round") },
+                text = { Text("You haven't entered scores for all holes in this round. Do you want to finalize it anyway?") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            viewModel.finalizeRound()
+                            onFinishRound()
+                            showFinishConfirmation = false
+                        }
+                    ) {
+                        Text("Finish Anyway")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showFinishConfirmation = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
         if (holeStat == null || hole == null) {
             return@Scaffold
         }
 
-        if (showGps) {
-            GpsScreen(
-                roundId = uiState.activeRound?.id,
-                holeStatId = holeStat.id,
-                holePar = hole.par,
-                onClose = { showGps = false }
-            )
-        } else {
-            Column(modifier = Modifier.padding(padding)) {
-                // Hole Info Header
-                Card(
+        Column(modifier = Modifier.padding(padding)) {
+            // Hole Info Header
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
+                        .padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "Par ${hole.par} • HCP ${hole.handicapIndex}",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface
+                    Text(
+                        text = "Par ${hole.par} • HCP ${hole.handicapIndex}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Dist (yds): ", style = MaterialTheme.typography.bodyMedium)
+                        IntegerInput(
+                            value = uiState.currentHoleYardage,
+                            onValueChange = { viewModel.updateHoleYardage(it) },
+                            label = "Yds",
+                            modifier = Modifier.width(90.dp)
                         )
-                        uiState.currentHoleYardage?.let { yardage ->
-                            Text(
-                                text = "$yardage yds",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        
-                        val cumulative = uiState.cumulativeOverPar
-                        if (uiState.holeStats.any { it.score > 0 }) {
-                            val scoreStr = if (cumulative > 0) "+$cumulative" else if (cumulative < 0) "$cumulative" else "E"
-                            Text(
-                                text = "Cumulative: $scoreStr",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = when {
-                                    cumulative < 0 -> MaterialTheme.colorScheme.primary
-                                    cumulative > 0 -> MaterialTheme.colorScheme.error
-                                    else -> MaterialTheme.colorScheme.onSurface
-                                }
-                            )
-                        }
+                    }
+                    
+                    val cumulative = uiState.cumulativeOverPar
+                    if (uiState.holeStats.any { it.score > 0 }) {
+                        val scoreStr = if (cumulative > 0) "+$cumulative" else if (cumulative < 0) "$cumulative" else "E"
+                        Text(
+                            text = "Current Score: $scoreStr",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = when {
+                                cumulative < 0 -> MaterialTheme.colorScheme.primary
+                                cumulative > 0 -> MaterialTheme.colorScheme.error
+                                else -> MaterialTheme.colorScheme.onSurface
+                            }
+                        )
                     }
                 }
+            }
 
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 16.dp),
+            Box(modifier = Modifier.weight(1f)) {
+                if (showGps) {
+                    GpsScreen(
+                        roundId = uiState.activeRound?.id,
+                        holeStatId = holeStat.id,
+                        holePar = hole.par,
+                        onClose = { showGps = false }
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
 
@@ -268,6 +304,25 @@ fun HoleTrackingScreen(
                                 }
                             }
                             
+                            Spacer(modifier = Modifier.height(8.dp))
+                            var showTeeDispersion by remember(holeStat.id) { mutableStateOf(false) }
+                            OutlinedButton(onClick = { showTeeDispersion = true }, modifier = Modifier.fillMaxWidth()) {
+                                Text("Dispersion Options")
+                            }
+                            if (showTeeDispersion) {
+                                DispersionDialog(
+                                    initialLeft = holeStat.teeDispersionLeft,
+                                    initialRight = holeStat.teeDispersionRight,
+                                    initialShort = holeStat.teeDispersionShort,
+                                    initialLong = holeStat.teeDispersionLong,
+                                    onDismissRequest = { showTeeDispersion = false },
+                                    onSave = { l, r, s, ln ->
+                                        viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, effectiveTeeClubId, holeStat.teeShotDistance, holeStat.teeMishit, holeStat.teeSlope, holeStat.teeStance, l, r, s, ln)
+                                        showTeeDispersion = false
+                                    }
+                                )
+                            }
+                            
                             holeStat.sgOffTee?.let { sg ->
                                 Spacer(modifier = Modifier.height(4.dp))
                                 val sgColor = if (sg > 0) MaterialTheme.colorScheme.primary else if (sg < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
@@ -308,7 +363,7 @@ fun HoleTrackingScreen(
                             if (currentTeeDist == null || currentTeeDist != potentialTeeDist) {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Button(
-                                    onClick = { viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, holeStat.teeClubId, potentialTeeDist, holeStat.teeMishit) },
+                                    onClick = { viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, holeStat.teeClubId, potentialTeeDist, holeStat.teeMishit, holeStat.teeSlope, holeStat.teeStance) },
                                     colors = ButtonDefaults.filledTonalButtonColors()
                                 ) {
                                     Text("Set Tee Distance to $potentialTeeDist (Calculated)")
@@ -317,6 +372,38 @@ fun HoleTrackingScreen(
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
+                        var approachShotForAdvancedLie by remember { mutableStateOf<com.golftracker.data.entity.Shot?>(null) }
+                        
+                        if (approachShotForAdvancedLie != null) {
+                            val activeShot = approachShotForAdvancedLie!!
+                            val currentApproachClubId = activeShot.clubId ?: activeShot.distanceToPin?.let { dist -> viewModel.suggestApproachClub(dist)?.id }
+                            AdvancedLieDialog(
+                                initialSlope = activeShot.slope,
+                                initialStance = activeShot.stance,
+                                onDismissRequest = { approachShotForAdvancedLie = null },
+                                onSave = { slope, stance ->
+                                    viewModel.updateShotDetails(activeShot, activeShot.outcome, activeShot.lie, currentApproachClubId, activeShot.distanceToPin, activeShot.isRecovery, activeShot.distanceTraveled, slope, stance)
+                                    approachShotForAdvancedLie = null
+                                }
+                            )
+                        }
+
+                        var approachShotForDispersion by remember { mutableStateOf<com.golftracker.data.entity.Shot?>(null) }
+                        if (approachShotForDispersion != null) {
+                            val activeShot = approachShotForDispersion!!
+                            val currentApproachClubId = activeShot.clubId ?: activeShot.distanceToPin?.let { dist -> viewModel.suggestApproachClub(dist)?.id }
+                            DispersionDialog(
+                                initialLeft = activeShot.dispersionLeft,
+                                initialRight = activeShot.dispersionRight,
+                                initialShort = activeShot.dispersionShort,
+                                initialLong = activeShot.dispersionLong,
+                                onDismissRequest = { approachShotForDispersion = null },
+                                onSave = { l, r, s, ln ->
+                                    viewModel.updateShotDetails(activeShot, activeShot.outcome, activeShot.lie, currentApproachClubId, activeShot.distanceToPin, activeShot.isRecovery, activeShot.distanceTraveled, activeShot.slope, activeShot.stance, l, r, s, ln)
+                                    approachShotForDispersion = null
+                                }
+                            )
+                        }
 
                         if (uiState.shots.isEmpty()) {
                             Text(
@@ -408,9 +495,19 @@ fun HoleTrackingScreen(
                                         ChipSelector(
                                             options = ShotOutcome.values().toList(),
                                             selectedOption = shot.outcome,
-                                            onOptionSelected = { viewModel.updateShotDetails(shot, it, shot.lie, suggestedClubId, shot.distanceToPin, shot.isRecovery, shot.distanceTraveled) },
+                                            onOptionSelected = { viewModel.updateShotDetails(shot, it, shot.lie, suggestedClubId, shot.distanceToPin, shot.isRecovery, shot.distanceTraveled, shot.slope, shot.stance) },
                                             modifier = Modifier.padding(top = 4.dp)
                                         )
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                            OutlinedButton(onClick = { approachShotForAdvancedLie = shot }, modifier = Modifier.weight(1f)) {
+                                                Text("Lie")
+                                            }
+                                            OutlinedButton(onClick = { approachShotForDispersion = shot }, modifier = Modifier.weight(1f)) {
+                                                Text("Dispersion")
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -440,7 +537,7 @@ fun HoleTrackingScreen(
                         
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("GIR", modifier = Modifier.weight(1f))
-                            val isGir = (holeStat.score - holeStat.putts <= hole.par - 2) && holeStat.score > 0
+                            val isGir = holeStat.gir
                             Text(
                                 if (isGir) "Yes" else "No",
                                 color = if (isGir) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -452,16 +549,61 @@ fun HoleTrackingScreen(
                             Text("Sand Shots", modifier = Modifier.weight(1f))
                             NumberStepper(
                                 value = holeStat.sandShots,
-                                onValueChange = { viewModel.updateGreen(holeStat.chips, it, holeStat.chipDistance, holeStat.chipLie) },
+                                onValueChange = { 
+                                    viewModel.updateGreen(
+                                        chips = holeStat.chips, 
+                                        sandShots = it, 
+                                        chipDistance = holeStat.chipDistance,
+                                        sandShotDistance = holeStat.sandShotDistance,
+                                        chipLie = holeStat.chipLie
+                                    ) 
+                                },
                                 range = 0..5
                             )
                         }
                         
+                        if (holeStat.sandShots > 0) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Sand Dist (yds)", modifier = Modifier.weight(1f))
+                                IntegerInput(
+                                    value = holeStat.sandShotDistance,
+                                    onValueChange = { 
+                                        viewModel.updateGreen(
+                                            chips = holeStat.chips,
+                                            sandShots = holeStat.sandShots,
+                                            chipDistance = holeStat.chipDistance,
+                                            sandShotDistance = it,
+                                            chipLie = holeStat.chipLie
+                                        )
+                                    },
+                                    label = "Distance",
+                                    modifier = Modifier.width(100.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            var showSandAdvancedLie by remember(holeStat.id) { mutableStateOf(false) }
+                            OutlinedButton(onClick = { showSandAdvancedLie = true }, modifier = Modifier.fillMaxWidth()) {
+                                Text("Advanced Sand Lie Options")
+                            }
+                            if (showSandAdvancedLie) {
+                                AdvancedLieDialog(
+                                    initialSlope = holeStat.sandShotSlope,
+                                    initialStance = holeStat.sandShotStance,
+                                    onDismissRequest = { showSandAdvancedLie = false },
+                                    onSave = { slope, stance ->
+                                        viewModel.updateSandShotLieExtras(slope, stance)
+                                        showSandAdvancedLie = false
+                                    }
+                                )
+                            }
+                        }
+                        
                          Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("Up & Down", modifier = Modifier.weight(1f))
-                            val isUpAndDown = (holeStat.score - holeStat.putts <= hole.par - 2).let { gir ->
-                                !gir && holeStat.chips == 1 && holeStat.putts == 1
-                            }
+                            val holedOutFromOffGreen = uiState.shots.any { it.outcome == ShotOutcome.HOLED_OUT } || holeStat.teeOutcome == ShotOutcome.HOLED_OUT
+                            val isUpAndDown = !holeStat.gir && holeStat.chips == 1 && (holeStat.putts == 1 || holedOutFromOffGreen)
                             Text(
                                 if (isUpAndDown) "Yes" else "No",
                                 color = if (isUpAndDown) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -474,7 +616,15 @@ fun HoleTrackingScreen(
                             Text("Chips", modifier = Modifier.weight(1f))
                             NumberStepper(
                                 value = holeStat.chips,
-                                onValueChange = { viewModel.updateGreen(it, holeStat.sandShots, holeStat.chipDistance, holeStat.chipLie) },
+                                onValueChange = { 
+                                    viewModel.updateGreen(
+                                        chips = it, 
+                                        sandShots = holeStat.sandShots, 
+                                        chipDistance = holeStat.chipDistance,
+                                        sandShotDistance = holeStat.sandShotDistance,
+                                        chipLie = holeStat.chipLie
+                                    ) 
+                                },
                                 range = 0..10
                             )
                         }
@@ -487,13 +637,29 @@ fun HoleTrackingScreen(
                                     val isFairway = holeStat.chipLie == com.golftracker.data.model.ApproachLie.FAIRWAY
                                     androidx.compose.material3.FilterChip(
                                         selected = isFairway,
-                                        onClick = { viewModel.updateGreen(holeStat.chips, holeStat.sandShots, holeStat.chipDistance, com.golftracker.data.model.ApproachLie.FAIRWAY) },
+                                        onClick = { 
+                                            viewModel.updateGreen(
+                                                chips = holeStat.chips, 
+                                                sandShots = holeStat.sandShots, 
+                                                chipDistance = holeStat.chipDistance,
+                                                sandShotDistance = holeStat.sandShotDistance,
+                                                chipLie = com.golftracker.data.model.ApproachLie.FAIRWAY
+                                            ) 
+                                        },
                                         label = { Text("Fwy/Fringe") }
                                     )
                                     val isRough = holeStat.chipLie == com.golftracker.data.model.ApproachLie.ROUGH
                                     androidx.compose.material3.FilterChip(
                                         selected = isRough,
-                                        onClick = { viewModel.updateGreen(holeStat.chips, holeStat.sandShots, holeStat.chipDistance, com.golftracker.data.model.ApproachLie.ROUGH) },
+                                        onClick = { 
+                                            viewModel.updateGreen(
+                                                chips = holeStat.chips, 
+                                                sandShots = holeStat.sandShots, 
+                                                chipDistance = holeStat.chipDistance,
+                                                sandShotDistance = holeStat.sandShotDistance,
+                                                chipLie = com.golftracker.data.model.ApproachLie.ROUGH
+                                            ) 
+                                        },
                                         label = { Text("Rough") }
                                     )
                                 }
@@ -504,11 +670,34 @@ fun HoleTrackingScreen(
                                     IntegerInput(
                                         value = holeStat.chipDistance,
                                         onValueChange = { 
-                                            viewModel.updateGreen(holeStat.chips, holeStat.sandShots, it, holeStat.chipLie)
+                                            viewModel.updateGreen(
+                                                chips = holeStat.chips, 
+                                                sandShots = holeStat.sandShots, 
+                                                chipDistance = it,
+                                                sandShotDistance = holeStat.sandShotDistance,
+                                                chipLie = holeStat.chipLie
+                                            )
                                         },
                                         label = "Distance",
                                         modifier = Modifier.width(100.dp)
                                     )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            var showChipAdvancedLie by remember(holeStat.id) { mutableStateOf(false) }
+                            OutlinedButton(onClick = { showChipAdvancedLie = true }, modifier = Modifier.fillMaxWidth()) {
+                                Text("Advanced Chip Lie Options")
+                            }
+                            if (showChipAdvancedLie) {
+                                AdvancedLieDialog(
+                                    initialSlope = holeStat.chipSlope,
+                                    initialStance = holeStat.chipStance,
+                                    onDismissRequest = { showChipAdvancedLie = false },
+                                    onSave = { slope, stance ->
+                                        viewModel.updateChipLieExtras(slope, stance)
+                                        showChipAdvancedLie = false
+                                    }
+                                )
                             }
                         }
                         
@@ -713,9 +902,10 @@ fun HoleTrackingScreen(
 
             // Bottom Spacer
             item { Spacer(modifier = Modifier.height(80.dp)) }
+                }
+            }
         }
     }
-}
 }
 }
 
@@ -799,10 +989,13 @@ fun IntegerInput(
     OutlinedTextField(
         value = textValue,
         onValueChange = { newValue ->
-            textValue = newValue
-            val parsed = newValue.text.filter { it.isDigit() }.toIntOrNull()
-            if (parsed != value) {
-                onValueChange(parsed)
+            val digitsOnly = newValue.text.filter { it.isDigit() }
+            if (digitsOnly.length <= 3) {
+                textValue = newValue.copy(text = digitsOnly)
+                val parsed = digitsOnly.toIntOrNull()
+                if (parsed != value) {
+                    onValueChange(parsed)
+                }
             }
         },
         label = { Text(label) },
@@ -826,4 +1019,113 @@ private fun SummarySgItem(label: String, sg: Double?) {
             color = color
         )
     }
+}
+
+@Composable
+fun AdvancedLieDialog(
+    initialSlope: com.golftracker.data.model.LieSlope?,
+    initialStance: com.golftracker.data.model.LieStance?,
+    onDismissRequest: () -> Unit,
+    onSave: (com.golftracker.data.model.LieSlope?, com.golftracker.data.model.LieStance?) -> Unit
+) {
+    var slope by remember { mutableStateOf(initialSlope) }
+    var stance by remember { mutableStateOf(initialStance) }
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = { Text("Advanced Lie Options") },
+        text = {
+            Column {
+                Text("Slope", style = MaterialTheme.typography.labelMedium)
+                ChipSelector(
+                    options = com.golftracker.data.model.LieSlope.values().toList(),
+                    selectedOption = slope,
+                    onOptionSelected = { slope = if (slope == it) null else it },
+                    labelMapper = { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Stance", style = MaterialTheme.typography.labelMedium)
+                ChipSelector(
+                    options = com.golftracker.data.model.LieStance.values().toList(),
+                    selectedOption = stance,
+                    onOptionSelected = { stance = if (stance == it) null else it },
+                    labelMapper = { it.name.replace("_", " ").lowercase().replaceFirstChar { c -> c.uppercase() } }
+                )
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = { onSave(slope, stance) }) { Text("Save") }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismissRequest) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+fun DispersionDialog(
+    initialLeft: Int?,
+    initialRight: Int?,
+    initialShort: Int?,
+    initialLong: Int?,
+    onDismissRequest: () -> Unit,
+    onSave: (left: Int?, right: Int?, short: Int?, long: Int?) -> Unit
+) {
+    var left by remember { mutableStateOf(initialLeft) }
+    var right by remember { mutableStateOf(initialRight) }
+    var shortDist by remember { mutableStateOf(initialShort) }
+    var longDist by remember { mutableStateOf(initialLong) }
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = { Text("Shot Dispersion (yds)") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Enter the distance missed for applicable directions. Leave blank if on target.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IntegerInput(
+                        value = left, 
+                        onValueChange = { left = it; if (it != null) right = null }, 
+                        label = "Left", 
+                        modifier = Modifier.weight(1f)
+                    )
+                    IntegerInput(
+                        value = right, 
+                        onValueChange = { right = it; if (it != null) left = null }, 
+                        label = "Right", 
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IntegerInput(
+                        value = shortDist, 
+                        onValueChange = { shortDist = it; if (it != null) longDist = null }, 
+                        label = "Short", 
+                        modifier = Modifier.weight(1f)
+                    )
+                    IntegerInput(
+                        value = longDist, 
+                        onValueChange = { longDist = it; if (it != null) shortDist = null }, 
+                        label = "Long", 
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                
+                if (initialLeft != null || initialRight != null || initialShort != null || initialLong != null) {
+                    Text(
+                        "Values shown may have been estimated from GPS tracking.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = { onSave(left, right, shortDist, longDist) }) { Text("Save") }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismissRequest) { Text("Cancel") }
+        }
+    )
 }

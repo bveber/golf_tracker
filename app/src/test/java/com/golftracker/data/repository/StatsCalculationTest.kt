@@ -187,4 +187,60 @@ class StatsCalculationTest {
         }
         assertEquals(0, girHoles.size)
     }
+
+    // ─── Par Based Breakouts ─────────────────────────────────────────
+
+    @Test
+    fun `scoring by par groupings correctly calculate averages`() {
+        val holes = listOf(
+            TestDataFactory.holeStatWithHole(holeStat = TestDataFactory.holeStat(score = 3), hole = TestDataFactory.hole(par = 3)),
+            TestDataFactory.holeStatWithHole(holeStat = TestDataFactory.holeStat(score = 4), hole = TestDataFactory.hole(par = 3)),
+            TestDataFactory.holeStatWithHole(holeStat = TestDataFactory.holeStat(score = 4), hole = TestDataFactory.hole(par = 4)),
+            TestDataFactory.holeStatWithHole(holeStat = TestDataFactory.holeStat(score = 5), hole = TestDataFactory.hole(par = 4)),
+            TestDataFactory.holeStatWithHole(holeStat = TestDataFactory.holeStat(score = 5), hole = TestDataFactory.hole(par = 5))
+        )
+
+        val byPar = holes.groupBy { it.hole.par }.mapValues { (par, parHoles) ->
+            parHoles.sumOf { it.holeStat.score }.toDouble() / parHoles.size
+        }
+
+        assertEquals(3.5, byPar[3]!!, 0.01) // (3+4)/2
+        assertEquals(4.5, byPar[4]!!, 0.01) // (4+5)/2
+        assertEquals(5.0, byPar[5]!!, 0.01) // 5/1
+    }
+
+    @Test
+    fun `driving by par groupings only includes par 4 and 5`() {
+        val holes = listOf(
+            TestDataFactory.holeStatWithHole(holeStat = TestDataFactory.holeStat(score = 3), hole = TestDataFactory.hole(par = 3)),
+            TestDataFactory.holeStatWithHole(holeStat = TestDataFactory.holeStat(score = 4), hole = TestDataFactory.hole(par = 4)),
+            TestDataFactory.holeStatWithHole(holeStat = TestDataFactory.holeStat(score = 5), hole = TestDataFactory.hole(par = 5))
+        )
+
+        val drivingHoles = holes.filter { it.hole.par > 3 }
+        val byPar = drivingHoles.groupBy { it.hole.par }
+
+        assertNull(byPar[3])
+        assertNotNull(byPar[4])
+        assertNotNull(byPar[5])
+    }
+
+    @Test
+    fun `approach GIR by par groupings correctly calculate percentages`() {
+        val holes = listOf(
+            // Par 3: 1/2 GIR
+            TestDataFactory.holeStatWithHole(holeStat = TestDataFactory.holeStat(score = 3, putts = 2), hole = TestDataFactory.hole(par = 3)), // GIR
+            TestDataFactory.holeStatWithHole(holeStat = TestDataFactory.holeStat(score = 4, putts = 2), hole = TestDataFactory.hole(par = 3)), // No GIR
+            // Par 4: 1/1 GIR
+            TestDataFactory.holeStatWithHole(holeStat = TestDataFactory.holeStat(score = 4, putts = 2), hole = TestDataFactory.hole(par = 4))  // GIR
+        )
+
+        val byPar = holes.groupBy { it.hole.par }.mapValues { (par, parHoles) ->
+            val girCount = parHoles.count { com.golftracker.util.GirCalculator.isGir(it.holeStat.score, it.hole.par, it.holeStat.putts) }
+            (girCount.toDouble() / parHoles.size) * 100
+        }
+
+        assertEquals(50.0, byPar[3]!!, 0.01)
+        assertEquals(100.0, byPar[4]!!, 0.01)
+    }
 }

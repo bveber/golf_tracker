@@ -33,6 +33,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.Flow
 import java.util.Date
 import javax.inject.Inject
 
@@ -55,17 +57,22 @@ data class RoundUiState(
     val cumulativeOverPar: Int
         get() {
             var total = 0
-            holeStats.forEachIndexed { idx, stat ->
-                if (stat.score > 0 && idx in holes.indices) {
-                    total += stat.score - holes[idx].par
+            val currentHoleNum = currentHole?.holeNumber ?: 0
+            val holeMap = holes.associateBy { it.id }
+            
+            holeStats.forEach { stat ->
+                val hole = holeMap[stat.holeId]
+                // Only include the hole in the "Current Score" if it's a previous hole (already "finished")
+                if (stat.score > 0 && hole != null && hole.holeNumber < currentHoleNum) {
+                    total += stat.score - hole.par
                 }
             }
             return total
         }
     
-    /** Yardage for the current hole from the selected tee set */
+    /** Yardage for the current hole from the selected tee set, or the user override. */
     val currentHoleYardage: Int?
-        get() = currentHole?.let { yardages[it.id] }
+        get() = currentHoleStat?.adjustedYardage ?: currentHole?.let { yardages[it.id] }
 }
 
 @HiltViewModel
@@ -102,32 +109,37 @@ class RoundViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true) }
             val round = roundRepository.getRound(roundId)
             if (round != null) {
-                val holes = courseRepository.getHoles(round.courseId).first()
-                val stats = roundRepository.getHoleStatsForRound(roundId).first()
-                
-                // Load yardages for the selected tee set
+                // One-time load of holes and yardages
+                val allHoles = courseRepository.getHoles(round.courseId).first()
                 val yardageList = courseRepository.getYardagesForTeeSet(round.teeSetId).first()
                 val yardageMap = yardageList.associate { it.holeId to it.yardage }
-                
-                _uiState.update { 
-                    it.copy(
-                        activeRound = round,
-                        holes = holes,
-                        holeStats = stats,
-                        yardages = yardageMap,
-                        isLoading = false
-                    ) 
+
+                // Reactive collection of hole stats for the entire round
+                roundRepository.getHoleStatsForRound(roundId).collect { stats ->
+                    val sortedHoles = allHoles.filter { h -> stats.any { it.holeId == h.id } }.sortedBy { it.holeNumber }
+                    val sortedStats = stats.sortedBy { s -> sortedHoles.find { h -> h.id == s.holeId }?.holeNumber ?: 0 }
+
+                    _uiState.update { state ->
+                        state.copy(
+                            activeRound = round,
+                            holes = sortedHoles,
+                            holeStats = sortedStats,
+                            yardages = yardageMap,
+                            isLoading = false
+                        )
+                    }
+
+                    // On the very first load, determine initial hole index
+                    if (_uiState.value.currentHole == null) {
+                        val initialIndex = if (initialHoleArg != null && initialHoleArg != -1 && initialHoleArg in sortedHoles.indices) {
+                            initialHoleArg
+                        } else {
+                            val firstIncompleteIndex = sortedStats.indexOfFirst { it.score == 0 }
+                            if (firstIncompleteIndex != -1) firstIncompleteIndex else 0
+                        }
+                        loadHoleDetails(initialIndex)
+                    }
                 }
-                
-                // Determine initial hole index
-                val initialIndex = if (initialHoleArg != null && initialHoleArg != -1 && initialHoleArg in holes.indices) {
-                    initialHoleArg
-                } else {
-                    // Jump to first incomplete hole if not specified
-                    val firstIncompleteIndex = stats.indexOfFirst { it.score == 0 }
-                    if (firstIncompleteIndex != -1) firstIncompleteIndex else 0
-                }
-                loadHoleDetails(initialIndex)
             }
         }
     }
@@ -166,25 +178,33 @@ class RoundViewModel @Inject constructor(
                 }
 
                 // Collect collections reactively
-                combine(
+                val rawFlow: Flow<HoleStat> = combine(
                     roundRepository.getHoleStatFlow(holeStat.id),
                     roundRepository.getPuttsForHoleStat(holeStat.id),
                     roundRepository.getPenaltiesForHoleStat(holeStat.id),
                     roundRepository.getShotsForHoleStat(holeStat.id)
-                ) { stat, putts, penalties, shots ->
-                    state.copy(
-                        currentHoleStat = stat ?: holeStat,
-                        putts = putts,
-                        penalties = penalties,
-                        shots = shots
-                    )
-                }.collect { updatedState ->
-                    _uiState.update { 
-                        it.copy(
-                            currentHoleStat = updatedState.currentHoleStat,
-                            putts = updatedState.putts,
-                            penalties = updatedState.penalties,
-                            shots = updatedState.shots
+                ) { stat, _, _, _ -> stat ?: holeStat }
+                
+                rawFlow.debounce(500).collect { updatedStat: HoleStat ->
+                    viewModelScope.launch {
+                        val statId = holeStat.id
+                        val currentShots = roundRepository.getShotsForHoleStat(statId).first()
+                        val currentPutts = roundRepository.getPuttsForHoleStat(statId).first()
+                        val currentPenalties = roundRepository.getPenaltiesForHoleStat(statId).first()
+                        
+                        _uiState.update { currentState ->
+                            currentState.copy(
+                                currentHoleStat = updatedStat,
+                                putts = currentPutts,
+                                penalties = currentPenalties,
+                                shots = currentShots
+                            )
+                        }
+                        recalculateSgForCurrentHole(
+                            stat = updatedStat,
+                            shots = currentShots,
+                            putts = currentPutts,
+                            penalties = currentPenalties
                         )
                     }
                 }
@@ -212,14 +232,32 @@ class RoundViewModel @Inject constructor(
         updateStat(updatedStat)
     }
     
-    fun updateTeeShot(outcome: ShotOutcome?, inTrouble: Boolean, clubId: Int?, distance: Int?, mishit: Boolean = false) {
+    fun updateTeeShot(
+        outcome: ShotOutcome?, 
+        inTrouble: Boolean, 
+        clubId: Int?, 
+        distance: Int?, 
+        mishit: Boolean = false,
+        slope: com.golftracker.data.model.LieSlope? = null,
+        stance: com.golftracker.data.model.LieStance? = null,
+        dispersionLeft: Int? = null,
+        dispersionRight: Int? = null,
+        dispersionShort: Int? = null,
+        dispersionLong: Int? = null
+    ) {
         val currentStat = uiState.value.currentHoleStat ?: return
         val updatedStat = currentStat.copy(
             teeOutcome = outcome,
             teeInTrouble = inTrouble,
             teeMishit = mishit,
             teeClubId = clubId,
-            teeShotDistance = distance
+            teeShotDistance = distance,
+            teeSlope = slope,
+            teeStance = stance,
+            teeDispersionLeft = dispersionLeft,
+            teeDispersionRight = dispersionRight,
+            teeDispersionShort = dispersionShort,
+            teeDispersionLong = dispersionLong
         )
         updateStat(updatedStat)
     }
@@ -233,29 +271,85 @@ class RoundViewModel @Inject constructor(
         viewModelScope.launch {
             val nextShotNumber = (uiState.value.shots.maxOfOrNull { it.shotNumber } ?: 0) + 1
             
-            // Default distance logic for Par 3 first shot
-            val defaultDistance = if (currentHole.par == 3 && nextShotNumber == 1) {
-                uiState.value.currentHoleYardage
+            // Enhanced distance estimation logic
+            val shots = uiState.value.shots
+            val defaultDistance = if (nextShotNumber == 1) {
+                if (currentHole.par == 3) {
+                    uiState.value.currentHoleYardage
+                } else {
+                    // Par 4/5: Hole distance - tee shot distance
+                    uiState.value.currentHoleYardage?.let { yardage ->
+                        currentStat.teeShotDistance?.let { teeDist ->
+                            (yardage - teeDist).coerceAtLeast(0)
+                        }
+                    }
+                }
             } else {
-                null
+                // Subsequent shots: Previous shot's end distance
+                val previousShot = shots.find { it.shotNumber == nextShotNumber - 1 }
+                if (previousShot?.distanceToPin != null && previousShot.distanceTraveled != null) {
+                    (previousShot.distanceToPin!! - previousShot.distanceTraveled!!).coerceAtLeast(0)
+                } else {
+                    previousShot?.distanceToPin
+                }
+            }
+
+            // Smart lie defaulting logic
+            val defaultLie = if (nextShotNumber == 1) {
+                if (currentHole.par == 3) {
+                    com.golftracker.data.model.ApproachLie.TEE
+                } else if (currentStat.teeInTrouble) {
+                    com.golftracker.data.model.ApproachLie.OTHER
+                } else {
+                    when (currentStat.teeOutcome) {
+                        com.golftracker.data.model.ShotOutcome.ON_TARGET -> com.golftracker.data.model.ApproachLie.FAIRWAY
+                        com.golftracker.data.model.ShotOutcome.MISS_LEFT, 
+                        com.golftracker.data.model.ShotOutcome.MISS_RIGHT, 
+                        com.golftracker.data.model.ShotOutcome.LONG -> com.golftracker.data.model.ApproachLie.ROUGH
+                        else -> com.golftracker.data.model.ApproachLie.FAIRWAY
+                    }
+                }
+            } else {
+                val previousShot = shots.find { it.shotNumber == nextShotNumber - 1 }
+                if (previousShot?.isRecovery == true) {
+                    com.golftracker.data.model.ApproachLie.OTHER
+                } else {
+                    when (previousShot?.outcome) {
+                        com.golftracker.data.model.ShotOutcome.ON_TARGET -> com.golftracker.data.model.ApproachLie.FAIRWAY
+                        com.golftracker.data.model.ShotOutcome.MISS_LEFT, 
+                        com.golftracker.data.model.ShotOutcome.MISS_RIGHT, 
+                        com.golftracker.data.model.ShotOutcome.LONG -> com.golftracker.data.model.ApproachLie.ROUGH
+                        else -> null
+                    }
+                }
             }
 
             roundRepository.insertShot(
                 com.golftracker.data.entity.Shot(
                     holeStatId = currentStat.id,
                     shotNumber = nextShotNumber,
-                    distanceToPin = defaultDistance
+                    distanceToPin = defaultDistance,
+                    lie = defaultLie
                 )
             )
             refreshShots(currentStat.id)
         }
     }
-
-
-    
-    // Correction: Shot entity does not have approachShotDistance field. It has distanceToPin.
-    // I need to be careful with what fields I'm updating.
-    fun updateShotDetails(shot: com.golftracker.data.entity.Shot, outcome: ShotOutcome?, lie: ApproachLie?, clubId: Int?, distanceToPin: Int?, isRecovery: Boolean, providedDistanceTraveled: Int?) {
+    fun updateShotDetails(
+        shot: com.golftracker.data.entity.Shot, 
+        outcome: ShotOutcome?, 
+        lie: ApproachLie?, 
+        clubId: Int?, 
+        distanceToPin: Int?, 
+        isRecovery: Boolean, 
+        providedDistanceTraveled: Int?,
+        slope: com.golftracker.data.model.LieSlope? = null,
+        stance: com.golftracker.data.model.LieStance? = null,
+        dispersionLeft: Int? = null,
+        dispersionRight: Int? = null,
+        dispersionShort: Int? = null,
+        dispersionLong: Int? = null
+    ) {
         viewModelScope.launch {
             if (outcome == null && lie == null && distanceToPin == null && providedDistanceTraveled == null) {
                 roundRepository.deleteShot(shot)
@@ -268,7 +362,13 @@ class RoundViewModel @Inject constructor(
                         distanceToPin = distanceToPin,
                         isRecovery = isRecovery,
                         distanceTraveled = providedDistanceTraveled,
-                        strokesGained = null
+                        strokesGained = null,
+                        slope = slope,
+                        stance = stance,
+                        dispersionLeft = dispersionLeft,
+                        dispersionRight = dispersionRight,
+                        dispersionShort = dispersionShort,
+                        dispersionLong = dispersionLong
                     )
                 )
             }
@@ -319,10 +419,34 @@ class RoundViewModel @Inject constructor(
         return clubs.value.firstOrNull { it.type == "DRIVER" }
     }
     
-    fun updateGreen(chips: Int, sandShots: Int, chipDistance: Int?, chipLie: com.golftracker.data.model.ApproachLie? = null, recoveryChip: Boolean = false) {
+    fun updateGreen(
+        chips: Int,
+        sandShots: Int,
+        chipDistance: Int?,
+        sandShotDistance: Int? = null,
+        chipLie: com.golftracker.data.model.ApproachLie? = null,
+        recoveryChip: Boolean = false
+    ) {
         val stat = uiState.value.currentHoleStat ?: return
-        updateStat(stat.copy(chips = chips, sandShots = sandShots, chipDistance = chipDistance, chipLie = chipLie, recoveryChip = recoveryChip))
+        updateStat(stat.copy(
+            chips = chips,
+            sandShots = sandShots,
+            chipDistance = chipDistance,
+            sandShotDistance = sandShotDistance,
+            chipLie = chipLie,
+            recoveryChip = recoveryChip
+        ))
         viewModelScope.launch { recalculateApproachDistances() }
+    }
+
+    fun updateChipLieExtras(slope: com.golftracker.data.model.LieSlope?, stance: com.golftracker.data.model.LieStance?) {
+        val stat = uiState.value.currentHoleStat ?: return
+        updateStat(stat.copy(chipSlope = slope, chipStance = stance))
+    }
+
+    fun updateSandShotLieExtras(slope: com.golftracker.data.model.LieSlope?, stance: com.golftracker.data.model.LieStance?) {
+        val stat = uiState.value.currentHoleStat ?: return
+        updateStat(stat.copy(sandShotSlope = slope, sandShotStance = stance))
     }
 
     private fun updateStat(stat: HoleStat) {
@@ -390,6 +514,15 @@ class RoundViewModel @Inject constructor(
         }
     }
     
+    fun updateHoleYardage(yardage: Int?) {
+        val stat = uiState.value.currentHoleStat ?: return
+        updateStat(stat.copy(adjustedYardage = yardage))
+        viewModelScope.launch {
+            recalculateApproachDistances()
+            recalculateSgForCurrentHole()
+        }
+    }
+
     fun updatePutts(count: Int) {
         val currentStat = uiState.value.currentHoleStat ?: return
         updateStat(currentStat.copy(putts = count))
@@ -398,7 +531,8 @@ class RoundViewModel @Inject constructor(
             val currentPutts = uiState.value.putts
             if (count > currentPutts.size) {
                 for (i in currentPutts.size + 1..count) {
-                    roundRepository.insertPutt(Putt(holeStatId = currentStat.id, puttNumber = i, distance = null))
+                    val defaultDistance = if (i == 1) 20f else 1f
+                    roundRepository.insertPutt(Putt(holeStatId = currentStat.id, puttNumber = i, distance = defaultDistance))
                 }
             } else if (count < currentPutts.size) {
                  val toRemove = currentPutts.takeLast(currentPutts.size - count)
@@ -458,9 +592,14 @@ class RoundViewModel @Inject constructor(
         }
     }
 
-    private suspend fun recalculateSgForCurrentHole() {
+    private suspend fun recalculateSgForCurrentHole(
+        stat: HoleStat? = null,
+        shots: List<com.golftracker.data.entity.Shot>? = null,
+        putts: List<Putt>? = null,
+        penalties: List<Penalty>? = null
+    ) {
         val state = uiState.value
-        val stat = state.currentHoleStat ?: return
+        val currentStat = stat ?: state.currentHoleStat ?: return
         val hole = state.currentHole ?: return
         val round = state.activeRound ?: return
         
@@ -478,85 +617,160 @@ class RoundViewModel @Inject constructor(
         
         val holeYardage = allYardages.find { it.holeId == hole.id }?.yardage ?: return
         
-        val shots = roundRepository.getShotsForHoleStat(stat.id).first().sortedBy { it.shotNumber }
-        val putts = roundRepository.getPuttsForHoleStat(stat.id).first().sortedBy { it.puttNumber }
-        val penalties = roundRepository.getPenaltiesForHoleStat(stat.id).first()
+        val currentShots = shots ?: roundRepository.getShotsForHoleStat(currentStat.id).first().sortedBy { it.shotNumber }
+        val currentPutts = putts ?: roundRepository.getPuttsForHoleStat(currentStat.id).first().sortedBy { it.puttNumber }
+        val currentPenalties = penalties ?: roundRepository.getPenaltiesForHoleStat(currentStat.id).first()
         
-        var totalSg = 0.0
-        var sgOffTee = 0.0
-        var sgApproach = 0.0
-        var sgAroundGreen = 0.0
-        var sgPutting = 0.0
+        // Modular SG calculation using helper functions
+        val teeSgPar45 = calculateTeeShotSg(currentStat, hole, holeYardage, holeAdj, currentShots, currentPutts)
+        val (teeSgPar3, approachTotalSg) = calculateApproachShotsSg(currentShots, currentStat, hole, holeYardage, holeAdj, currentPutts)
         
-        // 1. TEE SHOT (Par 4/5)
-        if (hole.par > 3 && (stat.score > 0 || stat.teeOutcome != null)) {
-            val startDistance = holeYardage
-            val startLie = ApproachLie.TEE
+        val sgOffTee = teeSgPar45 + teeSgPar3
+        val sgApproach = approachTotalSg
+        val sgAroundGreen = calculateShortGameSg(currentStat, currentPutts)
+        val sgPutting = calculatePuttingSg(currentPutts, currentStat)
+        
+        val penaltyTotal = currentPenalties.sumOf { it.strokes }.toDouble()
+        val totalSg = sgOffTee + sgApproach + sgAroundGreen + sgPutting - penaltyTotal
+        
+        val shortGameStrokes = currentStat.chips + currentStat.sandShots
+        
+        // Detect if a tee shot was taken: 
+        // Par 4/5: Tee coordinates, club, or outcome
+        // Par 3: Technically recorded as an 'Approach' in GPS mode, so we skip counting 'Tee' if par <= 3
+        val teeShotTaken = hole.par > 3 && (currentStat.teeOutcome != null || currentStat.teeShotDistance != null || currentStat.teeClubId != null || currentStat.teeLat != null)
+        val holedOutFromOffGreen = (currentStat.teeOutcome == ShotOutcome.HOLED_OUT) || currentShots.any { it.outcome == ShotOutcome.HOLED_OUT }
+        
+        // Calculated score is a running total of all recorded actions
+        // Every hole has 1 tee shot (either counted as 'teeShotTaken' or as the first approach shot for Par 3)
+        // Subsequent shots are approach + short game + putts + penalties
+        val calculatedScore = (if (teeShotTaken) 1 else 0) + 
+            currentShots.size + 
+            shortGameStrokes + 
+            currentStat.putts + 
+            currentPenalties.sumOf { it.strokes }
             
-            var endDist = 0
-            var endLie: ApproachLie? = null
-            var greenFeet: Float? = null
-            
-            // Determine the "intended" or "reported" end state
-            var hasValidEndState = false
-            if (shots.isNotEmpty()) {
-                if (shots.first().distanceToPin != null) {
-                    endDist = shots.first().distanceToPin!!
-                    endLie = shots.first().lie
-                    hasValidEndState = true
-                }
-            } else if (stat.chips > 0 || stat.sandShots > 0) {
-                endDist = stat.chipDistance ?: 15
-                endLie = if (stat.sandShots > 0) ApproachLie.SAND else ApproachLie.ROUGH
-                hasValidEndState = true
-            } else if (putts.isNotEmpty()) {
-                if (putts.first().distance != null) {
-                    greenFeet = putts.first().distance
-                    hasValidEndState = true
-                }
-            } else if (stat.score > 0) {
-                // If holed out directly from tee (Hole in one on Par 4?! or just Score entered)
-                endDist = 0
-                hasValidEndState = true
-            }
+        val finishedHole = holedOutFromOffGreen || (currentStat.putts > 0 && currentPutts.any { it.made })
 
-            // If user manually entered tee distance, honor it for endDist specifically
-            if (stat.teeShotDistance != null) {
-                endDist = ShotDistanceCalculator.deriveEndDistance(holeYardage, stat.teeShotDistance!!, stat.teeOutcome)
-                // If we have a manual distance, we consider it a valid end state for SG purposes
-                hasValidEndState = true
-            }
-
-            if (hasValidEndState) {
-                // Apply "In Trouble" penalty by forcing the lie to recovery
-                val actualEndLie = if (stat.teeInTrouble) ApproachLie.OTHER else endLie
-                
-                val teeSg = sgCalculator.calculateShotSG(startDistance, startLie, true, endDist, actualEndLie, greenFeet, 0, holeAdj)
-                sgOffTee += teeSg
-            }
+        // The score should ALWAYS be at least what's calculated from tracked shots.
+        // If the user manually set a higher score, keep it (e.g., hidden penalties).
+        // If the hole is finished, we use the max of manual vs calculated.
+        val newScore = maxOf(currentStat.score, calculatedScore)
+        
+        val hasData = teeShotTaken || currentShots.isNotEmpty() || currentPutts.isNotEmpty() || shortGameStrokes > 0 || currentPenalties.isNotEmpty()
+        
+        // Calculate GIR: Reached green in par-2 or better
+        val isGir = finishedHole && (newScore - currentStat.putts <= hole.par - 2)
+        
+        val updatedStat = currentStat.copy(
+            score = newScore,
+            strokesGained = if (hasData) totalSg else null,
+            sgOffTee = if (hasData) sgOffTee else null,
+            sgApproach = if (hasData) sgApproach else null,
+            sgAroundGreen = if (hasData) sgAroundGreen else null,
+            sgPutting = if (hasData) sgPutting else null,
+            gir = isGir
+        )
+        
+        // Only update if something actually changed to avoid infinite reactive loops
+        if (updatedStat != currentStat) {
+            roundRepository.updateHoleStat(updatedStat)
         }
+
+        // Refresh UI state with latest calculated values
+        _uiState.update { 
+            val newStats = it.holeStats.toMutableList()
+            if (it.currentHoleIndex in newStats.indices) {
+                newStats[it.currentHoleIndex] = updatedStat
+            }
+            it.copy(
+                currentHoleStat = updatedStat, 
+                holeStats = newStats,
+                shots = currentShots,
+                putts = currentPutts
+            )
+        }
+    }
+
+    private fun calculateTeeShotSg(
+        stat: HoleStat,
+        hole: Hole,
+        yardage: Int,
+        holeAdj: Double,
+        shots: List<com.golftracker.data.entity.Shot>,
+        putts: List<Putt>
+    ): Double {
+        if (hole.par <= 3 || (stat.score == 0 && stat.teeOutcome == null)) return 0.0
+
+        val startDistance = yardage
+        val startLie = ApproachLie.TEE
         
-        // 2. APPROACH SHOTS
+        var endDist = 0
+        var endLie: ApproachLie? = null
+        var greenFeet: Float? = null
+        var hasValidEndState = false
+
+        if (shots.isNotEmpty()) {
+            if (shots.first().distanceToPin != null) {
+                endDist = shots.first().distanceToPin!!
+                endLie = shots.first().lie
+                hasValidEndState = true
+            }
+        } else if (stat.chips > 0 || stat.sandShots > 0) {
+            endDist = stat.chipDistance ?: 15
+            endLie = if (stat.sandShots > 0) ApproachLie.SAND else ApproachLie.ROUGH
+            hasValidEndState = true
+        } else if (putts.isNotEmpty()) {
+            greenFeet = putts.first().distance
+            hasValidEndState = true
+        } else if (stat.score > 0) {
+            endDist = 0
+            hasValidEndState = true
+        }
+
+        if (stat.teeShotDistance != null) {
+            endDist = ShotDistanceCalculator.deriveEndDistance(yardage, stat.teeShotDistance!!, stat.teeOutcome)
+            hasValidEndState = true
+        }
+
+        if (stat.teeOutcome == ShotOutcome.HOLED_OUT) {
+            endDist = 0
+            hasValidEndState = true
+        }
+
+        return if (hasValidEndState) {
+            val actualEndLie = if (stat.teeInTrouble) ApproachLie.OTHER else endLie
+            sgCalculator.calculateShotSG(startDistance, startLie, true, endDist, actualEndLie, greenFeet, 0, holeAdj)
+        } else 0.0
+    }
+
+    private suspend fun calculateApproachShotsSg(
+        shots: List<com.golftracker.data.entity.Shot>,
+        stat: HoleStat,
+        hole: Hole,
+        yardage: Int,
+        holeAdj: Double,
+        putts: List<Putt>
+    ): Pair<Double, Double> {
+        var offTeeSg = 0.0
+        var approachSg = 0.0
         for (i in shots.indices) {
             val shot = shots[i]
-            val isFirstShotOfPar3 = (hole.par == 3 && i == 0) // UI asks for approach on par 3 tee
+            val isFirstShotOfPar3 = (hole.par == 3 && i == 0)
             
             if (shot.distanceToPin == null && !isFirstShotOfPar3) {
-                if (shot.strokesGained != null) {
-                    roundRepository.updateShot(shot.copy(strokesGained = null))
-                }
+                if (shot.strokesGained != null) roundRepository.updateShot(shot.copy(strokesGained = null))
                 continue
             }
 
-            val startDistance = shot.distanceToPin ?: if (isFirstShotOfPar3) holeYardage else continue
+            val startDistance = shot.distanceToPin ?: if (isFirstShotOfPar3) yardage else continue
             val startLie = if (isFirstShotOfPar3) ApproachLie.TEE else shot.lie ?: ApproachLie.FAIRWAY
             
             var endDist = 0
             var endLie: ApproachLie? = null
             var greenFeet: Float? = null
-            
             var hasValidEndState = false
-            // Successor identification logic
+
             if (i + 1 < shots.size) {
                 if (shots[i+1].distanceToPin != null) {
                     endDist = shots[i+1].distanceToPin!!
@@ -568,103 +782,62 @@ class RoundViewModel @Inject constructor(
                 endLie = if (stat.sandShots > 0) ApproachLie.SAND else ApproachLie.ROUGH
                 hasValidEndState = true
             } else if (putts.isNotEmpty()) {
-                if (putts.first().distance != null) {
-                    greenFeet = putts.first().distance
-                    hasValidEndState = true
-                }
+                greenFeet = putts.first().distance
+                hasValidEndState = true
             } else if (stat.score > 0) {
-                // Holed out
                 endDist = 0
                 hasValidEndState = true
             }
 
-            // Manual distance override (doesn't change endLie/greenFeet)
             if (shot.distanceTraveled != null) {
                 endDist = ShotDistanceCalculator.deriveEndDistance(startDistance, shot.distanceTraveled!!, shot.outcome)
+                hasValidEndState = true
+            }
+            
+            if (shot.outcome == ShotOutcome.HOLED_OUT) {
+                endDist = 0
                 hasValidEndState = true
             }
             
             if (hasValidEndState) {
                 val sg = sgCalculator.calculateShotSG(startDistance, startLie, isFirstShotOfPar3, endDist, endLie, greenFeet, 0, if (isFirstShotOfPar3) holeAdj else 0.0)
                 roundRepository.updateShot(shot.copy(strokesGained = sg))
-                
-                if (isFirstShotOfPar3) {
-                    sgOffTee += sg 
-                } else {
-                    sgApproach += sg
-                }
+                if (isFirstShotOfPar3) offTeeSg += sg else approachSg += sg
             } else if (shot.strokesGained != null) {
                 roundRepository.updateShot(shot.copy(strokesGained = null))
             }
         }
+        return Pair(offTeeSg, approachSg)
+    }
 
-        // 3. SHORT GAME (Chips / Sand Shots)
+    private fun calculateShortGameSg(stat: HoleStat, putts: List<Putt>): Double {
         val shortGameStrokes = stat.chips + stat.sandShots
-        if (shortGameStrokes > 0) {
-            val startDistance = stat.chipDistance ?: 15
-            val startLie = stat.chipLie ?: if (stat.sandShots > 0) ApproachLie.SAND else ApproachLie.ROUGH
-            val expectedStart = sgCalculator.getExpectedStrokes(startDistance, startLie, false)
-            
-            val greenFeet = putts.firstOrNull()?.distance
-            val expectedEnd = if (greenFeet != null) sgCalculator.getExpectedPutts(greenFeet) else 0.0
-            
-            val shortGameSg = expectedStart - expectedEnd - shortGameStrokes
-            sgAroundGreen += shortGameSg
-        }
+        if (shortGameStrokes <= 0) return 0.0
 
-        // 4. PUTTS
+        val startDistance = stat.chipDistance ?: 15
+        val startLie = stat.chipLie ?: if (stat.sandShots > 0) ApproachLie.SAND else ApproachLie.ROUGH
+        val expectedStart = sgCalculator.getExpectedStrokes(startDistance, startLie, false)
+        
+        val greenFeet = putts.firstOrNull()?.distance
+        val expectedEnd = if (greenFeet != null) sgCalculator.getExpectedPutts(greenFeet) else 0.0
+        
+        return expectedStart - expectedEnd - shortGameStrokes
+    }
+
+    private suspend fun calculatePuttingSg(putts: List<Putt>, stat: HoleStat): Double {
+        var totalSg = 0.0
         for (i in putts.indices) {
             val putt = putts[i]
             val startFeet = putt.distance ?: continue
             val nextFeet = if (i + 1 < putts.size) putts[i+1].distance else null
-            // Improved 'made' logic: it's made if it's the last putt AND the final score is set OR explicit made flag
             val made = (i == putts.size - 1) && (stat.score > 0 || putt.made)
             
             if (!made && nextFeet == null) continue
             
             val sg = sgCalculator.calculatePuttSG(startFeet, made, nextFeet)
             roundRepository.updatePutt(putt.copy(strokesGained = sg))
-            sgPutting += sg
+            totalSg += sg
         }
-        
-        val calculatedScore = (if (hole.par > 3 && stat.teeOutcome != null) 1 else 0) + 
-            shots.size + 
-            shortGameStrokes + 
-            stat.putts + 
-            penalties.sumOf { it.strokes }
-            
-        val newScore = if (calculatedScore > 0) calculatedScore else stat.score
-        
-        // Total SG is the sum of its constituent parts to ensure consistency in the UI
-        val penaltyTotal = penalties.sumOf { it.strokes }.toDouble()
-        totalSg = sgOffTee + sgApproach + sgAroundGreen + sgPutting - penaltyTotal
-        
-        val hasData = newScore > 0 || stat.teeOutcome != null || shots.isNotEmpty() || putts.isNotEmpty() || shortGameStrokes > 0
-        
-        val updatedStat = stat.copy(
-            score = newScore,
-            strokesGained = if (hasData) totalSg else null,
-            sgOffTee = if (hasData) sgOffTee else null,
-            sgApproach = if (hasData) sgApproach else null,
-            sgAroundGreen = if (hasData) sgAroundGreen else null,
-            sgPutting = if (hasData) sgPutting else null
-        )
-        
-        roundRepository.updateHoleStat(updatedStat)
-
-        // Refresh lists to get updated SG values from DB
-        val finalShots = roundRepository.getShotsForHoleStat(stat.id).first().sortedBy { it.shotNumber }
-        val finalPutts = roundRepository.getPuttsForHoleStat(stat.id).first().sortedBy { it.puttNumber }
-        
-        _uiState.update { 
-            val newStats = it.holeStats.toMutableList()
-            newStats[it.currentHoleIndex] = updatedStat
-            it.copy(
-                currentHoleStat = updatedStat, 
-                holeStats = newStats,
-                shots = finalShots,
-                putts = finalPutts
-            )
-        }
+        return totalSg
     }
 }

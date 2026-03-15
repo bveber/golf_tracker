@@ -34,7 +34,7 @@ import com.golftracker.data.entity.TeeSet
         Penalty::class,
         Shot::class
     ],
-    version = 10,
+    version = 18,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -67,6 +67,96 @@ abstract class GolfDatabase : RoomDatabase() {
         val MIGRATION_9_10 = object : androidx.room.migration.Migration(9, 10) {
             override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE hole_stats ADD COLUMN tee_mishit INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+        val MIGRATION_10_11 = object : androidx.room.migration.Migration(10, 11) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE hole_stats ADD COLUMN sand_shot_distance INTEGER")
+            }
+        }
+        val MIGRATION_11_12 = object : androidx.room.migration.Migration(11, 12) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE hole_stats ADD COLUMN adjusted_yardage INTEGER")
+            }
+        }
+        val MIGRATION_12_13 = object : androidx.room.migration.Migration(12, 13) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE hole_stats ADD COLUMN tee_slope TEXT")
+                database.execSQL("ALTER TABLE hole_stats ADD COLUMN tee_stance TEXT")
+                database.execSQL("ALTER TABLE shots ADD COLUMN slope TEXT")
+                database.execSQL("ALTER TABLE shots ADD COLUMN stance TEXT")
+                database.execSQL("ALTER TABLE hole_stats ADD COLUMN chip_slope TEXT")
+                database.execSQL("ALTER TABLE hole_stats ADD COLUMN chip_stance TEXT")
+                database.execSQL("ALTER TABLE hole_stats ADD COLUMN sand_shot_slope TEXT")
+                database.execSQL("ALTER TABLE hole_stats ADD COLUMN sand_shot_stance TEXT")
+            }
+        }
+        val MIGRATION_13_14 = object : androidx.room.migration.Migration(13, 14) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE hole_stats ADD COLUMN tee_dispersion_left INTEGER")
+                database.execSQL("ALTER TABLE hole_stats ADD COLUMN tee_dispersion_right INTEGER")
+                database.execSQL("ALTER TABLE hole_stats ADD COLUMN tee_dispersion_short INTEGER")
+                database.execSQL("ALTER TABLE hole_stats ADD COLUMN tee_dispersion_long INTEGER")
+                
+                database.execSQL("ALTER TABLE shots ADD COLUMN dispersion_left INTEGER")
+                database.execSQL("ALTER TABLE shots ADD COLUMN dispersion_right INTEGER")
+                database.execSQL("ALTER TABLE shots ADD COLUMN dispersion_short INTEGER")
+                database.execSQL("ALTER TABLE shots ADD COLUMN dispersion_long INTEGER")
+            }
+        }
+        val MIGRATION_14_15 = object : androidx.room.migration.Migration(14, 15) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE hole_stats ADD COLUMN tee_target_lat REAL")
+                database.execSQL("ALTER TABLE hole_stats ADD COLUMN tee_target_lng REAL")
+                
+                database.execSQL("ALTER TABLE shots ADD COLUMN target_lat REAL")
+                database.execSQL("ALTER TABLE shots ADD COLUMN target_lng REAL")
+            }
+        }
+        val MIGRATION_15_16 = object : androidx.room.migration.Migration(15, 16) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE holes ADD COLUMN tee_lat REAL")
+                database.execSQL("ALTER TABLE holes ADD COLUMN tee_lng REAL")
+                database.execSQL("ALTER TABLE holes ADD COLUMN green_lat REAL")
+                database.execSQL("ALTER TABLE holes ADD COLUMN green_lng REAL")
+            }
+        }
+        val MIGRATION_16_17 = object : androidx.room.migration.Migration(16, 17) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Check if columns exist before adding them to avoid duplicates
+                val cursor = database.query("PRAGMA table_info(rounds)")
+                val columns = mutableListOf<String>()
+                while (cursor.moveToNext()) {
+                    columns.add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+                }
+                cursor.close()
+
+                if (!columns.contains("holes_played")) {
+                    database.execSQL("ALTER TABLE rounds ADD COLUMN holes_played INTEGER NOT NULL DEFAULT 18")
+                }
+                if (!columns.contains("start_hole")) {
+                    database.execSQL("ALTER TABLE rounds ADD COLUMN start_hole INTEGER NOT NULL DEFAULT 1")
+                }
+                if (!columns.contains("notes")) {
+                    database.execSQL("ALTER TABLE rounds ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
+                }
+            }
+        }
+        val MIGRATION_17_18 = object : androidx.room.migration.Migration(17, 18) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Check if old column exists
+                val cursor = database.query("PRAGMA table_info(rounds)")
+                val columns = mutableListOf<String>()
+                while (cursor.moveToNext()) {
+                    columns.add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+                }
+                cursor.close()
+
+                if (columns.contains("holes_played") && !columns.contains("total_holes")) {
+                    database.execSQL("ALTER TABLE rounds RENAME COLUMN holes_played TO total_holes")
+                } else if (!columns.contains("total_holes")) {
+                    database.execSQL("ALTER TABLE rounds ADD COLUMN total_holes INTEGER NOT NULL DEFAULT 18")
+                }
             }
         }
     }

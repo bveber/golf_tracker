@@ -5,5 +5,6 @@ enum class ShotOutcome {
     MISS_LEFT,
     MISS_RIGHT,
     SHORT,
-    LONG
+    LONG,
+    HOLED_OUT
 }
