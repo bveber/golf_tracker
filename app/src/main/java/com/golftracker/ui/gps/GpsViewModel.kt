@@ -114,6 +114,7 @@ data class GpsUiState(
     val pendingClubId: Int? = null,
     val dispersionEllipses: List<DispersionEllipse> = emptyList(),
     val dispersionPoints: List<Pair<Double, Double>> = emptyList(),
+    val rawDispersionData: com.golftracker.data.repository.RawDispersionData = com.golftracker.data.repository.RawDispersionData(),
     val showShotPanel: Boolean = false,
     val isSyncing: Boolean = false,
     val clubs: List<Club> = emptyList(),
@@ -404,7 +405,11 @@ class GpsViewModel @Inject constructor(
 
     private suspend fun calculateDispersion(clubId: Int?) = withContext(Dispatchers.Default) {
         if (clubId == null) {
-            _uiState.update { it.copy(dispersionEllipses = emptyList(), dispersionPoints = emptyList()) }
+            _uiState.update { it.copy(
+                dispersionEllipses = emptyList(), 
+                dispersionPoints = emptyList(),
+                rawDispersionData = com.golftracker.data.repository.RawDispersionData()
+            ) }
             return@withContext
         }
         
@@ -434,7 +439,11 @@ class GpsViewModel @Inject constructor(
             val filteredPoints = filterOutliers(rawPoints)
             if (filteredPoints.isNotEmpty()) {
                 val ellipses = calculateEllipsesFromPoints(filteredPoints)
-                _uiState.update { it.copy(dispersionEllipses = ellipses, dispersionPoints = rawPoints) }
+                _uiState.update { it.copy(
+                    dispersionEllipses = ellipses, 
+                    dispersionPoints = rawPoints,
+                    rawDispersionData = rawDispersion
+                ) }
                 return@withContext
             }
         }
@@ -445,7 +454,11 @@ class GpsViewModel @Inject constructor(
         val activeHandicap = actualHandicap ?: estimatedHandicap ?: 15.0
         
         val ellipses = calculateFallbackEllipses(stockDistance.toDouble(), activeHandicap)
-        _uiState.update { it.copy(dispersionEllipses = ellipses, dispersionPoints = rawPoints) }
+        _uiState.update { it.copy(
+            dispersionEllipses = ellipses, 
+            dispersionPoints = rawPoints,
+            rawDispersionData = rawDispersion
+        ) }
     }
 
     /**

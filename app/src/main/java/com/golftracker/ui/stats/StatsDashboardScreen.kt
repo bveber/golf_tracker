@@ -614,7 +614,7 @@ fun DrivingTab(
     }
     
     // Raw Miss Dispersion Scatter Plot
-    if (d.rawDispersion.points.size >= 5) {
+    if (d.rawDispersion.points.size >= 1) {
         Spacer(modifier = Modifier.height(8.dp))
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -783,7 +783,7 @@ fun ApproachTab(
     }
 
     // Raw Miss Dispersion Scatter Plot
-    if (a.rawDispersion.points.size >= 5) {
+    if (a.rawDispersion.points.size >= 1) {
         Spacer(modifier = Modifier.height(8.dp))
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
