@@ -45,10 +45,7 @@ class StrokesGainedCalculatorTest {
             endLie = null,
             endDistanceFeetOnGreen = 20f,
             penaltyStrokes = 0,
-            courseRating = 72.0,
-            courseSlope = 113,
-            coursePar = 72,
-            holeIndex = 9
+            holeAdjustment = 0.0
         )
         assertEquals(0.0, sg, 0.01)
     }
@@ -66,10 +63,7 @@ class StrokesGainedCalculatorTest {
             endLie = null,
             endDistanceFeetOnGreen = null,
             penaltyStrokes = 0,
-            courseRating = 72.0,
-            courseSlope = 113,
-            coursePar = 72,
-            holeIndex = 9
+            holeAdjustment = 0.0
         )
         assertEquals(1.1, sg, 0.01)
     }
@@ -87,10 +81,7 @@ class StrokesGainedCalculatorTest {
             endLie = ApproachLie.FAIRWAY,
             endDistanceFeetOnGreen = null,
             penaltyStrokes = 0,
-            courseRating = 72.0,
-            courseSlope = 113,
-            coursePar = 72,
-            holeIndex = 9
+            holeAdjustment = 0.0
         )
         assertEquals(-0.2, sg, 0.01)
     }

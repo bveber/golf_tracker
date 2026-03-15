@@ -41,6 +41,8 @@ class CourseRepository @Inject constructor(
 
     suspend fun insertHole(hole: Hole) = courseDao.insertHole(hole)
 
+    suspend fun updateHole(hole: Hole) = courseDao.updateHole(hole)
+
     suspend fun insertHoles(holes: List<Hole>) = courseDao.insertHoles(holes)
     
     // Yardages

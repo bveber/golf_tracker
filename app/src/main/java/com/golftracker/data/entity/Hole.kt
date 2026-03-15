@@ -25,5 +25,14 @@ data class Hole(
     val holeNumber: Int,
     val par: Int,
     @ColumnInfo(name = "handicap_index")
-    val handicapIndex: Int? = null
+    val handicapIndex: Int? = null,
+    
+    @ColumnInfo(name = "tee_lat")
+    val teeLat: Double? = null,
+    @ColumnInfo(name = "tee_lng")
+    val teeLng: Double? = null,
+    @ColumnInfo(name = "green_lat")
+    val greenLat: Double? = null,
+    @ColumnInfo(name = "green_lng")
+    val greenLng: Double? = null
 )

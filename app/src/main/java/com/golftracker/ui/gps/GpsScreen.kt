@@ -41,6 +41,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -62,6 +63,7 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.DragState
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
@@ -123,12 +125,32 @@ fun GpsScreen(
     val playerMarkerState = rememberMarkerState(position = initialPlayer)
     val flagMarkerState   = rememberMarkerState(position = initialFlag)
 
-    // Sync state back to ViewModel if markers are dragged
-    LaunchedEffect(playerMarkerState.position) {
-        viewModel.onPlayerDragged(playerMarkerState.position)
+    // Sync state from ViewModel back to markers (e.g. for Snap to Me or Club Stock Distance)
+    LaunchedEffect(uiState.playerLocation) {
+        uiState.playerLocation?.let {
+            if (playerMarkerState.position != it) {
+                playerMarkerState.position = it
+            }
+        }
     }
-    LaunchedEffect(flagMarkerState.position) {
-        viewModel.onFlagDragged(flagMarkerState.position)
+    LaunchedEffect(uiState.flagLocation) {
+        uiState.flagLocation?.let {
+            if (flagMarkerState.position != it) {
+                flagMarkerState.position = it
+            }
+        }
+    }
+
+    // Sync back to ViewModel only when dragging ends to prevent jitter
+    LaunchedEffect(playerMarkerState.dragState) {
+        if (playerMarkerState.dragState == DragState.END) {
+            viewModel.onPlayerDragged(playerMarkerState.position)
+        }
+    }
+    LaunchedEffect(flagMarkerState.dragState) {
+        if (flagMarkerState.dragState == DragState.END) {
+            viewModel.onFlagDragged(flagMarkerState.position)
+        }
     }
 
     val distanceYards = remember(playerMarkerState.position, flagMarkerState.position) {
@@ -153,6 +175,11 @@ fun GpsScreen(
         }
     }
 
+    // Midpoint yardage label update
+    val midpointState = rememberMarkerState(position = currentMidPoint)
+    LaunchedEffect(currentMidPoint) {
+        midpointState.position = currentMidPoint
+    }
     Box(modifier = Modifier.fillMaxSize()) {
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
@@ -166,97 +193,14 @@ fun GpsScreen(
                 zoomControlsEnabled = false
             )
         ) {
-            Marker(
-                state = playerMarkerState,
-                title = "Player",
-                draggable = true,
-                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
+            MapOverlays(
+                uiState = uiState,
+                playerMarkerState = playerMarkerState,
+                flagMarkerState = flagMarkerState,
+                midpointState = midpointState,
+                distanceYards = distanceYards,
+                currentPolylinePoints = currentPolylinePoints
             )
-            Marker(
-                state = flagMarkerState,
-                title = "Flag",
-                draggable = true,
-                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)
-            )
-
-            // Previous shots markers and polyline
-            if (uiState.trackedShots.isNotEmpty()) {
-                val shotPoints = uiState.trackedShots.map { it.location }
-                
-                // Polyline connecting the shots
-                Polyline(
-                    points = shotPoints,
-                    color = Color.White.copy(alpha = 0.5f),
-                    width = 3f,
-                    pattern = listOf(com.google.android.gms.maps.model.Dash(20f), com.google.android.gms.maps.model.Gap(10f))
-                )
-
-                // Individual markers for each tracked shot
-                uiState.trackedShots.forEachIndexed { index, shot ->
-                    val shotMarkerState = rememberMarkerState(key = "shot_${index}_${shot.shotType}", position = shot.location)
-                    Marker(
-                        state = shotMarkerState,
-                        title = "Shot ${index + 1}: ${shot.clubName ?: shot.shotType.name}",
-                        icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
-                        alpha = 0.7f
-                    )
-                }
-            }
-            
-            Polyline(
-                points = currentPolylinePoints,
-                color = Color.Cyan,
-                width = 5f
-            )
-
-            // Midpoint yardage label
-            val midpointState = rememberMarkerState(position = currentMidPoint)
-            midpointState.position = currentMidPoint
-            MarkerComposable(
-                keys = arrayOf(distanceYards),
-                state = midpointState,
-                anchor = androidx.compose.ui.geometry.Offset(0.0f, 0.5f),
-                onClick = { false }
-            ) {
-                Box(
-                    modifier = Modifier
-                        .padding(start = 24.dp)
-                        .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        "$distanceYards yds",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-
-        // Distance overlay
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(16.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color.Black.copy(alpha = 0.7f))
-                .padding(horizontal = 24.dp, vertical = 12.dp)
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "$distanceYards",
-                    color = Color.White,
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "YARDS TO FLAG",
-                    color = Color.White.copy(alpha = 0.8f),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            }
         }
 
         // Shot Tracking Panel
@@ -265,8 +209,9 @@ fun GpsScreen(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(16.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 0.dp)
+                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
                     .background(Color.Black.copy(alpha = 0.8f))
                     .padding(16.dp)
             ) {
@@ -324,7 +269,10 @@ fun GpsScreen(
                     // Green transition button
                     val isNearGreen = distanceYards < 20
                     androidx.compose.material3.OutlinedButton(
-                        onClick = onClose,
+                        onClick = {
+                            viewModel.onGreenReached()
+                            onClose()
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         border = androidx.compose.foundation.BorderStroke(
                             2.dp, 
@@ -385,19 +333,166 @@ fun GpsScreen(
                 uiState.liveUserLocation?.let { realLocation ->
                     playerMarkerState.position = realLocation
                     viewModel.onPlayerDragged(realLocation)
-                    hasCentered = false // Retrigger the camera pan to the player
                 }
             },
             modifier = Modifier
-                .align(Alignment.BottomEnd)
+                .align(Alignment.BottomStart)
                 .padding(16.dp)
-                .padding(bottom = if (uiState.showShotPanel) 240.dp else 80.dp),
+                .padding(bottom = if (uiState.showShotPanel) 240.dp else 16.dp),
             containerColor = Color.White,
             contentColor = Color.Black
         ) {
             Icon(Icons.Default.MyLocation, contentDescription = "Snap to Me")
             Spacer(modifier = Modifier.width(8.dp))
             Text("Snap to Me")
+        }
+
+        uiState.pendingLocationUpdate?.let { update ->
+            LocationUpdateDialog(
+                isTee = update.isTee,
+                onConfirm = { viewModel.confirmLocationUpdate() },
+                onDismiss = { viewModel.dismissLocationUpdate() }
+            )
+        }
+    }
+}
+
+@Composable
+fun LocationUpdateDialog(
+    isTee: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Update Hole Location?") },
+        text = {
+            Text("The ${if (isTee) "tee" else "green"} location you just used is more than 10 yards from the stored location. Would you like to update the permanent position for this hole?")
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onConfirm) {
+                Text("Update")
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text("Keep Old")
+            }
+        }
+    )
+}
+
+@Composable
+private fun MapOverlays(
+    uiState: GpsUiState,
+    playerMarkerState: com.google.maps.android.compose.MarkerState,
+    flagMarkerState: com.google.maps.android.compose.MarkerState,
+    midpointState: com.google.maps.android.compose.MarkerState,
+    distanceYards: Int,
+    currentPolylinePoints: List<LatLng>
+) {
+    Marker(
+        state = playerMarkerState,
+        title = "Player",
+        draggable = true,
+        icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
+    )
+    Marker(
+        state = flagMarkerState,
+        title = "Flag",
+        draggable = true,
+        icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)
+    )
+
+    // Dispersion Overlay
+    val targetLoc = flagMarkerState.position
+    if (uiState.dispersionEllipses.isNotEmpty()) {
+        val bearing = GpsUtils.calculateBearing(playerMarkerState.position, targetLoc)
+        for (ellipse in uiState.dispersionEllipses) {
+            key(ellipse) {
+                val polygonPoints = remember(targetLoc, ellipse, bearing) {
+                    GpsUtils.createDispersionPolygon(
+                        targetCenter = targetLoc,
+                        xOffsetYards = ellipse.xOffsetYards,
+                        yOffsetYards = ellipse.yOffsetYards,
+                        radiusXYards = ellipse.radiusXYards,
+                        radiusYYards = ellipse.radiusYYards,
+                        bearingDegrees = bearing,
+                        correlation = ellipse.correlation
+                    )
+                }
+
+                val fillColor = if (ellipse.is1Sigma) {
+                    Color.Yellow.copy(alpha = 0.4f)
+                } else {
+                    Color.Yellow.copy(alpha = 0.15f)
+                }
+                val strokeColor = if (ellipse.is1Sigma) {
+                    Color.Yellow.copy(alpha = 0.8f)
+                } else {
+                    Color.Yellow.copy(alpha = 0.4f)
+                }
+
+                com.google.maps.android.compose.Polygon(
+                    points = polygonPoints,
+                    fillColor = fillColor,
+                    strokeColor = strokeColor,
+                    strokeWidth = 3f,
+                    zIndex = if (ellipse.is1Sigma) 2f else 1f
+                )
+            }
+        }
+    }
+
+    // Previous shots markers and polyline
+    if (uiState.trackedShots.isNotEmpty()) {
+        val shotPoints = uiState.trackedShots.map { it.location }
+        
+        com.google.maps.android.compose.Polyline(
+            points = shotPoints,
+            color = Color.White.copy(alpha = 0.5f),
+            width = 3f,
+            pattern = listOf(com.google.android.gms.maps.model.Dash(20f), com.google.android.gms.maps.model.Gap(10f))
+        )
+
+        for (index in uiState.trackedShots.indices) {
+            val shot = uiState.trackedShots[index]
+            key("shot_$index") {
+                val shotMarkerState = rememberMarkerState(position = shot.location)
+                Marker(
+                    state = shotMarkerState,
+                    title = "Shot ${index + 1}: ${shot.clubName ?: shot.shotType.name}",
+                    icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
+                    alpha = 0.7f
+                )
+            }
+        }
+    }
+    
+    com.google.maps.android.compose.Polyline(
+        points = currentPolylinePoints,
+        color = Color.Cyan,
+        width = 5f
+    )
+    
+    com.google.maps.android.compose.MarkerComposable(
+        keys = arrayOf(distanceYards),
+        state = midpointState,
+        anchor = androidx.compose.ui.geometry.Offset(0.0f, 0.5f),
+        onClick = { false }
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(start = 24.dp)
+                .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            Text(
+                "$distanceYards yds",
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }

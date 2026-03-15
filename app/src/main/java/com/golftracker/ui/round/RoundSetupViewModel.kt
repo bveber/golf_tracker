@@ -25,6 +25,8 @@ data class RoundSetupUiState(
     val date: Date = Date(),
     val notes: String = "",
     val teeYardages: Map<Int, Int> = emptyMap(), // teeSetId to totalYardage
+    val holesToPlay: Int = 18, // 9 or 18
+    val nineSelection: String = "Front", // "Front" or "Back"
     val isLoading: Boolean = false,
     val createdRoundId: Int? = null
 )
@@ -84,22 +86,41 @@ class RoundSetupViewModel @Inject constructor(
         _uiState.update { it.copy(notes = notes) }
     }
 
+    fun updateHolesToPlay(holes: Int) {
+        _uiState.update { it.copy(holesToPlay = holes) }
+    }
+
+    fun updateNineSelection(selection: String) {
+        _uiState.update { it.copy(nineSelection = selection) }
+    }
+
     fun startRound() {
         val state = uiState.value
         if (state.selectedCourse != null && state.selectedTeeSet != null) {
             viewModelScope.launch {
-                _uiState.update { it.copy(isLoading = true) }
+                val startHole = if (state.holesToPlay == 18) 1 else if (state.nineSelection == "Front") 1 else 10
+                
                 val newRound = Round(
                     courseId = state.selectedCourse.id,
                     teeSetId = state.selectedTeeSet.id,
                     date = state.date,
-                    notes = state.notes
+                    notes = state.notes,
+                    totalHoles = state.holesToPlay,
+                    startHole = startHole
                 )
                 val roundId = roundRepository.insertRound(newRound).toInt()
                 
                 // Initialize hole stats
-                val holes = courseRepository.getHoles(state.selectedCourse.id).first()
-                holes.forEach { hole ->
+                val allHoles = courseRepository.getHoles(state.selectedCourse.id).first()
+                val holesToInitialize = if (state.holesToPlay == 18) {
+                    allHoles
+                } else if (state.nineSelection == "Front") {
+                    allHoles.filter { it.holeNumber in 1..9 }
+                } else {
+                    allHoles.filter { it.holeNumber in 10..18 }
+                }
+
+                holesToInitialize.forEach { hole ->
                     // Correctly initialize with roundId
                     roundRepository.insertHoleStat(
                         com.golftracker.data.entity.HoleStat(

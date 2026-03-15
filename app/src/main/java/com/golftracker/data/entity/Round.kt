@@ -34,6 +34,8 @@ data class Round(
     val notes: String = "",
     @ColumnInfo(name = "is_finalized")
     val isFinalized: Boolean = false,
-    @ColumnInfo(name = "holes_played")
-    val holesPlayed: Int = 18 // 9 or 18
+    @ColumnInfo(name = "total_holes")
+    val totalHoles: Int = 18, // 9 or 18
+    @ColumnInfo(name = "start_hole")
+    val startHole: Int = 1
 )

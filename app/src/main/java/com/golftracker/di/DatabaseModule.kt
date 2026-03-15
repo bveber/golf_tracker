@@ -29,7 +29,20 @@ object DatabaseModule {
             context,
             GolfDatabase::class.java,
             "golf_database"
-        ).addMigrations(GolfDatabase.MIGRATION_6_7, GolfDatabase.MIGRATION_7_8, GolfDatabase.MIGRATION_8_9, GolfDatabase.MIGRATION_9_10)
+        ).addMigrations(
+            GolfDatabase.MIGRATION_6_7, 
+            GolfDatabase.MIGRATION_7_8, 
+            GolfDatabase.MIGRATION_8_9, 
+            GolfDatabase.MIGRATION_9_10,
+            GolfDatabase.MIGRATION_10_11,
+            GolfDatabase.MIGRATION_11_12,
+            GolfDatabase.MIGRATION_12_13,
+            GolfDatabase.MIGRATION_13_14,
+            GolfDatabase.MIGRATION_14_15,
+            GolfDatabase.MIGRATION_15_16,
+            GolfDatabase.MIGRATION_16_17,
+            GolfDatabase.MIGRATION_17_18
+        )
          .fallbackToDestructiveMigration() // For MVP simplicity
          .addCallback(SeedDataCallback(context))
          .build()

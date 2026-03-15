@@ -94,8 +94,8 @@ object TestDataFactory {
         teeSetId: Int = 1,
         date: Date = Date(),
         isFinalized: Boolean = true,
-        holesPlayed: Int = 18
-    ) = Round(id = id, courseId = courseId, teeSetId = teeSetId, date = date, isFinalized = isFinalized, holesPlayed = holesPlayed)
+        totalHoles: Int = 18
+    ) = Round(id = id, courseId = courseId, teeSetId = teeSetId, date = date, isFinalized = isFinalized, totalHoles = totalHoles)
 
     /**
      * Creates a full RoundWithDetails with 18 holes, each scored at [scorePerHole] with [puttsPerHole] putts.
@@ -106,14 +106,14 @@ object TestDataFactory {
         courseId: Int = 1,
         teeSet: TeeSet = teeSet(),
         date: Date = Date(),
-        holesPlayed: Int = 18,
+        totalHoles: Int = 18,
         parPerHole: Int = 4,
         scorePerHole: Int = 4,
         puttsPerHole: Int = 2
     ): RoundWithDetails {
-        val r = round(id = roundId, courseId = courseId, teeSetId = teeSet.id, date = date, holesPlayed = holesPlayed)
-        val c = course(id = courseId, holeCount = holesPlayed)
-        val holes = (1..holesPlayed).map { i ->
+        val r = round(id = roundId, courseId = courseId, teeSetId = teeSet.id, date = date, totalHoles = totalHoles)
+        val c = course(id = courseId, holeCount = totalHoles)
+        val holes = (1..totalHoles).map { i ->
             holeStatWithHole(
                 holeStat = holeStat(id = i + (roundId * 100), roundId = roundId, holeId = i, score = scorePerHole, putts = puttsPerHole),
                 hole = hole(id = i, courseId = courseId, holeNumber = i, par = parPerHole)

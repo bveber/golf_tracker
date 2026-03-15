@@ -36,6 +36,17 @@ data class Shot(
     
     val outcome: ShotOutcome? = null,
     val lie: ApproachLie? = null,
+    val slope: com.golftracker.data.model.LieSlope? = null,
+    val stance: com.golftracker.data.model.LieStance? = null,
+    
+    @ColumnInfo(name = "dispersion_left")
+    val dispersionLeft: Int? = null,
+    @ColumnInfo(name = "dispersion_right")
+    val dispersionRight: Int? = null,
+    @ColumnInfo(name = "dispersion_short")
+    val dispersionShort: Int? = null,
+    @ColumnInfo(name = "dispersion_long")
+    val dispersionLong: Int? = null,
     
     /**
      * Starting latitude coordinate of the shot.
@@ -57,6 +68,17 @@ data class Shot(
      */
     @ColumnInfo(name = "end_lng")
     val endLng: Double? = null,
+    
+    /**
+     * Intended target latitude coordinate.
+     */
+    @ColumnInfo(name = "target_lat")
+    val targetLat: Double? = null,
+    /**
+     * Intended target longitude coordinate.
+     */
+    @ColumnInfo(name = "target_lng")
+    val targetLng: Double? = null,
     
     @ColumnInfo(name = "distance_to_pin")
     val distanceToPin: Int? = null,
