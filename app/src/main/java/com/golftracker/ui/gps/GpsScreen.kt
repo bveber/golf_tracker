@@ -269,25 +269,6 @@ fun GpsScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // Historical Dispersion Visual
-                    if (uiState.rawDispersionData.points.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        androidx.compose.material3.Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = androidx.compose.material3.CardDefaults.cardColors(
-                                containerColor = Color.White.copy(alpha = 0.1f)
-                            )
-                        ) {
-                            Box(modifier = Modifier.padding(8.dp).height(120.dp).fillMaxWidth()) {
-                                com.golftracker.ui.components.RawDispersionVisual(
-                                    data = uiState.rawDispersionData,
-                                    title = "", // Hide title to save space
-                                    pointColor = Color.White
-                                )
-                            }
-                        }
-                    }
-                    
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     androidx.compose.material3.Button(

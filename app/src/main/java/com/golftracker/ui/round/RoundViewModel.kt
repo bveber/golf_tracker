@@ -259,10 +259,10 @@ class RoundViewModel @Inject constructor(
             teeShotDistance = distance,
             teeSlope = slope,
             teeStance = stance,
-            teeDispersionLeft = dispersionLeft,
-            teeDispersionRight = dispersionRight,
-            teeDispersionShort = dispersionShort,
-            teeDispersionLong = dispersionLong
+            teeDispersionLeft = dispersionLeft ?: currentStat.teeDispersionLeft,
+            teeDispersionRight = dispersionRight ?: currentStat.teeDispersionRight,
+            teeDispersionShort = dispersionShort ?: currentStat.teeDispersionShort,
+            teeDispersionLong = dispersionLong ?: currentStat.teeDispersionLong
         )
         updateStat(updatedStat)
     }
@@ -383,10 +383,10 @@ class RoundViewModel @Inject constructor(
                         strokesGained = null,
                         slope = slope,
                         stance = stance,
-                        dispersionLeft = dispersionLeft,
-                        dispersionRight = dispersionRight,
-                        dispersionShort = dispersionShort,
-                        dispersionLong = dispersionLong
+                        dispersionLeft = dispersionLeft ?: shot.dispersionLeft,
+                        dispersionRight = dispersionRight ?: shot.dispersionRight,
+                        dispersionShort = dispersionShort ?: shot.dispersionShort,
+                        dispersionLong = dispersionLong ?: shot.dispersionLong
                     )
                 )
             }

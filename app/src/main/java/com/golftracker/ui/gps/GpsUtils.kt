@@ -212,8 +212,9 @@ object GpsUtils {
         
         if (totalDistTarget == 0.0) return DispersionOffsets()
 
-        // Angle between target line and actual line
-        val angleDiffRad = Math.toRadians(bearingActual - bearingTarget)
+        // Angle between target line and actual line, normalized to [-180, 180]
+        val angleDiffDeg = (bearingActual - bearingTarget + 540) % 360 - 180
+        val angleDiffRad = Math.toRadians(angleDiffDeg)
         
         // Project actual distance onto target line (Longitudinal/Depth)
         val projectedDist = totalDistActual * kotlin.math.cos(angleDiffRad)

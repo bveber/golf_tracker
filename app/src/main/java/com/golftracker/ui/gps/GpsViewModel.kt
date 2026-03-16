@@ -53,7 +53,11 @@ data class TrackedShot(
     val targetLocation: LatLng? = null,
     val distanceYards: Int? = null,
     val distanceToPin: Int? = null,
-    val outcome: ShotOutcome? = null
+    val outcome: ShotOutcome? = null,
+    val left: Int? = null,
+    val right: Int? = null,
+    val short: Int? = null,
+    val long: Int? = null
 )
 
 /**
@@ -289,7 +293,11 @@ class GpsViewModel @Inject constructor(
                     clubName = clubs.find { it.id == stat.teeClubId }?.name,
                     location = LatLng(stat.teeLat, stat.teeLng),
                     targetLocation = if (stat.teeTargetLat != null && stat.teeTargetLng != null) LatLng(stat.teeTargetLat, stat.teeTargetLng) else null,
-                    distanceYards = stat.teeShotDistance
+                    distanceYards = stat.teeShotDistance,
+                    left = stat.teeDispersionLeft,
+                    right = stat.teeDispersionRight,
+                    short = stat.teeDispersionShort,
+                    long = stat.teeDispersionLong
                 ))
             }
             
@@ -303,7 +311,11 @@ class GpsViewModel @Inject constructor(
                         location = LatLng(shot.startLat, shot.startLng),
                         targetLocation = if (shot.targetLat != null && shot.targetLng != null) LatLng(shot.targetLat, shot.targetLng) else null,
                         distanceYards = shot.distanceTraveled,
-                        distanceToPin = shot.distanceToPin
+                        distanceToPin = shot.distanceToPin,
+                        left = shot.dispersionLeft,
+                        right = shot.dispersionRight,
+                        short = shot.dispersionShort,
+                        long = shot.dispersionLong
                     ))
                 }
             }
@@ -696,11 +708,13 @@ class GpsViewModel @Inject constructor(
 
         viewModelScope.launch {
             // Auto-estimate outcome if null and we have dispersion
-            val updatedShot = if (trackedShot.outcome == null && dispersionOffsets != null) {
-                trackedShot.copy(outcome = GpsUtils.estimateOutcome(dispersionOffsets))
-            } else {
-                trackedShot
-            }
+            val updatedShot = trackedShot.copy(
+                outcome = trackedShot.outcome ?: dispersionOffsets?.let { GpsUtils.estimateOutcome(it) },
+                left = trackedShot.left ?: dispersionOffsets?.left,
+                right = trackedShot.right ?: dispersionOffsets?.right,
+                short = trackedShot.short ?: dispersionOffsets?.short,
+                long = trackedShot.long ?: dispersionOffsets?.long
+            )
 
             // Update UI list
             _uiState.update { s ->

@@ -18,6 +18,10 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -274,7 +278,26 @@ fun HoleTrackingScreen(
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
 
-                            Text("Outcome", style = MaterialTheme.typography.labelMedium)
+                            val teeDispersion = com.golftracker.ui.gps.GpsUtils.DispersionOffsets(holeStat.teeDispersionLeft, holeStat.teeDispersionRight, holeStat.teeDispersionShort, holeStat.teeDispersionLong)
+                            val estimatedTeeOutcome = com.golftracker.ui.gps.GpsUtils.estimateOutcome(teeDispersion)
+                            val teeMismatch = holeStat.teeOutcome != null && estimatedTeeOutcome != ShotOutcome.ON_TARGET && holeStat.teeOutcome != estimatedTeeOutcome
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Outcome", style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
+                                if (teeMismatch) {
+                                    Icon(
+                                        Icons.Default.Warning,
+                                        contentDescription = "Mismatch",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.padding(end = 4.dp).height(16.dp)
+                                    )
+                                    Text(
+                                        "GPS suggests ${estimatedTeeOutcome.name.replace("_", " ")}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
                             ChipSelector(
                                 options = ShotOutcome.values().filter { it != ShotOutcome.HOLED_OUT },
                                 selectedOption = holeStat.teeOutcome,
@@ -525,8 +548,27 @@ fun HoleTrackingScreen(
                                         )
                                         
                                         // Outcome
+                                        val shotDispersion = com.golftracker.ui.gps.GpsUtils.DispersionOffsets(shot.dispersionLeft, shot.dispersionRight, shot.dispersionShort, shot.dispersionLong)
+                                        val estimatedShotOutcome = com.golftracker.ui.gps.GpsUtils.estimateOutcome(shotDispersion)
+                                        val shotMismatch = shot.outcome != null && estimatedShotOutcome != ShotOutcome.ON_TARGET && shot.outcome != estimatedShotOutcome
+
                                         Spacer(modifier = Modifier.height(4.dp))
-                                        Text("Outcome", style = MaterialTheme.typography.labelSmall)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("Outcome", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                                            if (shotMismatch) {
+                                                Icon(
+                                                    Icons.Default.Warning,
+                                                    contentDescription = "Mismatch",
+                                                    tint = MaterialTheme.colorScheme.error,
+                                                    modifier = Modifier.padding(end = 4.dp).height(14.dp)
+                                                )
+                                                Text(
+                                                    "GPS suggests ${estimatedShotOutcome.name.replace("_", " ")}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.error
+                                                )
+                                            }
+                                        }
                                         ChipSelector(
                                             options = ShotOutcome.values().filter { it != ShotOutcome.HOLED_OUT },
                                             selectedOption = shot.outcome,
