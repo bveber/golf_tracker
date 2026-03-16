@@ -37,6 +37,8 @@ class CourseRepository @Inject constructor(
     suspend fun deleteTeeSet(teeSet: TeeSet) = courseDao.deleteTeeSet(teeSet)
 
     // Holes
+    val allHoles: Flow<List<Hole>> = courseDao.getAllHoles()
+
     fun getHoles(courseId: Int): Flow<List<Hole>> = courseDao.getHoles(courseId)
 
     suspend fun insertHole(hole: Hole) = courseDao.insertHole(hole)

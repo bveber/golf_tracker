@@ -163,5 +163,14 @@ data class HoleStat(
      * Strokes Gained: Putting. Measures performance of putts on the green.
      */
     @ColumnInfo(name = "sg_putting")
-    val sgPutting: Double? = null
+    val sgPutting: Double? = null,
+    
+    @ColumnInfo(name = "is_scored", defaultValue = "0")
+    val isScored: Boolean = false,
+    
+    @ColumnInfo(name = "difficulty_adjustment", defaultValue = "0.0")
+    val difficultyAdjustment: Double = 0.0,
+    
+    @ColumnInfo(name = "sg_off_tee_expected")
+    val sgOffTeeExpected: Double? = null
 )

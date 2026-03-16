@@ -35,6 +35,7 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -275,7 +276,7 @@ fun HoleTrackingScreen(
 
                             Text("Outcome", style = MaterialTheme.typography.labelMedium)
                             ChipSelector(
-                                options = ShotOutcome.values().toList(),
+                                options = ShotOutcome.values().filter { it != ShotOutcome.HOLED_OUT },
                                 selectedOption = holeStat.teeOutcome,
                                 onOptionSelected = { viewModel.updateTeeShot(it, holeStat.teeInTrouble, effectiveTeeClubId, holeStat.teeShotDistance, holeStat.teeMishit) },
                                 labelMapper = { it.name.replace("_", " ") }
@@ -327,12 +328,26 @@ fun HoleTrackingScreen(
                                 Spacer(modifier = Modifier.height(4.dp))
                                 val sgColor = if (sg > 0) MaterialTheme.colorScheme.primary else if (sg < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
                                 val sign = if (sg > 0) "+" else ""
-                                Text(
-                                    "SG Off Tee: $sign${String.format(java.util.Locale.US, "%.2f", sg)}", 
-                                    color = sgColor, 
-                                    style = MaterialTheme.typography.bodyMedium, 
-                                    fontWeight = FontWeight.Bold
-                                )
+                                val adj = holeStat.difficultyAdjustment
+                                val raw = sg - adj
+                                val rawSign = if (raw > 0) "+" else ""
+                                val adjSign = if (adj > 0) "+" else ""
+                                
+                                Column {
+                                    Text(
+                                        "SG Off Tee: $sign${String.format(java.util.Locale.US, "%.2f", sg)}", 
+                                        color = sgColor, 
+                                        style = MaterialTheme.typography.bodyMedium, 
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    if (adj != 0.0) {
+                                        Text(
+                                            "($rawSign${String.format(java.util.Locale.US, "%.2f", raw)} raw $adjSign${String.format(java.util.Locale.US, "%.2f", adj)} adj)",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -456,11 +471,31 @@ fun HoleTrackingScreen(
                                                     checked = shot.isRecovery,
                                                     onCheckedChange = { 
                                                         val currentClubId = shot.clubId ?: shot.distanceToPin?.let { dist -> viewModel.suggestApproachClub(dist)?.id }
-                                                        viewModel.updateShotDetails(shot, shot.outcome, shot.lie, currentClubId, shot.distanceToPin, it, shot.distanceTraveled)
-                                                    }
+                                                    viewModel.updateShotDetails(shot, shot.outcome, shot.lie, currentClubId, shot.distanceToPin, it, shot.distanceTraveled)
+                                                }
+                                            )
+                                        }
+                                    }
+                                    if (shot.isRecovery) {
+                                        val baseSg = (shot.strokesGained ?: 0.0) - shot.penaltyAttribution
+                                        if (baseSg < 0) {
+                                            val maxAttribution = kotlin.math.abs(baseSg).toFloat()
+                                            val stepCount = (maxAttribution / 0.1f).toInt().coerceAtLeast(1)
+                                            Column(modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)) {
+                                                Text(
+                                                    text = "Attributed Stymied Penalty: ${String.format(java.util.Locale.US, "%.2f", shot.penaltyAttribution)}",
+                                                    style = MaterialTheme.typography.labelSmall
+                                                )
+                                                Slider(
+                                                    value = shot.penaltyAttribution.toFloat(),
+                                                    onValueChange = { viewModel.updateShotPenaltyAttribution(shot, it.toDouble()) },
+                                                    valueRange = 0f..maxAttribution,
+                                                    steps = stepCount - 1,
+                                                    modifier = Modifier.height(32.dp)
                                                 )
                                             }
                                         }
+                                    }
                                         Spacer(modifier = Modifier.height(8.dp))
 
                                         // Club
@@ -493,7 +528,7 @@ fun HoleTrackingScreen(
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text("Outcome", style = MaterialTheme.typography.labelSmall)
                                         ChipSelector(
-                                            options = ShotOutcome.values().toList(),
+                                            options = ShotOutcome.values().filter { it != ShotOutcome.HOLED_OUT },
                                             selectedOption = shot.outcome,
                                             onOptionSelected = { viewModel.updateShotDetails(shot, it, shot.lie, suggestedClubId, shot.distanceToPin, shot.isRecovery, shot.distanceTraveled, shot.slope, shot.stance) },
                                             modifier = Modifier.padding(top = 4.dp)
@@ -851,12 +886,26 @@ fun HoleTrackingScreen(
                             Spacer(modifier = Modifier.height(4.dp))
                             val sgColor = if (sg > 0) MaterialTheme.colorScheme.primary else if (sg < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
                             val sign = if (sg > 0) "+" else ""
-                            Text(
-                                "SG: $sign${String.format(java.util.Locale.US, "%.2f", sg)}", 
-                                color = sgColor, 
-                                style = MaterialTheme.typography.bodyMedium, 
-                                fontWeight = FontWeight.Bold
-                            )
+                            val adj = holeStat.difficultyAdjustment
+                            val raw = sg - adj
+                            val rawSign = if (raw > 0) "+" else ""
+                            val adjSign = if (adj > 0) "+" else ""
+
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    "SG: $sign${String.format(java.util.Locale.US, "%.2f", sg)}", 
+                                    color = sgColor, 
+                                    style = MaterialTheme.typography.bodyMedium, 
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (adj != 0.0) {
+                                    Text(
+                                        "($rawSign${String.format(java.util.Locale.US, "%.2f", raw)} raw $adjSign${String.format(java.util.Locale.US, "%.2f", adj)} adj)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -887,7 +936,7 @@ fun HoleTrackingScreen(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            SummarySgItem("Off Tee", holeStat.sgOffTee)
+                            SummarySgItem("Off Tee", holeStat.sgOffTee, holeStat.difficultyAdjustment)
                             SummarySgItem("Appr", holeStat.sgApproach)
                             SummarySgItem("Around", holeStat.sgAroundGreen)
                             SummarySgItem("Putt", holeStat.sgPutting)
@@ -1006,10 +1055,10 @@ fun IntegerInput(
 }
 
 @Composable
-private fun SummarySgItem(label: String, sg: Double?) {
+private fun SummarySgItem(label: String, sg: Double?, adj: Double = 0.0) {
+    val value = sg ?: 0.0
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        val value = sg ?: 0.0
         val color = if (value > 0.1) MaterialTheme.colorScheme.primary else if (value < -0.1) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
         val sign = if (value > 0) "+" else ""
         Text(
@@ -1018,6 +1067,14 @@ private fun SummarySgItem(label: String, sg: Double?) {
             fontWeight = FontWeight.Bold,
             color = color
         )
+        if (adj != 0.0) {
+            val adjSign = if (adj > 0) "+" else ""
+            Text(
+                "${adjSign}${String.format(java.util.Locale.US, "%.2f", adj)} adj",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+        }
     }
 }
 

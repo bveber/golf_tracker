@@ -43,8 +43,10 @@ class StatsRepository @Inject constructor(
         return kotlinx.coroutines.flow.combine(
             roundDao.getFinalizedRoundsWithDetails(),
             courseRepository.allYardages,
-            userPreferencesRepository.estimatedHandicapFlow
-        ) { allRounds, allYardages, estimatedHandicap ->
+            userPreferencesRepository.estimatedHandicapFlow,
+            courseRepository.allHoles
+        ) { allRounds, allYardages, estimatedHandicap, allHoles ->
+            val parMap = allHoles.groupBy { it.courseId }.mapValues { (_, holes) -> holes.sumOf { it.par } }
             val filtered = applyFilter(allRounds, filter)
             
             // For driving: Map (TeeSetId -> HoleId -> Yardage)
@@ -61,7 +63,7 @@ class StatsRepository @Inject constructor(
                 approach = calculateApproachStats(filtered, filter.approachClubId),
                 chipping = calculateChippingStats(filtered),
                 putting = calculatePuttingStats(filtered),
-                sg = calculateSgStats(filtered, yardageMapForSg)
+                sg = calculateSgStats(filtered, yardageMapForSg, parMap)
             )
         }
     }
@@ -714,7 +716,8 @@ class StatsRepository @Inject constructor(
 
     private fun calculateSgStats(
         rounds: List<RoundWithDetails>,
-        yardageMap: Map<Pair<Int, Int>, com.golftracker.data.entity.HoleTeeYardage>
+        yardageMap: Map<Pair<Int, Int>, com.golftracker.data.entity.HoleTeeYardage>,
+        parMap: Map<Int, Int>
     ): SgStats {
         var totalSgOffTee = 0.0
         var totalSgApproach = 0.0
@@ -731,11 +734,9 @@ class StatsRepository @Inject constructor(
 
         for (round in rounds) {
             val teeSet = round.round.teeSetId
-            // We need ALL yardages for this tee set to calculate the course adjustment correctly (18 holes)
-            val allCourseYardages = yardageMap.filterKeys { it.first == teeSet }.values
-                .map { Pair(it.yardage, null as Int?) }
+            val coursePar = parMap[round.round.courseId] ?: 72
             
-            val courseAdj = sgCalculator.calculateCourseAdjustment(round.teeSet.rating.toDouble(), allCourseYardages)
+            val courseAdj = sgCalculator.calculateCourseAdjustment(round.teeSet.rating.toDouble(), coursePar)
 
             for (hole in round.holeStats) {
                 val holeYardage = yardageMap[teeSet to hole.hole.id]?.yardage ?: 0

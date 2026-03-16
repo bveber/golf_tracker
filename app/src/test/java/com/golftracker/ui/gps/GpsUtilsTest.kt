@@ -117,15 +117,48 @@ class GpsUtilsTest {
     }
 
     @Test
-    fun `long right miss returns correct offsets`() {
+    fun `cross-equator distance is correct`() {
+        val north = LatLng(1.0, 0.0)
+        val south = LatLng(-1.0, 0.0)
+        // 2 degrees latitude = ~222,222 meters ≈ 243,025 yards
+        val distance = GpsUtils.calculateDistanceYards(north, south)
+        assertEquals(243000.0, distance.toDouble(), 500.0) // Huge distance, allow reasonable delta
+    }
+
+    @Test
+    fun `antimeridian crossing distance check`() {
+        val west = LatLng(0.0, 179.9)
+        val east = LatLng(0.0, -179.9)
+        // Gap of 0.2 degrees at equator ≈ 22,222 meters ≈ 24,300 yards
+        val distance = GpsUtils.calculateDistanceYards(west, east)
+        assertTrue("Distance should be short across antimeridian", distance < 30000)
+    }
+
+    @Test
+    fun `tiny distance precision check`() {
+        // Move 1 meter (approx 0.000009 degrees lat)
+        val p1 = LatLng(33.0, -112.0)
+        val p2 = LatLng(33.000009, -112.0)
+        val distance = GpsUtils.calculateDistanceYards(p1, p2)
+        // 1 meter ≈ 1.09 yards
+        assertTrue("Expected approx 1 yard, got $distance", distance in 0..2)
+    }
+
+    // --- calculateDispersionOffsets (Rotated Shots) ---
+
+    @Test
+    fun `rotated shot calculates correct relative offsets`() {
+        // Start 0,0. Target 0, 0.001 (Due East, ~110 yards)
         val start = LatLng(0.0, 0.0)
-        val target = LatLng(0.001, 0.0)
-        // Move slightly North (Long) and East (Right)
-        val actual = LatLng(0.0011, 0.00005)
+        val target = LatLng(0.0, 0.001)
+        
+        // Missed "Long" would be further East
+        // Missed "Right" would be further South
+        val actual = LatLng(-0.00005, 0.0011) // South and slightly more East
         val offsets = GpsUtils.calculateDispersionOffsets(start, target, actual)
         
-        assertTrue("Expected long to be > 0, got ${offsets.long}", (offsets.long ?: 0) > 0)
-        assertTrue("Expected right to be > 0, got ${offsets.right}", (offsets.right ?: 0) > 0)
+        assertTrue("Expected long offset, got ${offsets.long}", (offsets.long ?: 0) > 0)
+        assertTrue("Expected right offset, got ${offsets.right}", (offsets.right ?: 0) > 0)
         assertEquals(0, offsets.left)
         assertEquals(0, offsets.short)
     }

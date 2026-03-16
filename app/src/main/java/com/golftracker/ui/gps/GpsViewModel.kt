@@ -753,7 +753,7 @@ class GpsViewModel @Inject constructor(
                     } else {
                         roundRepository.insertShot(com.golftracker.data.entity.Shot(
                             holeStatId = holeStatId,
-                            shotNumber = approachIndex + 1,
+                            shotNumber = if (state.holePar ?: 0 > 3) approachIndex + 2 else approachIndex + 1,
                             outcome = updatedShot.outcome,
                             clubId = updatedShot.clubId,
                             distanceToPin = updatedShot.distanceToPin,

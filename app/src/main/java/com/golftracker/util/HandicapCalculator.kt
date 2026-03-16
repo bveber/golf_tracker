@@ -91,7 +91,11 @@ object HandicapCalculator {
                 // MVP: Sum of strokes. 
                 // Future: Adjust max score per hole (Net Double Bogey).
                 var grossScore = 0
-                roundDetails.holeStats.forEach { grossScore += it.holeStat.score }
+                roundDetails.holeStats.forEach { 
+                    // Simplified Net Double Bogey: Cap score at Par + 5 for handicap purposes
+                    val cappedScore = it.holeStat.score.coerceAtMost(it.hole.par + 5)
+                    grossScore += cappedScore 
+                }
                 
                 if (grossScore > 0) {
                     val differential = (113.0 / teeSet.slope.toDouble()) * (grossScore - teeSet.rating)

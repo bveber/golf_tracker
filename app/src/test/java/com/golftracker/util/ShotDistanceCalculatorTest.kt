@@ -60,10 +60,28 @@ class ShotDistanceCalculatorTest {
     }
 
     @Test
-    fun testDeriveEndDistance_Miss() {
-        // Start 100, hit it 100 but missed 10 deg -> should be ~17.4 yds
-        // sqrt(100^2 + 100^2 - 2*100*100*cos(10deg)) = sqrt(20000 - 20000*0.9848) = sqrt(304) = 17.4
+    fun testEstimateShotDistance_ZeroAndExtreme() {
+        // Tap-in 0 yard shot
+        assertEquals(10, ShotDistanceCalculator.estimateShotDistance(10, 0, ShotOutcome.ON_TARGET))
+        // Extreme 500yd shot
+        assertEquals(500, ShotDistanceCalculator.estimateShotDistance(500, 0, ShotOutcome.ON_TARGET))
+    }
+
+    @Test
+    fun testDeriveEndDistance_Duff() {
+        // Start 100, hit it 5 yards (duff) -> 95 left
+        assertEquals(95, ShotDistanceCalculator.deriveEndDistance(100, 5, ShotOutcome.ON_TARGET))
+    }
+
+    @Test
+    fun testDeriveEndDistance_MissMathVeracity() {
+        // Verify that the code actually calculates the hypotenuse for a 10-degree miss.
+        // If start=100 and dist=100, end should be ~17.43 -> rounded to 17
         val endDist = ShotDistanceCalculator.deriveEndDistance(100, 100, ShotOutcome.MISS_LEFT)
         assertEquals(17, endDist)
+        
+        // At 200 yards, a 10 degree miss is double the gap -> ~34.86 -> 34
+        val endDist200 = ShotDistanceCalculator.deriveEndDistance(200, 200, ShotOutcome.MISS_RIGHT)
+        assertEquals(34, endDist200)
     }
 }

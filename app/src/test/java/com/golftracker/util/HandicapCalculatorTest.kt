@@ -30,8 +30,9 @@ class HandicapCalculatorTest {
             scorePerHole = 5  // 90 gross
         )
         val diffs = HandicapCalculator.calculateDifferentials(listOf(round))
-        val expected = (113.0 / 130.0) * (90 - 72)
-        assertEquals(expected, diffs[0].value, 0.1)
+        val rawExpected = (113.0 / 130.0) * (90 - 72)
+        val expected = (rawExpected * 10.0).toInt() / 10.0 // Match production rounding
+        assertEquals(expected, diffs[0].value, 0.01)
     }
 
     @Test
@@ -174,5 +175,29 @@ class HandicapCalculatorTest {
         // There are rounds where scorePerHole=4 → gross=72, diff=0
         // So best 8 should include those zeros, bringing index near 0
         assertTrue("Index should be low when best rounds score exactly to rating", index!! < 10.0)
+    }
+
+    @Test
+    fun `blow-up hole is capped by simplified ESC`() {
+        // Round with 17 pars (4s) and one "15" on a par 4.
+        // Gross = 17*4 + 15 = 68 + 15 = 83.
+        // Capped score: 15 becomes (4+5) = 9.
+        // Adjusted Gross = 68 + 9 = 77.
+        // Rating 72, Slope 113. Diff = 77 - 72 = 5.0
+        val round = TestDataFactory.roundWithDetails(
+            teeSet = TestDataFactory.teeSet(slope = 113, rating = 72.0),
+            parPerHole = 4
+        )
+        // Manually recreate the round with one blow-up hole
+        val blowupHole = round.holeStats[0].copy(
+            holeStat = round.holeStats[0].holeStat.copy(score = 15)
+        )
+        val adjustedStats = round.holeStats.toMutableList()
+        adjustedStats[0] = blowupHole
+        val adjustedRound = round.copy(holeStats = adjustedStats)
+        
+        val diffs = HandicapCalculator.calculateDifferentials(listOf(adjustedRound))
+        // Diff should be 5.0 instead of 11.0
+        assertEquals(5.0, diffs[0].value, 0.01)
     }
 }
