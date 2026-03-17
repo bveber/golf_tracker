@@ -8,11 +8,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
@@ -23,10 +25,13 @@ import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -536,7 +541,16 @@ fun HoleTrackingScreen(
                                                     viewModel.updateShotDetails(shot, shot.outcome, shot.lie, cid, shot.distanceToPin, shot.isRecovery, shot.distanceTraveled)
                                                 }
                                             )
-                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("Mishit", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                                            Checkbox(
+                                                checked = shot.isMishit,
+                                                onCheckedChange = { isMishit -> viewModel.updateShotDetails(shot, shot.outcome, shot.lie, suggestedClubId, shot.distanceToPin, shot.isRecovery, shot.distanceTraveled, shot.slope, shot.stance, shot.dispersionLeft, shot.dispersionRight, shot.dispersionShort, shot.dispersionLong, isMishit) },
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
                                         }
 
                                         // Lie
@@ -831,7 +845,7 @@ fun HoleTrackingScreen(
                                     NumberStepper(
                                         value = putt.distance?.toInt() ?: 0,
                                         onValueChange = { viewModel.updatePuttDistance(putt, it.toFloat()) },
-                                        range = 0..100,
+                                        range = 1..100,
                                         buttonSize = 32.dp,
                                         textStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                                     )
@@ -886,8 +900,41 @@ fun HoleTrackingScreen(
                         if (uiState.penalties.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(8.dp))
                             uiState.penalties.forEach { penalty ->
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
                                     Text("${penalty.type} (${penalty.strokes})", modifier = Modifier.weight(1f))
+                                    
+                                    // Penalty Attribution Selector
+                                    var expanded by remember { mutableStateOf(false) }
+                                    val options = mutableListOf<Pair<String, Int?>>("General" to null)
+                                    if (hole.par > 3) {
+                                        options.add("Tee" to 1)
+                                    }
+                                    uiState.shots.forEach { shot ->
+                                        options.add("Shot ${shot.shotNumber}" to shot.shotNumber)
+                                    }
+                                    
+                                    Box {
+                                        AssistChip(
+                                            onClick = { expanded = true },
+                                            label = { 
+                                                val selectedOption = options.find { it.second == penalty.shotNumber }?.first ?: "General"
+                                                Text(selectedOption)
+                                            },
+                                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) }
+                                        )
+                                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                                            options.forEach { (label, value) ->
+                                                DropdownMenuItem(
+                                                    text = { Text(label) },
+                                                    onClick = {
+                                                        viewModel.updatePenaltyShot(penalty, value)
+                                                        expanded = false
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+
                                     IconButton(onClick = { viewModel.removePenalty(penalty) }) {
                                         Icon(Icons.Default.Delete, contentDescription = "Remove Penalty")
                                     }
@@ -912,17 +959,48 @@ fun HoleTrackingScreen(
                             onValueChange = { viewModel.updateScore(it) },
                             range = 1..20
                         )
+                        val teeShotTaken = hole.par > 3 && (holeStat.teeOutcome != null || holeStat.teeShotDistance != null || holeStat.teeClubId != null || holeStat.teeLat != null)
+                        val calculatedScore = (if (teeShotTaken && uiState.shots.none { it.shotNumber == 1 }) 1 else 0) + 
+                            uiState.shots.size + 
+                            (holeStat.chips + holeStat.sandShots) + 
+                            holeStat.putts + 
+                            uiState.penalties.sumOf { it.strokes }
+                        
+                        val scoreMismatch = holeStat.scoreManual && holeStat.score != calculatedScore
+
                         Spacer(modifier = Modifier.height(8.dp))
                         val toPar = holeStat.score - hole.par
-                        Text(
-                            text = if (toPar > 0) "+$toPar" else if (toPar < 0) "$toPar" else "E",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = when {
-                                toPar < 0 -> MaterialTheme.colorScheme.primary
-                                toPar > 0 -> MaterialTheme.colorScheme.error
-                                else -> MaterialTheme.colorScheme.onSurface
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (toPar > 0) "+$toPar" else if (toPar < 0) "$toPar" else "E",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = when {
+                                    toPar < 0 -> MaterialTheme.colorScheme.primary
+                                    toPar > 0 -> MaterialTheme.colorScheme.error
+                                    else -> MaterialTheme.colorScheme.onSurface
+                                }
+                            )
+                            if (scoreMismatch) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(
+                                    Icons.Default.Warning,
+                                    contentDescription = "Score discrepancy",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
-                        )
+                        }
+
+                        if (scoreMismatch) {
+                            Text(
+                                text = "Tracked shots total $calculatedScore",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            TextButton(onClick = { viewModel.resetScoreToCalculated() }) {
+                                Text("Reset to Tracked", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
                         
                         holeStat.strokesGained?.let { sg ->
                             Spacer(modifier = Modifier.height(4.dp))

@@ -118,7 +118,7 @@ class RoundHistoryViewModel @Inject constructor(
                 holeAdjustment = holeAdj,
                 shots = hole.shots,
                 putts = hole.putts,
-                penalties = hole.penalties.sumOf { it.strokes },
+                penalties = hole.penalties,
                 stat = hole.holeStat
             )
             totalLiveSg += breakdown.total

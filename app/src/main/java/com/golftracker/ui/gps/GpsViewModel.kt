@@ -57,7 +57,8 @@ data class TrackedShot(
     val left: Int? = null,
     val right: Int? = null,
     val short: Int? = null,
-    val long: Int? = null
+    val long: Int? = null,
+    val isMishit: Boolean = false
 )
 
 /**
@@ -127,7 +128,8 @@ data class GpsUiState(
     val holePar: Int? = null,
     val currentHole: com.golftracker.data.entity.Hole? = null,
     val pendingLocationUpdate: LocationUpdate? = null,
-    val knownHoleFrame: Pair<LatLng, LatLng>? = null
+    val knownHoleFrame: Pair<LatLng, LatLng>? = null,
+    val pendingMishit: Boolean = false
 )
 
 /**
@@ -494,7 +496,9 @@ class GpsViewModel @Inject constructor(
             clubId = state.pendingClubId,
             clubName = currentClub?.name,
             location = currentLocation,
-            distanceToPin = distToFlag
+            targetLocation = distToFlag?.let { state.flagLocation },
+            distanceToPin = distToFlag,
+            isMishit = state.pendingMishit
         )
 
         val updatedShots = state.trackedShots.toMutableList()
@@ -698,6 +702,10 @@ class GpsViewModel @Inject constructor(
         }
     }
 
+    fun updatePendingMishit(mishit: Boolean) {
+        _uiState.update { it.copy(pendingMishit = mishit) }
+    }
+
     private fun persistShotUpdate(
         trackedShot: TrackedShot,
         index: Int,
@@ -752,6 +760,7 @@ class GpsViewModel @Inject constructor(
                         val existing = actualShots[approachIndex]
                         roundRepository.updateShot(existing.copy(
                             outcome = updatedShot.outcome,
+                            lie = if ((state.holePar ?: 0) <= 3 && approachIndex == 0) com.golftracker.data.model.ApproachLie.TEE else existing.lie,
                             clubId = updatedShot.clubId,
                             distanceToPin = updatedShot.distanceToPin,
                             distanceTraveled = updatedShot.distanceYards,
@@ -769,6 +778,7 @@ class GpsViewModel @Inject constructor(
                             holeStatId = holeStatId,
                             shotNumber = if (state.holePar ?: 0 > 3) approachIndex + 2 else approachIndex + 1,
                             outcome = updatedShot.outcome,
+                            lie = if ((state.holePar ?: 0) <= 3 && approachIndex == 0) com.golftracker.data.model.ApproachLie.TEE else null,
                             clubId = updatedShot.clubId,
                             distanceToPin = updatedShot.distanceToPin,
                             distanceTraveled = updatedShot.distanceYards,

@@ -40,6 +40,9 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.LaunchedEffect
@@ -240,7 +243,12 @@ fun GpsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        listOf(ShotType.TEE, ShotType.APPROACH, ShotType.CHIP).forEach { type ->
+                        val availableShotTypes = if ((uiState.holePar ?: 0) <= 3) {
+                            listOf(ShotType.APPROACH, ShotType.CHIP)
+                        } else {
+                            listOf(ShotType.TEE, ShotType.APPROACH, ShotType.CHIP)
+                        }
+                        availableShotTypes.forEach { type ->
                             FilterChip(
                                 selected = uiState.pendingShotType == type,
                                 onClick = { viewModel.onShotTypeSelected(type) },
@@ -268,6 +276,22 @@ fun GpsScreen(
                         onClubSelected = { viewModel.onClubSelected(it) },
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Mishit", color = Color.White, style = MaterialTheme.typography.bodyMedium)
+                        Spacer(modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = uiState.pendingMishit,
+                            onCheckedChange = { mishit: Boolean -> viewModel.updatePendingMishit(mishit) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color.White.copy(alpha = 0.5f)
+                            )
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
                     

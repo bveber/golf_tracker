@@ -12,6 +12,7 @@ import kotlin.math.abs
 import com.golftracker.data.entity.HoleStat
 import com.golftracker.data.entity.Shot
 import com.golftracker.data.entity.Putt
+import com.golftracker.data.entity.Penalty
 import com.golftracker.data.model.ShotOutcome
 
 data class BaselineRow(
@@ -302,7 +303,7 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
         holeAdjustment: Double,
         shots: List<com.golftracker.data.entity.Shot>,
         putts: List<com.golftracker.data.entity.Putt>,
-        penalties: Int,
+        penalties: List<com.golftracker.data.entity.Penalty>,
         stat: com.golftracker.data.entity.HoleStat
     ): HoleSgBreakdown {
         var offTee = 0.0
@@ -330,7 +331,7 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
                 hasEnd = true
             } else if (stat.chips > 0 || stat.sandShots > 0) {
                 endDist = stat.chipDistance ?: 15
-                endLie = if (stat.sandShots > 0) ApproachLie.SAND else ApproachLie.ROUGH
+                endLie = if (stat.sandShots > 0) ApproachLie.SAND else (stat.chipLie ?: ApproachLie.ROUGH)
                 hasEnd = true
             } else if (sortedPutts.isNotEmpty()) {
                 greenFeet = sortedPutts.first().distance
@@ -344,7 +345,8 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
                 shotSgs.add(1 to offTee)
             } else if (stat.score > 0) {
                 // Heuristic: If no shots tracked and no end state found, estimate based on score.
-                val fullSwings = (stat.score - stat.chips - stat.sandShots - stat.putts - penalties).coerceAtLeast(1)
+                val penaltyStrokes = penalties.sumOf { it.strokes }
+                val fullSwings = (stat.score - stat.chips - stat.sandShots - stat.putts - penaltyStrokes).coerceAtLeast(1)
                 
                 // If par 4/5 and at least 2 full swings, assume drive advanced to ~65% of the hole distance
                 // unless outcome suggests otherwise.
@@ -397,7 +399,7 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
                 hasEnd = true
             } else if (stat.chips > 0 || stat.sandShots > 0) {
                 endDist = stat.chipDistance ?: 15
-                endLie = if (stat.sandShots > 0) ApproachLie.SAND else ApproachLie.ROUGH
+                endLie = if (stat.sandShots > 0) ApproachLie.SAND else (stat.chipLie ?: ApproachLie.ROUGH)
                 hasEnd = true
             } else if (sortedPutts.isNotEmpty()) {
                 greenFeet = sortedPutts.first().distance
@@ -429,7 +431,20 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
             }
         }
 
-        // 3. SHORT GAME
+        // 3. ATTRIBUTED PENALTIES
+        for (penalty in penalties) {
+            if (penalty.shotNumber != null) {
+                val penaltyValue = penalty.strokes.toDouble()
+                val shotIndex = shotSgs.indexOfFirst { it.first == penalty.shotNumber }
+                if (shotIndex != -1) {
+                    // Note: We DON'T subtract from offTee/approach here because they are shown separately 
+                    // and the total getter handles the subtraction.
+                    // This keeps the component SGs "gross" (shot performance only).
+                }
+            }
+        }
+
+        // 4. SHORT GAME
         if (stat.chips > 0 || stat.sandShots > 0) {
             val startDist = stat.chipDistance ?: 15
             val startLie = if (stat.sandShots > 0) ApproachLie.SAND else (stat.chipLie ?: ApproachLie.ROUGH)
@@ -487,7 +502,7 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
             puttSgs.add(putt.puttNumber to sg)
         }
 
-        return HoleSgBreakdown(offTee, approach, aroundGreen, putting, penalties.toDouble(), offTeeExpected, shotSgs, puttSgs)
+        return HoleSgBreakdown(offTee, approach, aroundGreen, putting, penalties.sumOf { it.strokes }.toDouble(), offTeeExpected, shotSgs, puttSgs)
     }
 
     private fun interpolateShotDistances(

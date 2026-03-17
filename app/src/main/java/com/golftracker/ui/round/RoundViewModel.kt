@@ -233,7 +233,7 @@ class RoundViewModel @Inject constructor(
     
     fun updateScore(score: Int) {
         val currentStat = uiState.value.currentHoleStat ?: return
-        val updatedStat = currentStat.copy(score = score)
+        val updatedStat = currentStat.copy(score = score, scoreManual = true)
         updateStat(updatedStat)
     }
     
@@ -366,7 +366,8 @@ class RoundViewModel @Inject constructor(
         dispersionLeft: Int? = null,
         dispersionRight: Int? = null,
         dispersionShort: Int? = null,
-        dispersionLong: Int? = null
+        dispersionLong: Int? = null,
+        isMishit: Boolean = false
     ) {
         viewModelScope.launch {
             if (outcome == null && lie == null && distanceToPin == null && providedDistanceTraveled == null) {
@@ -386,7 +387,8 @@ class RoundViewModel @Inject constructor(
                         dispersionLeft = dispersionLeft ?: shot.dispersionLeft,
                         dispersionRight = dispersionRight ?: shot.dispersionRight,
                         dispersionShort = dispersionShort ?: shot.dispersionShort,
-                        dispersionLong = dispersionLong ?: shot.dispersionLong
+                        dispersionLong = dispersionLong ?: shot.dispersionLong,
+                        isMishit = isMishit
                     )
                 )
             }
@@ -569,7 +571,7 @@ class RoundViewModel @Inject constructor(
             if (distance == null) {
                 roundRepository.deletePutt(putt)
             } else {
-                roundRepository.updatePutt(putt.copy(distance = distance, strokesGained = null))
+                roundRepository.updatePutt(putt.copy(distance = distance.coerceAtLeast(1.0f), strokesGained = null))
             }
             val newPutts = roundRepository.getPuttsForHoleStat(putt.holeStatId).first()
             _uiState.update { it.copy(putts = newPutts) }
@@ -579,14 +581,24 @@ class RoundViewModel @Inject constructor(
     }
 
     fun incrementPuttDistance(putt: Putt, delta: Float) {
-        val currentDistance = putt.distance ?: 0f
-        updatePuttDistance(putt, kotlin.math.max(0f, currentDistance + delta))
+        val currentDistance = putt.distance ?: 1f
+        updatePuttDistance(putt, currentDistance + delta)
     }
     
-    fun addPenalty(type: PenaltyType, strokes: Int) {
+    fun addPenalty(type: PenaltyType, strokes: Int, shotNumber: Int? = null) {
         val currentStat = uiState.value.currentHoleStat ?: return
         viewModelScope.launch {
-            roundRepository.insertPenalty(Penalty(holeStatId = currentStat.id, type = type, strokes = strokes))
+            roundRepository.insertPenalty(Penalty(holeStatId = currentStat.id, type = type, strokes = strokes, shotNumber = shotNumber))
+            val newPenalties = roundRepository.getPenaltiesForHoleStat(currentStat.id).first()
+            _uiState.update { it.copy(penalties = newPenalties) }
+            recalculateSgForCurrentHole()
+        }
+    }
+    
+    fun updatePenaltyShot(penalty: Penalty, shotNumber: Int?) {
+        viewModelScope.launch {
+            roundRepository.updatePenalty(penalty.copy(shotNumber = shotNumber))
+            val currentStat = uiState.value.currentHoleStat ?: return@launch
             val newPenalties = roundRepository.getPenaltiesForHoleStat(currentStat.id).first()
             _uiState.update { it.copy(penalties = newPenalties) }
             recalculateSgForCurrentHole()
@@ -601,6 +613,12 @@ class RoundViewModel @Inject constructor(
             _uiState.update { it.copy(penalties = newPenalties) }
             recalculateSgForCurrentHole()
         }
+    }
+
+    fun resetScoreToCalculated() {
+        val currentStat = uiState.value.currentHoleStat ?: return
+        val updatedStat = currentStat.copy(scoreManual = false)
+        updateStat(updatedStat)
     }
 
     fun finalizeRound() {
@@ -664,7 +682,7 @@ class RoundViewModel @Inject constructor(
             holeAdjustment = holeAdj,
             shots = currentShots,
             putts = currentPutts,
-            penalties = currentPenalties.sumOf { it.strokes },
+            penalties = currentPenalties,
             stat = currentStat
         )
 
@@ -708,7 +726,7 @@ class RoundViewModel @Inject constructor(
         val isGir = finishedHole && (newScore - currentStat.putts <= hole.par - 2)
         
         val updatedStat = currentStat.copy(
-            score = newScore,
+            score = if (currentStat.scoreManual) currentStat.score else newScore,
             strokesGained = if (hasData) totalSg else null,
             sgOffTee = if (hasData) breakdown.offTee else null,
             sgApproach = if (hasData) breakdown.approach else null,

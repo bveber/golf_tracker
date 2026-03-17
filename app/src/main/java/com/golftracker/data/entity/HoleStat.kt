@@ -172,5 +172,11 @@ data class HoleStat(
     val difficultyAdjustment: Double = 0.0,
     
     @ColumnInfo(name = "sg_off_tee_expected")
-    val sgOffTeeExpected: Double? = null
+    val sgOffTeeExpected: Double? = null,
+    
+    @ColumnInfo(name = "approach_mishit", defaultValue = "0")
+    val approachMishit: Boolean = false,
+
+    @ColumnInfo(name = "score_manual", defaultValue = "0")
+    val scoreManual: Boolean = false
 )
