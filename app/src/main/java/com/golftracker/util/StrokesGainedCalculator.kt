@@ -3,6 +3,7 @@ package com.golftracker.util
 import android.content.Context
 import com.golftracker.R
 import com.golftracker.data.model.ApproachLie
+import com.golftracker.data.model.PenaltyType
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -326,7 +327,13 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
             var greenFeet: Float? = null
             var hasEnd = false
 
-            if (stat.teeShotDistance != null) {
+            // CHANGE: Check for OB penalty first. If Shot 1 is OB, it's a fixed cost.
+            val hasObPenaltyOnShot1 = penalties.any { it.shotNumber == 1 && (it.type == PenaltyType.OB || it.type == PenaltyType.LOST_BALL) }
+            if (hasObPenaltyOnShot1) {
+                endDist = holeYardage
+                endLie = ApproachLie.TEE
+                hasEnd = true
+            } else if (stat.teeShotDistance != null) {
                 endDist = ShotDistanceCalculator.deriveEndDistance(holeYardage, stat.teeShotDistance!!, stat.teeOutcome)
                 hasEnd = true
             } else if (stat.chips > 0 || stat.sandShots > 0) {
@@ -336,12 +343,29 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
             } else if (sortedPutts.isNotEmpty()) {
                 greenFeet = sortedPutts.first().distance
                 hasEnd = true
+                val firstTracked = sortedShots.first()
+                endDist = firstTracked.distanceToPin ?: holeYardage
+                endLie = firstTracked.lie
+                hasEnd = true
+            } else if (stat.score > 0) {
+                // CHANGE: Do NOT assume a tee shot holed out (endDist=0) just because score > 0.
+                // If it's the only shot and we have no other data, it's safer to leave hasEnd = false 
+                // and let the score-based heuristic below handle it, or just stick to the drive distance.
+                // We'll only assume 0 if it's explicitly a putt or par 3.
+                if (par == 3) {
+                    endDist = 0
+                    hasEnd = true
+                }
             }
 
             if (hasEnd) {
-                val actualLie = if (stat.teeInTrouble) ApproachLie.OTHER else endLie
+                val hasObPenalty = penalties.any { it.shotNumber == 1 && (it.type == PenaltyType.OB || it.type == PenaltyType.LOST_BALL) }
+                val actualLie = if (stat.teeInTrouble && !hasObPenalty) ApproachLie.OTHER else endLie
+                val finalEndDist = if (hasObPenalty) holeYardage else endDist
+                val finalEndLie = if (hasObPenalty) ApproachLie.TEE else actualLie
+
                 offTeeExpected = getExpectedStrokes(holeYardage, ApproachLie.TEE, true)
-                offTee = calculateShotSG(holeYardage, ApproachLie.TEE, true, endDist, actualLie, greenFeet, 0, holeAdjustment)
+                offTee = calculateShotSG(holeYardage, ApproachLie.TEE, true, finalEndDist, finalEndLie, greenFeet, 0, holeAdjustment)
                 shotSgs.add(1 to offTee)
             } else if (stat.score > 0) {
                 // Heuristic: If no shots tracked and no end state found, estimate based on score.
@@ -380,8 +404,12 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
             val shot = sortedShots[i]
             // CHANGE: Identify tee shot by its assigned shotNumber rather than index.
             val isFirstShotOfPar3 = (par == 3 && shot.shotNumber == 1)
-            val isTeeShotOfPar45 = (par > 3 && shot.shotNumber == 1)
+            // CHANGE: Include all shots from the TEE on par 4/5 in Off-Tee (handles re-tees).
+            val isTeeShotOfPar45 = (par > 3 && (shot.shotNumber == 1 || shot.lie == ApproachLie.TEE))
             val isTeeShot = isFirstShotOfPar3 || isTeeShotOfPar45
+            
+            // CRITICAL: Only apply holeAdjustment to the very first tee shot attempted.
+            val currentHoleAdjustment = if (isTeeShot && shotSgs.none { it.first < shot.shotNumber }) holeAdjustment else 0.0
             
             val startDist = shot.distanceToPin ?: if (isTeeShot) holeYardage else continue
             val startLie = if (isTeeShot) ApproachLie.TEE else if (shot.isRecovery) ApproachLie.OTHER else shot.lie ?: ApproachLie.FAIRWAY
@@ -405,8 +433,13 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
                 greenFeet = sortedPutts.first().distance
                 hasEnd = true
             } else if (stat.score > 0) {
-                endDist = 0
-                hasEnd = true
+                // CHANGE: Do NOT assume a tee shot holed out just because score > 0.
+                // Keep hasEnd = false for tee shots (including re-tees) if no tracked distance exists.
+                // This ensures SG stays at -2.0 (Shot 1 + Penalty) until the re-tee is tracked.
+                if (!isTeeShot) {
+                    endDist = 0
+                    hasEnd = true
+                }
             }
 
             if (!hasEnd && shot.distanceTraveled != null) {
@@ -418,11 +451,23 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
                 if (isTeeShotOfPar45) {
                     offTeeExpected = getExpectedStrokes(startDist, startLie, isTeeShot)
                 }
-                val sg = calculateShotSG(startDist, startLie, isTeeShot, endDist, endLie, greenFeet, 0, if (isTeeShot) holeAdjustment else 0.0)
+                
+                val hasObPenalty = penalties.any { it.shotNumber == shot.shotNumber && (it.type == PenaltyType.OB || it.type == PenaltyType.LOST_BALL) }
+
+                // CHANGE: If it's a tee shot and the player is "in trouble", the end lie is OTHER (Recovery).
+                // EXCEPT: If it hit OB, we ignore "in trouble". 
+                // ALSO: Only apply stat.teeInTrouble to the first shot (Shot 1); re-tees use shot.isRecovery.
+                val effectiveEndLie = if (isTeeShotOfPar45 && shot.shotNumber == 1 && stat.teeInTrouble && !hasObPenalty) ApproachLie.OTHER else endLie
+                
+                // CHANGE: If OB, force end distance/lie to match start to ensure SG = -1.0 (before penalty).
+                val finalEndDist = if (hasObPenalty) startDist else endDist
+                val finalEndLie = if (hasObPenalty) startLie else effectiveEndLie
+
+                val sg = calculateShotSG(startDist, startLie, isTeeShot, finalEndDist, finalEndLie, greenFeet, 0, currentHoleAdjustment)
                 
                 // CRITICAL: Only the very first recorded shot on a Par 4/5 is "Off Tee".
-                // All other full swings/shots are "Approach".
-                if (isTeeShotOfPar45) {
+                // All other full swings/shots (including re-tees) are "Approach".
+                if (isTeeShotOfPar45 && shot.shotNumber == 1) {
                     offTee += sg
                 } else {
                     approach += sg
@@ -432,14 +477,25 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
         }
 
         // 3. ATTRIBUTED PENALTIES
+        var attributedPenaltyTotal = 0.0
         for (penalty in penalties) {
             if (penalty.shotNumber != null) {
                 val penaltyValue = penalty.strokes.toDouble()
                 val shotIndex = shotSgs.indexOfFirst { it.first == penalty.shotNumber }
                 if (shotIndex != -1) {
-                    // Note: We DON'T subtract from offTee/approach here because they are shown separately 
-                    // and the total getter handles the subtraction.
-                    // This keeps the component SGs "gross" (shot performance only).
+                    // Update the specific shot's SG
+                    val currentSg = shotSgs[shotIndex].second
+                    shotSgs[shotIndex] = penalty.shotNumber to (currentSg - penaltyValue)
+                    
+                    // Update components
+                    // CHANGE: On Par 4/5, only attribute to Off-Tee if it's the 1st shot.
+                    val isTeePenalty = par > 3 && penalty.shotNumber == 1
+                    if (isTeePenalty) {
+                        offTee -= penaltyValue
+                    } else {
+                        approach -= penaltyValue
+                    }
+                    attributedPenaltyTotal += penaltyValue
                 }
             }
         }
@@ -476,17 +532,17 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
 
                     // Update components for CURRENT recovery shot
                     // CHANGE: Use shotNumber to determine component
+                    // CHANGE: Use shotNumber to determine component. ONLY Shot 1 is Off-Tee.
                     if (par > 3 && shot.shotNumber == 1) offTee += attribution else approach += attribution
                     
                     // Find and adjust PREVIOUS shot SG (penalizing it)
-                    // CHANGE: Search for shotNumber - 1 to handle heuristic vs tracked gaps
                     val prevShotNumber = shot.shotNumber - 1
                     val prevIndex = shotSgs.indexOfFirst { it.first == prevShotNumber }
                     if (prevIndex != -1) {
                         val prevRawSg = shotSgs[prevIndex].second
                         shotSgs[prevIndex] = prevShotNumber to (prevRawSg - attribution)
                         
-                        // Update components for PREVIOUS shot
+                        // Update components for PREVIOUS shot. ONLY Shot 1 is Off-Tee.
                         if (par > 3 && prevShotNumber == 1) offTee -= attribution else approach -= attribution
                     }
                 }
@@ -502,7 +558,10 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
             puttSgs.add(putt.puttNumber to sg)
         }
 
-        return HoleSgBreakdown(offTee, approach, aroundGreen, putting, penalties.sumOf { it.strokes }.toDouble(), offTeeExpected, shotSgs, puttSgs)
+        val totalPenaltyStrokes = penalties.sumOf { it.strokes }.toDouble()
+        val unattributedPenalties = (totalPenaltyStrokes - attributedPenaltyTotal).coerceAtLeast(0.0)
+
+        return HoleSgBreakdown(offTee, approach, aroundGreen, putting, unattributedPenalties, offTeeExpected, shotSgs, puttSgs)
     }
 
     private fun interpolateShotDistances(
@@ -545,7 +604,7 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
                 // CHANGE: If it's the first tracked shot and it's NOT the tee shot on a par 4/5,
                 // try to use the heuristic tee distance as the starting point.
                 val prevDist = if (i == 0) {
-                    if (par > 3 && result[0].shotNumber > 1 && stat.teeShotDistance != null) {
+                    if (par > 3 && result[0].shotNumber > 1 && stat.teeShotDistance != null && result[0].lie != ApproachLie.TEE) {
                         (holeYardage - stat.teeShotDistance!!).coerceAtLeast(0)
                     } else {
                         holeYardage

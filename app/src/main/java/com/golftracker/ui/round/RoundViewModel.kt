@@ -269,6 +269,51 @@ class RoundViewModel @Inject constructor(
     
 
 
+
+
+    fun addReTee() {
+        val currentStat = uiState.value.currentHoleStat ?: return
+        val currentHole = uiState.value.currentHole ?: return
+        val yardage = uiState.value.currentHoleYardage ?: 0
+
+        viewModelScope.launch {
+            val existingShots = roundRepository.getShotsForHoleStat(currentStat.id).first()
+            
+            // Determine source shot for penalty.
+            // Par 4/5 with summary drive = Shot 1.
+            // Par 3 or tracked Par 4/5 = max existing shot number.
+            val hasSummaryDrive = currentHole.par > 3 && (currentStat.teeOutcome != null || currentStat.teeShotDistance != null)
+            val lastShotNumber = if (existingShots.isEmpty() && hasSummaryDrive) 1 
+                                 else (existingShots.maxOfOrNull { it.shotNumber } ?: 0)
+            
+            val sourceShotNumber = if (lastShotNumber == 0) 1 else lastShotNumber
+
+            // 1. Add OB Penalty attributed to the source shot
+            val penalty = Penalty(
+                holeStatId = currentStat.id,
+                type = PenaltyType.OB,
+                strokes = 1,
+                shotNumber = sourceShotNumber
+            )
+            roundRepository.insertPenalty(penalty)
+
+            // 2. Add New Shot from Tee
+            val nextShotNumber = sourceShotNumber + 2
+            
+            val newShot = com.golftracker.data.entity.Shot(
+                holeStatId = currentStat.id,
+                shotNumber = nextShotNumber,
+                lie = ApproachLie.TEE,
+                distanceToPin = null, // CHANGE: Don't autofill distance to pin in UI
+                clubId = currentStat.teeClubId ?: defaultTeeClub()?.id
+            )
+            roundRepository.insertShot(newShot)
+            
+            refreshShots(currentStat.id)
+            recalculateSgForCurrentHole()
+        }
+    }
+
     fun addApproachShot() {
         val currentStat = uiState.value.currentHoleStat ?: return
         val currentHole = uiState.value.currentHole ?: return
@@ -399,8 +444,20 @@ class RoundViewModel @Inject constructor(
 
     fun deleteApproachShot(shot: com.golftracker.data.entity.Shot) {
         viewModelScope.launch {
+            // If this is a re-tee (shotNumber > 1 and lie == TEE), 
+            // also remove the associated OB penalty from the previous shot (shotNumber - 2)
+            if (shot.shotNumber > 1 && shot.lie == com.golftracker.data.model.ApproachLie.TEE) {
+                val penalties = roundRepository.getPenaltiesForHoleStat(shot.holeStatId).first()
+                val associatedPenalty = penalties.find { 
+                    it.shotNumber == shot.shotNumber - 2 && 
+                    (it.type == com.golftracker.data.model.PenaltyType.OB || it.type == com.golftracker.data.model.PenaltyType.LOST_BALL)
+                }
+                associatedPenalty?.let { roundRepository.deletePenalty(it) }
+            }
+            
             roundRepository.deleteShot(shot)
             refreshShots(shot.holeStatId)
+            recalculateSgForCurrentHole()
         }
     }
     
@@ -721,7 +778,7 @@ class RoundViewModel @Inject constructor(
             currentPenalties.sumOf { it.strokes }
             
         val finishedHole = holedOutFromOffGreen || (currentStat.putts > 0 && updatedPutts.any { it.made })
-        val newScore = maxOf(currentStat.score, calculatedScore)
+        val newScore = calculatedScore
         val hasData = teeShotTaken || updatedShots.isNotEmpty() || updatedPutts.isNotEmpty() || shortGameStrokes > 0 || currentPenalties.isNotEmpty()
         val isGir = finishedHole && (newScore - currentStat.putts <= hole.par - 2)
         

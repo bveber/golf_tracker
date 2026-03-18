@@ -134,7 +134,7 @@ class StrokesGainedCalculatorTest {
         
         val breakdown = calculator.calculateHoleSg(
             par = 4, holeYardage = 400, holeAdjustment = 0.0,
-            shots = shots, putts = putts, penalties = 0, stat = stat
+            shots = shots, putts = putts, penalties = emptyList(), stat = stat
         )
         
         assertEquals(0.2, breakdown.offTee, 0.01)
@@ -209,7 +209,7 @@ class StrokesGainedCalculatorTest {
         
         val breakdown = calculator.calculateHoleSg(
             par = 4, holeYardage = 400, holeAdjustment = 0.0,
-            shots = listOf(shot1, shot2), putts = emptyList(), penalties = 0, stat = stat
+            shots = listOf(shot1, shot2), putts = emptyList(), penalties = emptyList(), stat = stat
         )
         
         val sg1 = breakdown.shotSgs.find { it.first == 1 }?.second ?: 0.0
@@ -232,7 +232,7 @@ class StrokesGainedCalculatorTest {
         
         val breakdown = calculator.calculateHoleSg(
             par = 4, holeYardage = 400, holeAdjustment = 0.0,
-            shots = listOf(shot1, shot2), putts = emptyList(), penalties = 0, stat = stat
+            shots = listOf(shot1, shot2), putts = emptyList(), penalties = emptyList(), stat = stat
         )
         
         // If threshold works, SG2 + SG1 components should NOT include the 0.5 shift
@@ -254,7 +254,7 @@ class StrokesGainedCalculatorTest {
         
         val breakdown = calculator.calculateHoleSg(
             par = 4, holeYardage = 400, holeAdjustment = 0.0,
-            shots = listOf(shot1, shot2, shot3), putts = emptyList(), penalties = 0, stat = stat
+            shots = listOf(shot1, shot2, shot3), putts = emptyList(), penalties = emptyList(), stat = stat
         )
         
         val sg1 = breakdown.shotSgs.find { it.first == 1 }?.second ?: 0.0
@@ -287,7 +287,7 @@ class StrokesGainedCalculatorTest {
         
         val breakdown = calculator.calculateHoleSg(
             par = 4, holeYardage = 400, holeAdjustment = 0.0,
-            shots = emptyList(), putts = emptyList(), penalties = 0, stat = stat
+            shots = emptyList(), putts = emptyList(), penalties = emptyList(), stat = stat
         )
         
         assertEquals(0.3, breakdown.aroundGreen, 0.01)
@@ -320,7 +320,7 @@ class StrokesGainedCalculatorTest {
         
         val breakdown = calculator.calculateHoleSg(
             par = 5, holeYardage = 525, holeAdjustment = 0.0,
-            shots = shots, putts = emptyList(), penalties = 0, stat = stat
+            shots = shots, putts = emptyList(), penalties = emptyList(), stat = stat
         )
         
         assertEquals(0.8, breakdown.offTee, 0.01)
@@ -346,14 +346,14 @@ class StrokesGainedCalculatorTest {
         
         val breakdown = calculator.calculateHoleSg(
             par = 4, holeYardage = 400, holeAdjustment = 0.0,
-            shots = shots, putts = emptyList(), penalties = 0, stat = stat
+            shots = shots, putts = emptyList(), penalties = emptyList(), stat = stat
         )
         
         // Shot 1: 400y to 205y. (4.2 - 3.242 - 1.0) = -0.042 approx
         assertEquals(-0.042, breakdown.offTee, 0.01)
         
-        // Shot 2: 205y to 10y. (3.242 - 2.5 - 1.0) = -0.258 approx
-        assertEquals(-0.258, breakdown.approach, 0.01)
+        // Shot 2: 205y to 10y. (3.242 - 2.3 - 1.0) = -0.058 approx
+        assertEquals(-0.058, breakdown.approach, 0.01)
     }
 
     @Test
@@ -365,7 +365,7 @@ class StrokesGainedCalculatorTest {
         
         val breakdown = calculator.calculateHoleSg(
             par = 4, holeYardage = 400, holeAdjustment = 0.0,
-            shots = emptyList(), putts = emptyList(), penalties = 0, stat = stat
+            shots = emptyList(), putts = emptyList(), penalties = emptyList(), stat = stat
         )
         
         assertEquals(0.24, breakdown.offTee, 0.1)
@@ -384,7 +384,7 @@ class StrokesGainedCalculatorTest {
         
         val breakdown = calculator.calculateHoleSg(
             par = 4, holeYardage = 400, holeAdjustment = 0.0,
-            shots = emptyList(), putts = emptyList(), penalties = 0, stat = stat
+            shots = emptyList(), putts = emptyList(), penalties = emptyList(), stat = stat
         )
         
         // Estimated drive landing was ~260 (65%). Short outcome makes it ~182 (70% of 260).
@@ -461,7 +461,7 @@ class StrokesGainedCalculatorTest {
         
         val breakdown = calculator.calculateHoleSg(
             par = 4, holeYardage = 454, holeAdjustment = 0.0,
-            shots = shots, putts = emptyList(), penalties = 0, stat = stat
+            shots = shots, putts = emptyList(), penalties = emptyList(), stat = stat
         )
         
         println("User Scenario Results:")
@@ -505,7 +505,7 @@ class StrokesGainedCalculatorTest {
         val breakdown = calculator.calculateHoleSg(
             par = 4, holeYardage = 454, holeAdjustment = 0.0,
             shots = emptyList(), // No GPS tracked shots
-            putts = putts, penalties = 0, stat = stat
+            putts = putts, penalties = emptyList(), stat = stat
         )
         
         println("Heuristic Bug Test Result: Off Tee SG = ${breakdown.offTee}")
@@ -534,5 +534,200 @@ class StrokesGainedCalculatorTest {
         assertTrue("Hole 1 adjustment should be negative", negAdj1 < 0)
         assertTrue("Hole 18 adjustment should be negative", negAdj18 < 0)
         assertTrue("Hardest hole should get less of the negative adjustment (closer to zero)", negAdj1 > negAdj18)
+    }
+    @Test
+    fun testCalculateHoleSg_AttributedPenalty_SubtractsFromShotAndComponent() {
+        val stat = com.golftracker.data.entity.HoleStat(id = 1, roundId = 1, holeId = 1)
+        val shot1 = com.golftracker.data.entity.Shot(holeStatId = 1, shotNumber = 1, distanceToPin = 400, lie = ApproachLie.TEE)
+        
+        // Base SG for 400y Tee to 150y Fairway (Exp 4.2 - 3.0 - 1 = 0.2)
+        val shot2 = com.golftracker.data.entity.Shot(holeStatId = 1, shotNumber = 2, distanceToPin = 150, lie = ApproachLie.FAIRWAY)
+        
+        // Penalty attributed to Shot 1
+        val penalty = com.golftracker.data.entity.Penalty(id = 1, holeStatId = 1, type = com.golftracker.data.model.PenaltyType.WATER, strokes = 1, shotNumber = 1)
+        
+        val breakdown = calculator.calculateHoleSg(
+            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            shots = listOf(shot1, shot2), putts = emptyList(), penalties = listOf(penalty), stat = stat
+        )
+        
+        val sg1 = breakdown.shotSgs.find { it.first == 1 }?.second ?: 0.0
+        
+        // Expected SG1 = 0.2 - 1.0 = -0.8
+        assertEquals(-0.8, sg1, 0.01)
+        // Expected offTee = 0.2 - 1.0 = -0.8
+        assertEquals(-0.8, breakdown.offTee, 0.01)
+        // penalities component should be 0 because result is attributed
+        assertEquals(0.0, breakdown.penalties, 0.01)
+    }
+
+    @Test
+    fun testCalculateHoleSg_TeeInTrouble_WithTrackedShots() {
+        val stat = com.golftracker.data.entity.HoleStat(id = 1, roundId = 1, holeId = 1, teeInTrouble = true)
+        val shot1 = com.golftracker.data.entity.Shot(holeStatId = 1, shotNumber = 1, distanceToPin = 400, lie = ApproachLie.TEE)
+        
+        // Target: 150y. If endLie is FAIRWAY (normal), SG = 4.2 - 3.0 - 1 = 0.2
+        // Since teeInTrouble = true, endLie becomes OTHER. Exp OTHER at 150y = 3.6
+        // SG = 4.2 - 3.6 - 1 = -0.4
+        val shot2 = com.golftracker.data.entity.Shot(holeStatId = 1, shotNumber = 2, distanceToPin = 150, lie = ApproachLie.FAIRWAY)
+        
+        val breakdown = calculator.calculateHoleSg(
+            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            shots = listOf(shot1, shot2), putts = emptyList(), penalties = emptyList(), stat = stat
+        )
+        
+        assertEquals(-0.4, breakdown.offTee, 0.01)
+    }
+
+    @Test
+    fun testCalculateHoleSg_ReTee_OB() {
+        val stat = com.golftracker.data.entity.HoleStat(
+            id = 1, roundId = 1, holeId = 1, 
+            teeOutcome = com.golftracker.data.model.ShotOutcome.MISS_RIGHT,
+            score = 6
+        )
+        
+        // Shot 1 is OB (from Tee)
+        // Shot 3 is the Re-tee (from Tee)
+        val shot3 = com.golftracker.data.entity.Shot(holeStatId = 1, shotNumber = 3, distanceToPin = 400, lie = ApproachLie.TEE)
+        
+        // Penalty on Shot 1
+        val penalty = com.golftracker.data.entity.Penalty(id = 1, holeStatId = 1, type = com.golftracker.data.model.PenaltyType.OB, strokes = 1, shotNumber = 1)
+        
+        // Target: 150y. SG = 4.2 - 3.0 - 1 = 0.2
+        val shot4 = com.golftracker.data.entity.Shot(holeStatId = 1, shotNumber = 4, distanceToPin = 150, lie = ApproachLie.FAIRWAY)
+        val putts = emptyList<com.golftracker.data.entity.Putt>()
+
+        val breakdown = calculator.calculateHoleSg(
+            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            shots = listOf(shot3, shot4), putts = putts, penalties = listOf(penalty), stat = stat
+        )
+        
+        // Shot 1 SG (HoleStat heuristic): 400 -> 400 (Shot 3 start). SG = 4.2 - 4.2 - 1 = -1.0. 
+        // With penalty: -1.0 - 1.0 = -2.0
+        
+        // Shot 3 SG: 400 -> 150. SG = 4.2 - 3.0 - 1 = 0.2
+        
+        // Shot 1 is Off-Tee. Shot 3 is Approach.
+        // Shot 4 is correctly skipped because it has no end distance/confirmed holing out.
+        assertEquals(-2.0, breakdown.offTee, 0.01)
+        assertEquals(0.2, breakdown.approach, 0.01)
+    }
+
+    @Test
+    fun testCalculateHoleSg_ReTee_OB_IgnoresTrouble() {
+        // Par 4, 400 yards.
+        val stat = com.golftracker.data.entity.HoleStat(
+            id = 1, roundId = 1, holeId = 1, 
+            teeOutcome = com.golftracker.data.model.ShotOutcome.MISS_LEFT,
+            teeInTrouble = true, // Force "In Trouble"
+            score = 6
+        )
+        
+        // Shot 1 is OB (from Tee). Shot 3 is the Re-tee (from Tee).
+        val shot3 = com.golftracker.data.entity.Shot(holeStatId = 1, shotNumber = 3, distanceToPin = 400, lie = ApproachLie.TEE)
+        
+        // Penalty on Shot 1 (OB)
+        val penalty = com.golftracker.data.entity.Penalty(id = 1, holeStatId = 1, type = com.golftracker.data.model.PenaltyType.OB, strokes = 1, shotNumber = 1)
+        
+        // Shot 4: 150y. SG = 4.2 - 3.0 - 1 = 0.2
+        val shot4 = com.golftracker.data.entity.Shot(holeStatId = 1, shotNumber = 4, distanceToPin = 150, lie = ApproachLie.FAIRWAY)
+        val putts = emptyList<com.golftracker.data.entity.Putt>()
+
+        val breakdown = calculator.calculateHoleSg(
+            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            shots = listOf(shot3, shot4), putts = putts, penalties = listOf(penalty), stat = stat
+        )
+        
+        // Shot 1 is Off-Tee. Shot 3 is Approach.
+        assertEquals(-2.0, breakdown.offTee, 0.01)
+        assertEquals(0.2, breakdown.approach, 0.01)
+        assertEquals(-2.0, breakdown.shotSgs.find { it.first == 1 }?.second ?: 0.0, 0.01)
+    }
+
+    @Test
+    fun testCalculateHoleSg_ReTee_WithExistingScore_NoPositiveSpike() {
+        // Scenario: A user hit OB, and wants to add the re-tee.
+        // The hole already has a score (e.g., 6).
+        val stat = com.golftracker.data.entity.HoleStat(
+            id = 1, roundId = 1, holeId = 1, 
+            score = 6,
+            teeOutcome = com.golftracker.data.model.ShotOutcome.MISS_LEFT
+        )
+        
+        // Shot 1 is OB. Penalty is added.
+        val penalty = com.golftracker.data.entity.Penalty(id = 1, holeStatId = 1, type = com.golftracker.data.model.PenaltyType.OB, strokes = 1, shotNumber = 1)
+        
+        // Before Shot 3 is added, the calculator uses the heuristic for Shot 1.
+        // With the fix, Shot 1 should NOT assume it holed out.
+        // It should be 400y -> 400y (fixed cost) = -1.0. With penalty = -2.0.
+        
+        val breakdown = calculator.calculateHoleSg(
+            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            shots = emptyList(), putts = emptyList(), penalties = listOf(penalty), stat = stat
+        )
+        
+        // If it correctly ignores the score for the tee shot: 
+        // 400 -> 400. SG = 4.2 - 1 - 4.2 = -1.0. 
+        // With penalty = -2.0.
+        assertEquals(-2.0, breakdown.offTee, 0.1)
+    }
+
+    @Test
+    fun testCalculateHoleSg_ReTee_OB_IgnoresDispersion() {
+        // Par 4, 400 yards.
+        val stat = com.golftracker.data.entity.HoleStat(
+            id = 1, roundId = 1, holeId = 1, 
+            score = 6,
+            teeOutcome = com.golftracker.data.model.ShotOutcome.MISS_RIGHT,
+            teeDispersionRight = 100, // Large miss right
+            teeDispersionLong = 0
+        )
+        
+        // Shot 1 is OB. Penalty is added.
+        val penalty = com.golftracker.data.entity.Penalty(id = 1, holeStatId = 1, type = com.golftracker.data.model.PenaltyType.OB, strokes = 1, shotNumber = 1)
+        
+        val breakdown = calculator.calculateHoleSg(
+            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            shots = emptyList(), putts = emptyList(), penalties = listOf(penalty), stat = stat
+        )
+        
+        // Even with huge dispersion, the OB penalty should force Shot 1 SG = -1.0.
+        // Total Off-Tee = -1.0 (shot) - 1.0 (pen) = -2.0
+        assertEquals(-2.0, breakdown.offTee, 0.1)
+    }
+
+    @Test
+    fun testCalculateHoleSg_ReTee_AttributedToApproach() {
+        // Par 4, 400 yards.
+        val stat = com.golftracker.data.entity.HoleStat(
+            id = 1, roundId = 1, holeId = 1, 
+            score = 4, // Birdie after re-tee? (Unlikely but for test)
+            teeOutcome = com.golftracker.data.model.ShotOutcome.MISS_RIGHT
+        )
+        
+        // Shot 1 is OB. Penalty is added.
+        val penalty = com.golftracker.data.entity.Penalty(id = 1, holeStatId = 1, type = com.golftracker.data.model.PenaltyType.OB, strokes = 1, shotNumber = 1)
+        
+        // Shot 3 (Re-tee) starts from the tee (null distanceToPin fallbacks to yardage).
+        // It lands at 100 yards (Shot 4 distanceToPin).
+        val reTee = com.golftracker.data.entity.Shot(id = 1, holeStatId = 1, shotNumber = 3, distanceToPin = null, lie = com.golftracker.data.model.ApproachLie.TEE)
+        
+        // Shot 4 is hit onto the green (10 feet)
+        val shot4 = com.golftracker.data.entity.Shot(id = 2, holeStatId = 1, shotNumber = 4, distanceToPin = 3, lie = com.golftracker.data.model.ApproachLie.FAIRWAY) // 3 yards = 9 feet
+        
+        // Shot 5 is a made putt
+        val putt5 = com.golftracker.data.entity.Putt(id = 1, holeStatId = 1, puttNumber = 5, distance = 9f, made = true)
+
+        val breakdown = calculator.calculateHoleSg(
+            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            shots = listOf(reTee, shot4), putts = listOf(putt5), penalties = listOf(penalty), stat = stat
+        )
+        
+        // Off-Tee should remain at -2.0 (Shot 1 + OB penalty).
+        assertEquals(-2.0, breakdown.offTee, 0.01)
+        
+        // The gains/losses from Shot 3 and Shot 4 are in "Approach".
+        assertEquals(-0.068, breakdown.approach, 0.01)
     }
 }

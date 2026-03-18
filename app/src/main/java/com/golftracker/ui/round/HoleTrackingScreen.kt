@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowForward
@@ -38,6 +39,7 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
@@ -250,132 +252,115 @@ fun HoleTrackingScreen(
                 item {
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Tee Shot", style = MaterialTheme.typography.titleMedium)
+                            Text("Tee Shots", style = MaterialTheme.typography.titleMedium)
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            // Smart default: Driver on par 4/5 when unset
-                            val effectiveTeeClubId = holeStat.teeClubId ?: viewModel.defaultTeeClub()?.id
-                            
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Distance (yds)", modifier = Modifier.weight(1f))
-                                IntegerInput(
-                                    value = holeStat.teeShotDistance,
-                                    onValueChange = { 
-                                        viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, effectiveTeeClubId, it, holeStat.teeMishit)
-                                    },
-                                    label = "Distance",
-                                    modifier = Modifier.width(100.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Club dropdown
+                            val trackedTeeShots = uiState.shots.filter { it.lie == ApproachLie.TEE }
                             val teeClubs = clubs.filter { it.type == "DRIVER" || it.type == "WOOD" || it.type == "HYBRID" || it.type == "IRON" }
-                            if (teeClubs.isNotEmpty()) {
-                                ClubDropdown(
-                                    label = "Club",
-                                    clubs = teeClubs,
-                                    selectedClubId = effectiveTeeClubId,
-                                    onClubSelected = { cid ->
-                                        viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, cid, holeStat.teeShotDistance, holeStat.teeMishit)
-                                    }
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
-
-                            val teeDispersion = com.golftracker.ui.gps.GpsUtils.DispersionOffsets(holeStat.teeDispersionLeft, holeStat.teeDispersionRight, holeStat.teeDispersionShort, holeStat.teeDispersionLong)
-                            val estimatedTeeOutcome = com.golftracker.ui.gps.GpsUtils.estimateOutcome(teeDispersion)
-                            val teeMismatch = holeStat.teeOutcome != null && estimatedTeeOutcome != ShotOutcome.ON_TARGET && holeStat.teeOutcome != estimatedTeeOutcome
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Outcome", style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
-                                if (teeMismatch) {
-                                    Icon(
-                                        Icons.Default.Warning,
-                                        contentDescription = "Mismatch",
-                                        tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.padding(end = 4.dp).height(16.dp)
-                                    )
-                                    Text(
-                                        "GPS suggests ${estimatedTeeOutcome.name.replace("_", " ")}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.error
-                                    )
-                                }
-                            }
-                            ChipSelector(
-                                options = ShotOutcome.values().filter { it != ShotOutcome.HOLED_OUT },
-                                selectedOption = holeStat.teeOutcome,
-                                onOptionSelected = { viewModel.updateTeeShot(it, holeStat.teeInTrouble, effectiveTeeClubId, holeStat.teeShotDistance, holeStat.teeMishit) },
-                                labelMapper = { it.name.replace("_", " ") }
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("In Trouble", style = MaterialTheme.typography.bodyMedium)
-                                    Switch(
-                                        checked = holeStat.teeInTrouble,
-                                        onCheckedChange = { viewModel.updateTeeShot(holeStat.teeOutcome, it, effectiveTeeClubId, holeStat.teeShotDistance, holeStat.teeMishit) },
-                                        modifier = Modifier.padding(start = 4.dp)
-                                    )
-                                }
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Mishit", style = MaterialTheme.typography.bodyMedium)
-                                    Switch(
-                                        checked = holeStat.teeMishit,
-                                        onCheckedChange = { viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, effectiveTeeClubId, holeStat.teeShotDistance, it) },
-                                        modifier = Modifier.padding(start = 4.dp)
-                                    )
-                                }
-                            }
                             
-                            Spacer(modifier = Modifier.height(8.dp))
-                            var showTeeDispersion by remember(holeStat.id) { mutableStateOf(false) }
-                            OutlinedButton(onClick = { showTeeDispersion = true }, modifier = Modifier.fillMaxWidth()) {
-                                Text("Dispersion Options")
-                            }
-                            if (showTeeDispersion) {
-                                DispersionDialog(
-                                    initialLeft = holeStat.teeDispersionLeft,
-                                    initialRight = holeStat.teeDispersionRight,
-                                    initialShort = holeStat.teeDispersionShort,
-                                    initialLong = holeStat.teeDispersionLong,
-                                    onDismissRequest = { showTeeDispersion = false },
-                                    onSave = { l, r, s, ln ->
-                                        viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, effectiveTeeClubId, holeStat.teeShotDistance, holeStat.teeMishit, holeStat.teeSlope, holeStat.teeStance, l, r, s, ln)
-                                        showTeeDispersion = false
-                                    }
-                                )
-                            }
-                            
-                            holeStat.sgOffTee?.let { sg ->
-                                Spacer(modifier = Modifier.height(4.dp))
-                                val sgColor = if (sg > 0) MaterialTheme.colorScheme.primary else if (sg < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-                                val sign = if (sg > 0) "+" else ""
-                                val adj = holeStat.difficultyAdjustment
-                                val raw = sg - adj
-                                val rawSign = if (raw > 0) "+" else ""
-                                val adjSign = if (adj > 0) "+" else ""
-                                
+                            // 1. Show Shot 1 (either tracked or heuristic from holeStat)
+                            val trackedShot1 = trackedTeeShots.find { it.shotNumber == 1 }
+                            if (trackedShot1 != null) {
+                                TeeShotItem(trackedShot1, viewModel, teeClubs, uiState.penalties)
+                            } else {
+                                // Heuristic Shot 1 (from holeStat)
+                                val effectiveTeeClubId = holeStat.teeClubId ?: viewModel.defaultTeeClub()?.id
                                 Column {
-                                    Text(
-                                        "SG Off Tee: $sign${String.format(java.util.Locale.US, "%.2f", sg)}", 
-                                        color = sgColor, 
-                                        style = MaterialTheme.typography.bodyMedium, 
-                                        fontWeight = FontWeight.Bold
+                                    Text("Shot 1", style = MaterialTheme.typography.labelLarge)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("Distance (yds)", modifier = Modifier.weight(1f))
+                                        IntegerInput(
+                                            value = holeStat.teeShotDistance,
+                                            onValueChange = { viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, effectiveTeeClubId, it, holeStat.teeMishit) },
+                                            label = "Distance",
+                                            modifier = Modifier.width(100.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    if (teeClubs.isNotEmpty()) {
+                                        ClubDropdown(
+                                            label = "Club",
+                                            clubs = teeClubs,
+                                            selectedClubId = effectiveTeeClubId,
+                                            onClubSelected = { cid -> viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, cid, holeStat.teeShotDistance, holeStat.teeMishit) }
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                    }
+                                    
+                                    val teeDispersion = com.golftracker.ui.gps.GpsUtils.DispersionOffsets(holeStat.teeDispersionLeft, holeStat.teeDispersionRight, holeStat.teeDispersionShort, holeStat.teeDispersionLong)
+                                    val estimatedTeeOutcome = com.golftracker.ui.gps.GpsUtils.estimateOutcome(teeDispersion)
+                                    val teeMismatch = holeStat.teeOutcome != null && estimatedTeeOutcome != ShotOutcome.ON_TARGET && holeStat.teeOutcome != estimatedTeeOutcome
+
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("Outcome", style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
+                                        if (teeMismatch) {
+                                            Icon(Icons.Default.Warning, contentDescription = "Mismatch", tint = MaterialTheme.colorScheme.error, modifier = Modifier.padding(end = 4.dp).height(16.dp))
+                                            Text("GPS suggests ${estimatedTeeOutcome.name.replace("_", " ")}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                                        }
+                                    }
+                                    ChipSelector(
+                                        options = ShotOutcome.values().filter { it != ShotOutcome.HOLED_OUT },
+                                        selectedOption = holeStat.teeOutcome,
+                                        onOptionSelected = { viewModel.updateTeeShot(it, holeStat.teeInTrouble, effectiveTeeClubId, holeStat.teeShotDistance, holeStat.teeMishit) },
+                                        labelMapper = { it.name.replace("_", " ") }
                                     )
-                                    if (adj != 0.0) {
-                                        Text(
-                                            "($rawSign${String.format(java.util.Locale.US, "%.2f", raw)} raw $adjSign${String.format(java.util.Locale.US, "%.2f", adj)} adj)",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("In Trouble", style = MaterialTheme.typography.bodyMedium)
+                                            Switch(checked = holeStat.teeInTrouble, onCheckedChange = { viewModel.updateTeeShot(holeStat.teeOutcome, it, effectiveTeeClubId, holeStat.teeShotDistance, holeStat.teeMishit) }, modifier = Modifier.padding(start = 4.dp))
+                                        }
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("Mishit", style = MaterialTheme.typography.bodyMedium)
+                                            Switch(checked = holeStat.teeMishit, onCheckedChange = { viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, effectiveTeeClubId, holeStat.teeShotDistance, it) }, modifier = Modifier.padding(start = 4.dp))
+                                        }
+                                    }
+                                    
+                                    val sg = holeStat.sgOffTee
+                                    if (sg != null) {
+                                        val sgColor = if (sg > 0) MaterialTheme.colorScheme.primary else if (sg < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                                        val sign = if (sg > 0) "+" else ""
+                                        val hasPenalty = uiState.penalties.any { it.shotNumber == 1 }
+                                        val penaltyNote = if (hasPenalty) " (penalty)" else ""
+                                        Text("Shot 1 SG: $sign${String.format(java.util.Locale.US, "%.2f", sg)}$penaltyNote", color = sgColor, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                    }
+
+                                    var showTeeDispersion by remember(holeStat.id) { mutableStateOf(false) }
+                                    OutlinedButton(onClick = { showTeeDispersion = true }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                                        Text("Dispersion Options")
+                                    }
+                                    if (showTeeDispersion) {
+                                        DispersionDialog(
+                                            initialLeft = holeStat.teeDispersionLeft,
+                                            initialRight = holeStat.teeDispersionRight,
+                                            initialShort = holeStat.teeDispersionShort,
+                                            initialLong = holeStat.teeDispersionLong,
+                                            onDismissRequest = { showTeeDispersion = false },
+                                            onSave = { l, r, s, ln ->
+                                                viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, effectiveTeeClubId, holeStat.teeShotDistance, holeStat.teeMishit, holeStat.teeSlope, holeStat.teeStance, l, r, s, ln)
+                                                showTeeDispersion = false
+                                            }
                                         )
                                     }
                                 }
+                            }
+
+                            // 2. Show Additional Tee Shots (Re-tees)
+                            trackedTeeShots.filter { it.shotNumber != 1 }.forEach { shot ->
+                                Spacer(modifier = Modifier.height(16.dp))
+                                HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                                Spacer(modifier = Modifier.height(16.dp))
+                                TeeShotItem(shot, viewModel, teeClubs, uiState.penalties)
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+                            OutlinedButton(
+                                onClick = { viewModel.addReTee() },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Re-tee (OB / Lost / Reload)")
                             }
                         }
                     }
@@ -448,14 +433,14 @@ fun HoleTrackingScreen(
                             )
                         }
 
-                        if (uiState.shots.isEmpty()) {
+                        if (uiState.shots.filter { it.lie != ApproachLie.TEE }.isEmpty()) {
                             Text(
                                 "No approach shots recorded.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
-                            uiState.shots.forEachIndexed { index, shot ->
+                            uiState.shots.filter { it.lie != ApproachLie.TEE }.forEachIndexed { index, shot ->
                                 Card(
                                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                                     modifier = Modifier.padding(vertical = 4.dp)
@@ -466,7 +451,9 @@ fun HoleTrackingScreen(
                                             shot.strokesGained?.let { sg ->
                                                 val sgColor = if (sg > 0) MaterialTheme.colorScheme.primary else if (sg < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
                                                 val sign = if (sg > 0) "+" else ""
-                                                Text("SG: $sign${String.format(java.util.Locale.US, "%.2f", sg)}", color = sgColor, style = MaterialTheme.typography.labelMedium)
+                                                val hasPenalty = uiState.penalties.any { it.shotNumber == shot.shotNumber }
+                                                val penaltyNote = if (hasPenalty) " (penalty)" else ""
+                                                Text("SG: $sign${String.format(java.util.Locale.US, "%.2f", sg)}$penaltyNote", color = sgColor, style = MaterialTheme.typography.labelMedium)
                                             }
                                             IconButton(onClick = { viewModel.deleteApproachShot(shot) }) {
                                                 Icon(Icons.Default.Delete, contentDescription = "Delete Shot", tint = MaterialTheme.colorScheme.error)
@@ -527,15 +514,16 @@ fun HoleTrackingScreen(
                                         Spacer(modifier = Modifier.height(8.dp))
 
                                         // Club
-                                        val approachClubs = clubs.filter { it.type != "DRIVER" && it.type != "PUTTER" }
+                                        val availableClubs = if (shot.lie == ApproachLie.TEE) clubs.filter { it.type != "PUTTER" } 
+                                                            else clubs.filter { it.type != "DRIVER" && it.type != "PUTTER" }
                                         val suggestedClubId = shot.clubId
                                             ?: shot.distanceToPin?.let { dist ->
                                                 viewModel.suggestApproachClub(dist)?.id
                                             }
-                                        if (approachClubs.isNotEmpty()) {
+                                        if (availableClubs.isNotEmpty()) {
                                             ClubDropdown(
                                                 label = "Club",
-                                                clubs = approachClubs,
+                                                clubs = availableClubs,
                                                 selectedClubId = suggestedClubId,
                                                 onClubSelected = { cid ->
                                                     viewModel.updateShotDetails(shot, shot.outcome, shot.lie, cid, shot.distanceToPin, shot.isRecovery, shot.distanceTraveled)
@@ -1056,8 +1044,10 @@ fun HoleTrackingScreen(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            SummarySgItem("Off Tee", holeStat.sgOffTee, holeStat.difficultyAdjustment)
-                            SummarySgItem("Appr", holeStat.sgApproach)
+                            val teeAdj = uiState.penalties.any { it.shotNumber == 1 }
+                            val approachAdj = uiState.penalties.any { it.shotNumber != null && it.shotNumber > 1 }
+                            SummarySgItem("Off Tee", holeStat.sgOffTee, holeStat.difficultyAdjustment, teeAdj)
+                            SummarySgItem("Appr", holeStat.sgApproach, isAdjusted = approachAdj)
                             SummarySgItem("Around", holeStat.sgAroundGreen)
                             SummarySgItem("Putt", holeStat.sgPutting)
                             val penaltyStrokes = uiState.penalties.sumOf { it.strokes }
@@ -1135,6 +1125,98 @@ private fun ClubDropdown(
 }
 
 @Composable
+private fun TeeShotItem(
+    shot: com.golftracker.data.entity.Shot,
+    viewModel: RoundViewModel,
+    teeClubs: List<Club>,
+    penalties: List<com.golftracker.data.entity.Penalty>
+) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Shot ${shot.shotNumber}", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+            IconButton(onClick = { viewModel.deleteApproachShot(shot) }) {
+                Icon(Icons.Default.Delete, contentDescription = "Delete Shot", tint = MaterialTheme.colorScheme.error)
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Distance (yds)", modifier = Modifier.weight(1f))
+            IntegerInput(
+                value = shot.distanceToPin,
+                onValueChange = { viewModel.updateShotDetails(shot, shot.outcome, shot.lie, shot.clubId, it, shot.isRecovery, shot.distanceTraveled) },
+                label = "Distance",
+                modifier = Modifier.width(100.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        val suggestedClubId = shot.clubId ?: shot.distanceToPin?.let { dist -> viewModel.suggestApproachClub(dist)?.id }
+        if (teeClubs.isNotEmpty()) {
+            ClubDropdown(
+                label = "Club",
+                clubs = teeClubs,
+                selectedClubId = suggestedClubId,
+                onClubSelected = { cid -> viewModel.updateShotDetails(shot, shot.outcome, shot.lie, cid, shot.distanceToPin, shot.isRecovery, shot.distanceTraveled) }
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        val dispersion = com.golftracker.ui.gps.GpsUtils.DispersionOffsets(shot.dispersionLeft, shot.dispersionRight, shot.dispersionShort, shot.dispersionLong)
+        val estimatedOutcome = com.golftracker.ui.gps.GpsUtils.estimateOutcome(dispersion)
+        val mismatch = shot.outcome != null && estimatedOutcome != ShotOutcome.ON_TARGET && shot.outcome != estimatedOutcome
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Outcome", style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
+            if (mismatch) {
+                Icon(Icons.Default.Warning, contentDescription = "Mismatch", tint = MaterialTheme.colorScheme.error, modifier = Modifier.padding(end = 4.dp).height(16.dp))
+                Text("GPS suggests ${estimatedOutcome.name.replace("_", " ")}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+            }
+        }
+        ChipSelector(
+            options = ShotOutcome.values().filter { it != ShotOutcome.HOLED_OUT },
+            selectedOption = shot.outcome,
+            onOptionSelected = { viewModel.updateShotDetails(shot, it, shot.lie, suggestedClubId, shot.distanceToPin, shot.isRecovery, shot.distanceTraveled) },
+            labelMapper = { it.name.replace("_", " ") }
+        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("In Trouble", style = MaterialTheme.typography.bodyMedium)
+                Switch(checked = shot.isRecovery, onCheckedChange = { viewModel.updateShotDetails(shot, shot.outcome, shot.lie, suggestedClubId, shot.distanceToPin, it, shot.distanceTraveled) }, modifier = Modifier.padding(start = 4.dp))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Mishit", style = MaterialTheme.typography.bodyMedium)
+                Switch(checked = shot.isMishit, onCheckedChange = { viewModel.updateShotDetails(shot, shot.outcome, shot.lie, suggestedClubId, shot.distanceToPin, shot.isRecovery, shot.distanceTraveled, shot.slope, shot.stance, shot.dispersionLeft, shot.dispersionRight, shot.dispersionShort, shot.dispersionLong, it) }, modifier = Modifier.padding(start = 4.dp))
+            }
+        }
+        
+        shot.strokesGained?.let { sg ->
+            val sgColor = if (sg > 0) MaterialTheme.colorScheme.primary else if (sg < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+            val sign = if (sg > 0) "+" else ""
+            val hasPenalty = penalties.any { it.shotNumber == shot.shotNumber }
+            val penaltyNote = if (hasPenalty) " (penalty)" else ""
+            Text("Shot ${shot.shotNumber} SG: $sign${String.format(java.util.Locale.US, "%.2f", sg)}$penaltyNote", color = sgColor, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        }
+        
+        var showDispersion by remember(shot.id) { mutableStateOf(false) }
+        OutlinedButton(onClick = { showDispersion = true }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+            Text("Dispersion Options")
+        }
+        if (showDispersion) {
+            DispersionDialog(
+                initialLeft = shot.dispersionLeft,
+                initialRight = shot.dispersionRight,
+                initialShort = shot.dispersionShort,
+                initialLong = shot.dispersionLong,
+                onDismissRequest = { showDispersion = false },
+                onSave = { l, r, s, ln ->
+                    viewModel.updateShotDetails(shot, shot.outcome, shot.lie, suggestedClubId, shot.distanceToPin, shot.isRecovery, shot.distanceTraveled, shot.slope, shot.stance, l, r, s, ln, shot.isMishit)
+                    showDispersion = false
+                }
+            )
+        }
+    }
+}
+
+@Composable
 fun IntegerInput(
     value: Int?,
     onValueChange: (Int?) -> Unit,
@@ -1175,14 +1257,15 @@ fun IntegerInput(
 }
 
 @Composable
-private fun SummarySgItem(label: String, sg: Double?, adj: Double = 0.0) {
+private fun SummarySgItem(label: String, sg: Double?, adj: Double = 0.0, isAdjusted: Boolean = false) {
     val value = sg ?: 0.0
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         val color = if (value > 0.1) MaterialTheme.colorScheme.primary else if (value < -0.1) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
         val sign = if (value > 0) "+" else ""
+        val adjSuffix = if (isAdjusted) " (adj)" else ""
         Text(
-            "$sign${String.format(java.util.Locale.US, "%.2f", value)}",
+            "$sign${String.format(java.util.Locale.US, "%.2f", value)}$adjSuffix",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
             color = color
