@@ -794,6 +794,8 @@ class RoundViewModel @Inject constructor(
             sgOffTeeExpected = if (hasData) breakdown.offTeeExpected else null
         )
         
+        _uiState.update { it.copy(shots = updatedShots, putts = updatedPutts) }
+
         if (updatedStat != currentStat) {
             roundRepository.updateHoleStat(updatedStat)
         }
