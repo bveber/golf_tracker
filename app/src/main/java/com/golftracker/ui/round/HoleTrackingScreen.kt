@@ -433,14 +433,15 @@ fun HoleTrackingScreen(
                             )
                         }
 
-                        if (uiState.shots.filter { it.lie != ApproachLie.TEE }.isEmpty()) {
+                        val visibleApproachShots = if (hole.par == 3) uiState.shots else uiState.shots.filter { it.lie != ApproachLie.TEE }
+                        if (visibleApproachShots.isEmpty()) {
                             Text(
                                 "No approach shots recorded.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
-                            uiState.shots.filter { it.lie != ApproachLie.TEE }.forEachIndexed { index, shot ->
+                            visibleApproachShots.forEachIndexed { index, shot ->
                                 Card(
                                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                                     modifier = Modifier.padding(vertical = 4.dp)
