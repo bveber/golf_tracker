@@ -12,6 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FilterList
@@ -122,6 +124,8 @@ fun StatsDashboardScreen(
                                     clubs = clubs,
                                     selectedClubId = filter.drivingClubId,
                                     onClubSelected = { viewModel.updateDrivingClubFilter(it) },
+                                    includeMishits = filter.includeMishits,
+                                    onToggleMishits = { viewModel.updateMishitFilter(!filter.includeMishits) },
                                     sg = data.sg
                                 )
                                 2 -> ApproachTab(
@@ -129,6 +133,8 @@ fun StatsDashboardScreen(
                                     clubs = clubs,
                                     selectedClubId = filter.approachClubId,
                                     onClubSelected = { viewModel.updateApproachClubFilter(it) },
+                                    includeMishits = filter.includeMishits,
+                                    onToggleMishits = { viewModel.updateMishitFilter(!filter.includeMishits) },
                                     sg = data.sg
                                 )
                                 3 -> ChippingTab(data.chipping, data.sg)
@@ -548,6 +554,8 @@ fun DrivingTab(
     clubs: List<Club>,
     selectedClubId: Int?,
     onClubSelected: (Int?) -> Unit,
+    includeMishits: Boolean,
+    onToggleMishits: () -> Unit,
     sg: com.golftracker.data.repository.SgStats
 ) {
     // Club filter dropdown
@@ -560,6 +568,13 @@ fun DrivingTab(
         )
         Spacer(modifier = Modifier.height(8.dp))
     }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("Include Mishits", style = MaterialTheme.typography.bodyMedium)
+        Spacer(modifier = Modifier.weight(1f))
+        Switch(checked = includeMishits, onCheckedChange = { onToggleMishits() })
+    }
+    Spacer(modifier = Modifier.height(8.dp))
 
     StatCard(
         title = "SG: Off the Tee", 
@@ -592,11 +607,20 @@ fun DrivingTab(
         )
     }
 
-    StatCard(
-        title = "Trouble-Free", 
-        value = String.format("%.1f%%", d.troubleFreePct),
-        moe = if (d.troubleFreeMoE > 0) String.format("±%.1f%%", d.troubleFreeMoE) else null
-    )
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        StatCard(
+            title = "Mishit Rate", 
+            value = String.format("%.1f%%", d.mishitPct),
+            moe = if (d.mishitMoE > 0) String.format("±%.1f%%", d.mishitMoE) else null,
+            modifier = Modifier.weight(1f)
+        )
+        StatCard(
+            title = "Trouble-Free", 
+            value = String.format("%.1f%%", d.troubleFreePct),
+            moe = if (d.troubleFreeMoE > 0) String.format("±%.1f%%", d.troubleFreeMoE) else null,
+            modifier = Modifier.weight(1f)
+        )
+    }
 
     // 2D shot dispersion visual
     if (d.totalDrivingHoles > 0) {
@@ -614,11 +638,25 @@ fun DrivingTab(
     }
     
     // Raw Miss Dispersion Scatter Plot
-    if (d.rawDispersion.points.size >= 1) {
+    if (d.rawDispersion.pointsByLie.values.any { it.isNotEmpty() }) {
+        var selectedLies by remember { mutableStateOf(ApproachLie.values().toSet()) }
+        
         Spacer(modifier = Modifier.height(8.dp))
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
-                com.golftracker.ui.components.RawDispersionVisual(data = d.rawDispersion)
+                LieFilterRow(
+                    selectedLies = selectedLies,
+                    onToggleLie = { lie ->
+                        selectedLies = if (lie in selectedLies) selectedLies - lie else selectedLies + lie
+                    }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                com.golftracker.ui.components.RawDispersionVisual(
+                    data = d.rawDispersion.copy(
+                        points = d.rawDispersion.pointsByLie.filterKeys { it in selectedLies }.values.flatten()
+                    ),
+                    ringStepOverride = 20f
+                )
             }
         }
     }
@@ -650,6 +688,8 @@ fun ApproachTab(
     clubs: List<Club>,
     selectedClubId: Int?,
     onClubSelected: (Int?) -> Unit,
+    includeMishits: Boolean,
+    onToggleMishits: () -> Unit,
     sg: com.golftracker.data.repository.SgStats
 ) {
     // Club filter dropdown
@@ -662,6 +702,13 @@ fun ApproachTab(
         )
         Spacer(modifier = Modifier.height(8.dp))
     }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("Include Mishits", style = MaterialTheme.typography.bodyMedium)
+        Spacer(modifier = Modifier.weight(1f))
+        Switch(checked = includeMishits, onCheckedChange = { onToggleMishits() })
+    }
+    Spacer(modifier = Modifier.height(8.dp))
 
     StatCard(
         title = "SG: Approach", 
@@ -783,11 +830,25 @@ fun ApproachTab(
     }
 
     // Raw Miss Dispersion Scatter Plot
-    if (a.rawDispersion.points.size >= 1) {
+    if (a.rawDispersion.pointsByLie.values.any { it.isNotEmpty() }) {
+        var selectedLies by remember { mutableStateOf(ApproachLie.values().toSet()) }
+
         Spacer(modifier = Modifier.height(8.dp))
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
-                com.golftracker.ui.components.RawDispersionVisual(data = a.rawDispersion)
+                LieFilterRow(
+                    selectedLies = selectedLies,
+                    onToggleLie = { lie ->
+                        selectedLies = if (lie in selectedLies) selectedLies - lie else selectedLies + lie
+                    }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                com.golftracker.ui.components.RawDispersionVisual(
+                    data = a.rawDispersion.copy(
+                        points = a.rawDispersion.pointsByLie.filterKeys { it in selectedLies }.values.flatten()
+                    ),
+                    ringStepOverride = 10f
+                )
             }
         }
     }
@@ -1143,3 +1204,24 @@ private fun ClubFilterDropdown(
     }
 }
 
+
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun LieFilterRow(
+    selectedLies: Set<ApproachLie>,
+    onToggleLie: (ApproachLie) -> Unit
+) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        ApproachLie.values().forEach { lie ->
+            FilterChip(
+                selected = lie in selectedLies,
+                onClick = { onToggleLie(lie) },
+                label = { Text(lie.name, style = MaterialTheme.typography.labelSmall) }
+            )
+        }
+    }
+}

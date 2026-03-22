@@ -53,7 +53,12 @@ data class TrackedShot(
     val targetLocation: LatLng? = null,
     val distanceYards: Int? = null,
     val distanceToPin: Int? = null,
-    val outcome: ShotOutcome? = null
+    val outcome: ShotOutcome? = null,
+    val left: Int? = null,
+    val right: Int? = null,
+    val short: Int? = null,
+    val long: Int? = null,
+    val isMishit: Boolean = false
 )
 
 /**
@@ -123,7 +128,8 @@ data class GpsUiState(
     val holePar: Int? = null,
     val currentHole: com.golftracker.data.entity.Hole? = null,
     val pendingLocationUpdate: LocationUpdate? = null,
-    val knownHoleFrame: Pair<LatLng, LatLng>? = null
+    val knownHoleFrame: Pair<LatLng, LatLng>? = null,
+    val pendingMishit: Boolean = false
 )
 
 /**
@@ -289,7 +295,11 @@ class GpsViewModel @Inject constructor(
                     clubName = clubs.find { it.id == stat.teeClubId }?.name,
                     location = LatLng(stat.teeLat, stat.teeLng),
                     targetLocation = if (stat.teeTargetLat != null && stat.teeTargetLng != null) LatLng(stat.teeTargetLat, stat.teeTargetLng) else null,
-                    distanceYards = stat.teeShotDistance
+                    distanceYards = stat.teeShotDistance,
+                    left = stat.teeDispersionLeft,
+                    right = stat.teeDispersionRight,
+                    short = stat.teeDispersionShort,
+                    long = stat.teeDispersionLong
                 ))
             }
             
@@ -303,7 +313,11 @@ class GpsViewModel @Inject constructor(
                         location = LatLng(shot.startLat, shot.startLng),
                         targetLocation = if (shot.targetLat != null && shot.targetLng != null) LatLng(shot.targetLat, shot.targetLng) else null,
                         distanceYards = shot.distanceTraveled,
-                        distanceToPin = shot.distanceToPin
+                        distanceToPin = shot.distanceToPin,
+                        left = shot.dispersionLeft,
+                        right = shot.dispersionRight,
+                        short = shot.dispersionShort,
+                        long = shot.dispersionLong
                     ))
                 }
             }
@@ -482,7 +496,9 @@ class GpsViewModel @Inject constructor(
             clubId = state.pendingClubId,
             clubName = currentClub?.name,
             location = currentLocation,
-            distanceToPin = distToFlag
+            targetLocation = distToFlag?.let { state.flagLocation },
+            distanceToPin = distToFlag,
+            isMishit = state.pendingMishit
         )
 
         val updatedShots = state.trackedShots.toMutableList()
@@ -686,6 +702,10 @@ class GpsViewModel @Inject constructor(
         }
     }
 
+    fun updatePendingMishit(mishit: Boolean) {
+        _uiState.update { it.copy(pendingMishit = mishit) }
+    }
+
     private fun persistShotUpdate(
         trackedShot: TrackedShot,
         index: Int,
@@ -696,11 +716,13 @@ class GpsViewModel @Inject constructor(
 
         viewModelScope.launch {
             // Auto-estimate outcome if null and we have dispersion
-            val updatedShot = if (trackedShot.outcome == null && dispersionOffsets != null) {
-                trackedShot.copy(outcome = GpsUtils.estimateOutcome(dispersionOffsets))
-            } else {
-                trackedShot
-            }
+            val updatedShot = trackedShot.copy(
+                outcome = trackedShot.outcome ?: dispersionOffsets?.let { GpsUtils.estimateOutcome(it) },
+                left = trackedShot.left ?: dispersionOffsets?.left,
+                right = trackedShot.right ?: dispersionOffsets?.right,
+                short = trackedShot.short ?: dispersionOffsets?.short,
+                long = trackedShot.long ?: dispersionOffsets?.long
+            )
 
             // Update UI list
             _uiState.update { s ->
@@ -738,6 +760,7 @@ class GpsViewModel @Inject constructor(
                         val existing = actualShots[approachIndex]
                         roundRepository.updateShot(existing.copy(
                             outcome = updatedShot.outcome,
+                            lie = if ((state.holePar ?: 0) <= 3 && approachIndex == 0) com.golftracker.data.model.ApproachLie.TEE else existing.lie,
                             clubId = updatedShot.clubId,
                             distanceToPin = updatedShot.distanceToPin,
                             distanceTraveled = updatedShot.distanceYards,
@@ -753,8 +776,9 @@ class GpsViewModel @Inject constructor(
                     } else {
                         roundRepository.insertShot(com.golftracker.data.entity.Shot(
                             holeStatId = holeStatId,
-                            shotNumber = approachIndex + 1,
+                            shotNumber = if (state.holePar ?: 0 > 3) approachIndex + 2 else approachIndex + 1,
                             outcome = updatedShot.outcome,
+                            lie = if ((state.holePar ?: 0) <= 3 && approachIndex == 0) com.golftracker.data.model.ApproachLie.TEE else null,
                             clubId = updatedShot.clubId,
                             distanceToPin = updatedShot.distanceToPin,
                             distanceTraveled = updatedShot.distanceYards,

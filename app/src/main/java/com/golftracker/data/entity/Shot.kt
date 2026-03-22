@@ -93,5 +93,11 @@ data class Shot(
     val isRecovery: Boolean = false,
     
     @ColumnInfo(name = "strokes_gained")
-    val strokesGained: Double? = null
+    val strokesGained: Double? = null,
+
+    @ColumnInfo(name = "penalty_attribution", defaultValue = "0.0")
+    val penaltyAttribution: Double = 0.0,
+
+    @ColumnInfo(name = "is_mishit", defaultValue = "0")
+    val isMishit: Boolean = false
 )

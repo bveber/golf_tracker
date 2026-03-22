@@ -69,6 +69,8 @@ class RoundRepository @Inject constructor(
 
     suspend fun insertPenalty(penalty: Penalty) = penaltyDao.insertPenalty(penalty)
     
+    suspend fun updatePenalty(penalty: Penalty) = penaltyDao.updatePenalty(penalty)
+    
     suspend fun deletePenalty(penalty: Penalty) = penaltyDao.deletePenalty(penalty)
 
     // Shots

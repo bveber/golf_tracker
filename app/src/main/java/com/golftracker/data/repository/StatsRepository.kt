@@ -26,7 +26,8 @@ data class StatsFilter(
     val endDate: java.util.Date? = null,
     val drivingClubId: Int? = null,
     val approachClubId: Int? = null,
-    val excludedRoundIds: Set<Int> = emptySet()
+    val excludedRoundIds: Set<Int> = emptySet(),
+    val includeMishits: Boolean = true
 )
 
 // ── Repository ──────────────────────────────────────────────────────────
@@ -43,8 +44,10 @@ class StatsRepository @Inject constructor(
         return kotlinx.coroutines.flow.combine(
             roundDao.getFinalizedRoundsWithDetails(),
             courseRepository.allYardages,
-            userPreferencesRepository.estimatedHandicapFlow
-        ) { allRounds, allYardages, estimatedHandicap ->
+            userPreferencesRepository.estimatedHandicapFlow,
+            courseRepository.allHoles
+        ) { allRounds, allYardages, estimatedHandicap, allHoles ->
+            val parMap = allHoles.groupBy { it.courseId }.mapValues { (_, holes) -> holes.sumOf { it.par } }
             val filtered = applyFilter(allRounds, filter)
             
             // For driving: Map (TeeSetId -> HoleId -> Yardage)
@@ -57,11 +60,11 @@ class StatsRepository @Inject constructor(
             StatsData(
                 rounds = filtered,
                 scoring = calculateScoringStats(filtered, estimatedHandicap),
-                driving = calculateDrivingStats(filtered, yardageMapForDriving, filter.drivingClubId),
-                approach = calculateApproachStats(filtered, filter.approachClubId),
+                driving = calculateDrivingStats(filtered, yardageMapForDriving, filter.drivingClubId, filter),
+                approach = calculateApproachStats(filtered, filter.approachClubId, filter),
                 chipping = calculateChippingStats(filtered),
                 putting = calculatePuttingStats(filtered),
-                sg = calculateSgStats(filtered, yardageMapForSg)
+                sg = calculateSgStats(filtered, yardageMapForSg, parMap)
             )
         }
     }
@@ -196,7 +199,8 @@ class StatsRepository @Inject constructor(
     private fun calculateDrivingStats(
         rounds: List<RoundWithDetails>, 
         yardageMap: Map<Int, Map<Int, Int>>, // TeeSetId -> HoleId -> Yardage
-        clubIdFilter: Int? = null
+        clubIdFilter: Int? = null,
+        filter: StatsFilter
     ): DrivingStats {
         val allDrivingHoles = rounds.flatMap { r -> 
             r.holeStats.map { h -> Triple(h, r.round.teeSetId, r.round.courseId) }
@@ -230,19 +234,38 @@ class StatsRepository @Inject constructor(
         val shortMisses = teeShots.count { it == ShotOutcome.SHORT }
         val longMisses = teeShots.count { it == ShotOutcome.LONG }
         
-        // Extract raw dispersion points
-        val rawPoints = drivingHoles.mapNotNull { h ->
+        // Extract raw dispersion points from both HoleStat (TEE fields) and Shot table
+        val drivingShotsWithDispersion = drivingHoles.flatMap { h ->
+            val points = mutableListOf<Pair<ApproachLie, DispersionPoint>>()
+            
+            // 1. From HoleStat
             val stat = h.holeStat
             if (stat.teeOutcome != null && stat.teeOutcome != ShotOutcome.ON_TARGET && 
                 (stat.teeDispersionLeft != null || stat.teeDispersionRight != null || stat.teeDispersionShort != null || stat.teeDispersionLong != null)) {
-                DispersionPoint(
-                    left = stat.teeDispersionLeft,
-                    right = stat.teeDispersionRight,
-                    short = stat.teeDispersionShort,
-                    long = stat.teeDispersionLong
-                )
-            } else null
+                
+                val isMishit = stat.teeMishit
+                points.add(ApproachLie.TEE to DispersionPoint(stat.teeDispersionLeft, stat.teeDispersionRight, stat.teeDispersionShort, stat.teeDispersionLong, isMishit))
+            }
+            
+            // 2. From Shot table (if they aren't duplicates of the HoleStat entry managed by GPS)
+            // For driving, we typically care about the first shot on par 4/5. 
+            // However, GPS VM logic saves the TEE shot's dispersion ONLY to HoleStat (see GpsViewModel.kt:729)
+            // But if there are secondary drives, they might be in Shot table.
+            h.shots.filter { it.shotNumber > 1 && it.lie == ApproachLie.TEE }.forEach { shot ->
+                if (shot.outcome != null && shot.outcome != ShotOutcome.ON_TARGET && 
+                    (shot.dispersionLeft != null || shot.dispersionRight != null || shot.dispersionShort != null || shot.dispersionLong != null)) {
+                    points.add(ApproachLie.TEE to DispersionPoint(shot.dispersionLeft, shot.dispersionRight, shot.dispersionShort, shot.dispersionLong, shot.isMishit))
+                }
+            }
+            
+            if (!filter.includeMishits) {
+                points.removeAll { it.second.isMishit }
+            }
+            
+            points
         }
+
+        val pointsByLie = drivingShotsWithDispersion.groupBy({ it.first }, { it.second })
 
         val troubleFreeCount = drivingHoles.count { it.holeStat.teeOutcome != null && !it.holeStat.teeInTrouble }
         val troubleTotal = drivingHoles.count { it.holeStat.teeOutcome != null }.coerceAtLeast(1)
@@ -317,7 +340,10 @@ class StatsRepository @Inject constructor(
             totalDrivingHoles = drivingHoles.size,
             perClubStats = perClub,
             selectedClubId = clubIdFilter,
-            rawDispersion = RawDispersionData(rawPoints),
+            rawDispersion = RawDispersionData(
+                points = pointsByLie.values.flatten(),
+                pointsByLie = pointsByLie
+            ),
             byPar = drivingByPar
         )
     }
@@ -348,8 +374,12 @@ class StatsRepository @Inject constructor(
 
     // ── Approach ─────────────────────────────────────────────────────────
 
-    private fun calculateApproachStats(rounds: List<RoundWithDetails>, clubIdFilter: Int? = null): ApproachStats {
-        val allHoles = rounds.flatMap { it.holeStats }.filter { it.holeStat.score > 0 }
+    private fun calculateApproachStats(
+        rounds: List<RoundWithDetails>, 
+        clubIdFilter: Int? = null,
+        filter: StatsFilter
+    ): ApproachStats {
+        val allHoles = rounds.flatMap { it.holeStats }.filter { it.holeStat.score > 0 || it.shots.isNotEmpty() }
         if (allHoles.isEmpty()) return ApproachStats()
 
         fun isGir(h: HoleStatWithHole): Boolean {
@@ -417,12 +447,22 @@ class StatsRepository @Inject constructor(
             DataPoint(h, outcome, lie, distance, dLeft, dRight, dShort, dLong)
         }
         
-        val rawPoints = holeDetails.mapNotNull { d ->
-            if (d.outcome != null && d.outcome != ShotOutcome.ON_TARGET && 
-                (d.dLeft != null || d.dRight != null || d.dShort != null || d.dLong != null)) {
-                DispersionPoint(d.dLeft, d.dRight, d.dShort, d.dLong)
-            } else null
+        // Collect dispersion points from the Shot table
+        val rawPointsWithLie = allHoles.flatMap { h ->
+            h.shots.filter { shot ->
+                val matchesClub = clubIdFilter == null || shot.clubId == clubIdFilter
+                matchesClub && shot.outcome != null && shot.outcome != ShotOutcome.ON_TARGET && 
+                (shot.dispersionLeft != null || shot.dispersionRight != null || shot.dispersionShort != null || shot.dispersionLong != null)
+            }.map { shot ->
+                (shot.lie ?: ApproachLie.OTHER) to DispersionPoint(shot.dispersionLeft, shot.dispersionRight, shot.dispersionShort, shot.dispersionLong, shot.isMishit)
+            }
         }
+
+        val filteredPointsWithLie = if (!filter.includeMishits) {
+            rawPointsWithLie.filter { !it.second.isMishit }
+        } else rawPointsWithLie
+
+        val pointsByLie = rawPointsWithLie.groupBy({ it.first }, { it.second })
 
         // GIR by lie
         val detailsWithLie = holeDetails.filter { it.lie != null }
@@ -510,7 +550,10 @@ class StatsRepository @Inject constructor(
             onTargetByRange = onTargetByRange,
             onTargetByLie = onTargetByLie,
             totalShots = approachShots.size,
-            rawDispersion = RawDispersionData(rawPoints),
+            rawDispersion = RawDispersionData(
+                points = pointsByLie.values.flatten(),
+                pointsByLie = pointsByLie
+            ),
             byPar = approachByPar
         )
     }
@@ -714,7 +757,8 @@ class StatsRepository @Inject constructor(
 
     private fun calculateSgStats(
         rounds: List<RoundWithDetails>,
-        yardageMap: Map<Pair<Int, Int>, com.golftracker.data.entity.HoleTeeYardage>
+        yardageMap: Map<Pair<Int, Int>, com.golftracker.data.entity.HoleTeeYardage>,
+        parMap: Map<Int, Int>
     ): SgStats {
         var totalSgOffTee = 0.0
         var totalSgApproach = 0.0
@@ -731,11 +775,9 @@ class StatsRepository @Inject constructor(
 
         for (round in rounds) {
             val teeSet = round.round.teeSetId
-            // We need ALL yardages for this tee set to calculate the course adjustment correctly (18 holes)
-            val allCourseYardages = yardageMap.filterKeys { it.first == teeSet }.values
-                .map { Pair(it.yardage, null as Int?) }
+            val coursePar = parMap[round.round.courseId] ?: 72
             
-            val courseAdj = sgCalculator.calculateCourseAdjustment(round.teeSet.rating.toDouble(), allCourseYardages)
+            val courseAdj = sgCalculator.calculateCourseAdjustment(round.teeSet.rating.toDouble(), coursePar)
 
             for (hole in round.holeStats) {
                 val holeYardage = yardageMap[teeSet to hole.hole.id]?.yardage ?: 0
@@ -747,7 +789,7 @@ class StatsRepository @Inject constructor(
                     holeAdjustment = holeAdj,
                     shots = hole.shots,
                     putts = hole.putts,
-                    penalties = hole.penalties.sumOf { it.strokes },
+                    penalties = hole.penalties,
                     stat = hole.holeStat
                 )
 
@@ -901,14 +943,16 @@ data class ClubStats(
 )
 
 data class RawDispersionData(
-    val points: List<DispersionPoint> = emptyList()
+    val points: List<DispersionPoint> = emptyList(),
+    val pointsByLie: Map<com.golftracker.data.model.ApproachLie, List<DispersionPoint>> = emptyMap()
 )
 
 data class DispersionPoint(
     val left: Int? = null,
     val right: Int? = null,
     val short: Int? = null,
-    val long: Int? = null
+    val long: Int? = null,
+    val isMishit: Boolean = false
 )
 
 data class OnTargetBreakdown(

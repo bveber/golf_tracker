@@ -1,12 +1,7 @@
 package com.golftracker.ui.components
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,10 +24,30 @@ fun RawDispersionVisual(
     data: RawDispersionData,
     modifier: Modifier = Modifier,
     title: String = "Raw Dispersion (yds)",
-    pointColor: Color = MaterialTheme.colorScheme.primary
+    pointColor: Color = MaterialTheme.colorScheme.primary,
+    ringStepOverride: Float? = null
 ) {
     if (data.points.isEmpty()) return
 
+    // 1. Calculate the scale parameters outside the Canvas so we can use them in the legend
+    var maxDistVal = 10f
+    data.points.forEach { p ->
+        val xDist = max(p.left?.toFloat() ?: 0f, p.right?.toFloat() ?: 0f)
+        val yDist = max(p.short?.toFloat() ?: 0f, p.long?.toFloat() ?: 0f)
+        maxDistVal = max(maxDistVal, max(xDist, yDist))
+    }
+    
+    val ringStep = ringStepOverride ?: when {
+        maxDistVal <= 15f -> 5f
+        maxDistVal <= 40f -> 10f
+        maxDistVal <= 100f -> 25f
+        else -> 50f
+    }
+
+    // Add 20% padding to the max distance for the grid boundary
+    // Ensure maxDist is at least one ringStep so at least one ring is always visible
+    val maxDist = max(maxDistVal * 1.2f, ringStep)
+    
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -54,27 +69,12 @@ fun RawDispersionVisual(
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val cx = size.width / 2f
                 val cy = size.height / 2f
-
-                // Determine scale based on the maximum distance missed in any direction
-                var maxDist = 30f // Minimum scale is 30 yards
-                data.points.forEach { p ->
-                    val xDist = max(p.left?.toFloat() ?: 0f, p.right?.toFloat() ?: 0f)
-                    val yDist = max(p.short?.toFloat() ?: 0f, p.long?.toFloat() ?: 0f)
-                    maxDist = max(maxDist, max(xDist, yDist))
-                }
-                
-                // Add 10% padding to the max distance for the grid boundary
-                maxDist *= 1.1f
                 
                 // Scale factor: pixels per yard
                 val scale = (size.width / 2f) / maxDist
 
-                // Define grid rings (e.g. 10y, 20y, 30y... up to maxDist)
-                val ringStep = if (maxDist <= 40f) 10f else if (maxDist <= 100f) 25f else 50f
-                var currentRing = ringStep
-                
-                val gridColor = Color.LightGray.copy(alpha = 0.5f)
-                val axisColor = Color.Gray.copy(alpha = 0.5f)
+                val gridColor = Color.Gray.copy(alpha = 0.4f)
+                val axisColor = Color.Gray.copy(alpha = 0.6f)
                 
                 // Draw axes
                 drawLine(
@@ -91,6 +91,7 @@ fun RawDispersionVisual(
                 )
 
                 // Draw distance rings
+                var currentRing = ringStep
                 while (currentRing <= maxDist) {
                     val radiusPx = currentRing * scale
                     drawCircle(
@@ -131,7 +132,7 @@ fun RawDispersionVisual(
         }
         
         Text(
-            text = "Center = Target. Rings every 10-50y scale.",
+            text = "Grid Rings: every ${ringStep.toInt()} yards",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp)

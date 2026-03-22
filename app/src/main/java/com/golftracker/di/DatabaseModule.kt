@@ -41,7 +41,14 @@ object DatabaseModule {
             GolfDatabase.MIGRATION_14_15,
             GolfDatabase.MIGRATION_15_16,
             GolfDatabase.MIGRATION_16_17,
-            GolfDatabase.MIGRATION_17_18
+            GolfDatabase.MIGRATION_17_18,
+            GolfDatabase.MIGRATION_18_19,
+            GolfDatabase.MIGRATION_19_20,
+            GolfDatabase.MIGRATION_20_21,
+            GolfDatabase.MIGRATION_21_22,
+            GolfDatabase.MIGRATION_22_23,
+            GolfDatabase.MIGRATION_23_24,
+            GolfDatabase.MIGRATION_24_25
         )
          .fallbackToDestructiveMigration() // For MVP simplicity
          .addCallback(SeedDataCallback(context))

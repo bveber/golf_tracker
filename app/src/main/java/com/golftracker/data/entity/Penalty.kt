@@ -23,5 +23,7 @@ data class Penalty(
     @ColumnInfo(name = "hole_stat_id", index = true)
     val holeStatId: Int,
     val type: PenaltyType,
-    val strokes: Int = 1
+    val strokes: Int = 1,
+    @ColumnInfo(name = "shot_number")
+    val shotNumber: Int? = null
 )

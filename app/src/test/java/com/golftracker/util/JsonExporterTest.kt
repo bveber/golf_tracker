@@ -50,10 +50,15 @@ class JsonExporterTest {
 
         assertTrue("File should have been created", file != null && file.exists())
         val content = file!!.readText()
-        assertTrue("Content should contain course name", content.contains("Test Course"))
-        assertTrue("Content should contain hole number", content.contains("\"holeNumber\": 1"))
-        assertTrue("Content should contain par", content.contains("\"par\": 4"))
-        assertTrue("Content should contain score", content.contains("\"score\": 4"))
+        assertTrue("Content should contain course object", content.contains("\"course\": {"))
+        assertTrue("Content should contain holeStats array", content.contains("\"holeStats\": ["))
+        assertTrue("Content should contain hole object", content.contains("\"hole\": {"))
+        assertTrue("Content should contain shots array", content.contains("\"shots\": ["))
+        
+        // Specific value check within keys
+        assertTrue("Content should contain holeNumber value", content.contains("\"holeNumber\": 1"))
+        assertTrue("Content should contain par value", content.contains("\"par\": 4"))
+        assertTrue("Content should contain score value", content.contains("\"score\": 4"))
         
         // Cleanup
         file.delete()

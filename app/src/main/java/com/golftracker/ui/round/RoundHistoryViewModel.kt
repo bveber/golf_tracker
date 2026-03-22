@@ -48,16 +48,19 @@ class RoundHistoryViewModel @Inject constructor(
     }
     val roundsWithDetails: StateFlow<List<RoundHistoryItem>> = combine(
         roundRepository.finalizedRoundsWithDetails,
-        courseRepository.allYardages
-    ) { rounds, yardages ->
+        courseRepository.allYardages,
+        courseRepository.allHoles
+    ) { rounds, yardages, holes ->
         val yardageMap = yardages.associateBy { it.teeSetId to it.holeId }
+        val parMap = holes.groupBy { it.courseId }
+            .mapValues { (_, courseHoles) -> courseHoles.sumOf { it.par } }
         val distSumMap = yardages.groupBy { it.teeSetId }
             .mapValues { (_, holes) -> holes.sumOf { it.yardage } }
             
         rounds.map { round ->
             RoundHistoryItem(
                 roundWithDetails = round,
-                scoreData = calculateRoundScore(round, yardageMap, distSumMap)
+                scoreData = calculateRoundScore(round, yardageMap, parMap, distSumMap)
             )
         }
     }.stateIn(
@@ -87,6 +90,7 @@ class RoundHistoryViewModel @Inject constructor(
     private fun calculateRoundScore(
         roundWithDetails: com.golftracker.data.model.RoundWithDetails,
         yardageMap: Map<Pair<Int, Int>, com.golftracker.data.entity.HoleTeeYardage>,
+        parMap: Map<Int, Int>,
         distSumMap: Map<Int, Int>
     ): RoundScoreData {
         val stats = roundWithDetails.holeStats
@@ -95,12 +99,9 @@ class RoundHistoryViewModel @Inject constructor(
         var totalLiveSg = 0.0
         
         val teeSetId = roundWithDetails.round.teeSetId
-        // IMPORTANT: We need ALL 18 yardages for the course to calculate the course adjustment correctly.
-        // If we only use the holes played in a 9-hole round, the SG adjustment will be massive (off by ~36 strokes).
-        val allTeeSetYardages = yardageMap.filterKeys { it.first == teeSetId }.values
-            .map { Pair(it.yardage, null as Int?) }
+        val coursePar = parMap[roundWithDetails.course.id] ?: 72
             
-        val courseAdj = sgCalculator.calculateCourseAdjustment(roundWithDetails.teeSet.rating.toDouble(), allTeeSetYardages)
+        val courseAdj = sgCalculator.calculateCourseAdjustment(roundWithDetails.teeSet.rating.toDouble(), coursePar)
 
         stats.forEach { hole ->
             if (hole.holeStat.score > 0) {
@@ -117,7 +118,7 @@ class RoundHistoryViewModel @Inject constructor(
                 holeAdjustment = holeAdj,
                 shots = hole.shots,
                 putts = hole.putts,
-                penalties = hole.penalties.sumOf { it.strokes },
+                penalties = hole.penalties,
                 stat = hole.holeStat
             )
             totalLiveSg += breakdown.total

@@ -122,6 +122,10 @@ class StatsViewModel @Inject constructor(
     fun updateApproachClubFilter(clubId: Int?) {
         _filter.update { it.copy(approachClubId = clubId) }
     }
+
+    fun updateMishitFilter(include: Boolean) {
+        _filter.update { it.copy(includeMishits = include) }
+    }
 }
 
 sealed interface StatsUiState {
