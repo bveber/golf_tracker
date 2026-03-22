@@ -36,10 +36,18 @@ class HandicapCalculatorTest {
     }
 
     @Test
-    fun `9 hole rounds are skipped`() {
-        val round = TestDataFactory.roundWithDetails(totalHoles = 9, scorePerHole = 4)
+    fun `9 hole rounds are included and normalized`() {
+        // (113 / slope) * (gross - rating/2) * 2
+        // slope=113, rating=72 → (113/113) * (45 - 36) * 2 = 9 * 2 = 18.0
+        val round = TestDataFactory.roundWithDetails(
+            totalHoles = 9, 
+            scorePerHole = 5, // 5 * 9 = 45 gross
+            teeSet = TestDataFactory.teeSet(slope = 113, rating = 72.0)
+        )
         val diffs = HandicapCalculator.calculateDifferentials(listOf(round))
-        assertEquals(0, diffs.size)
+        assertEquals(1, diffs.size)
+        assertEquals(18.0, diffs[0].value, 0.01)
+        assertEquals(9, diffs[0].totalHoles)
     }
 
     @Test

@@ -10,7 +10,8 @@ object HandicapCalculator {
     data class Differential(
         val roundId: Int,
         val date: Date,
-        val value: Double
+        val value: Double,
+        val totalHoles: Int = 18
     )
 
     /**
@@ -85,11 +86,9 @@ object HandicapCalculator {
             // Basic validation
             if (teeSet == null || teeSet.slope == 0 || teeSet.rating == 0.0) continue
             
-            // Only 18-hole rounds for MVP v1
-            if (round.totalHoles == 18) {
+            // Allow 9 and 18 hole rounds
+            if (round.totalHoles == 18 || round.totalHoles == 9) {
                 // Determine Gross Score
-                // MVP: Sum of strokes. 
-                // Future: Adjust max score per hole (Net Double Bogey).
                 var grossScore = 0
                 roundDetails.holeStats.forEach { 
                     // Simplified Net Double Bogey: Cap score at Par + 5 for handicap purposes
@@ -98,11 +97,16 @@ object HandicapCalculator {
                 }
                 
                 if (grossScore > 0) {
-                    val differential = (113.0 / teeSet.slope.toDouble()) * (grossScore - teeSet.rating)
+                    val rating = if (round.totalHoles == 9) teeSet.rating / 2.0 else teeSet.rating
+                    val rawDiff = (113.0 / teeSet.slope.toDouble()) * (grossScore - rating)
+                    
+                    // Normalize for 18 holes if it's a 9-hole round
+                    val differential = if (round.totalHoles == 9) rawDiff * 2.0 else rawDiff
+                    
                     // Standard rounding to tenths
                     val roundedDiff = (differential * 10.0).roundToInt() / 10.0
                     
-                    diffs.add(Differential(round.id, round.date, roundedDiff))
+                    diffs.add(Differential(round.id, round.date, roundedDiff, round.totalHoles))
                 }
             }
         }

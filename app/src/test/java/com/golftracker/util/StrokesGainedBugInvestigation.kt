@@ -60,7 +60,7 @@ class StrokesGainedBugInvestigation {
         )
         
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 400, shots = shots, putts = putts, penalties = emptyList(), stat = stat, holeAdjustment = 0.0
+            par = 4, holeYardage = 400, shots = shots, putts = putts, penalties = emptyList(), stat = stat
         )
         
         println("Drive SG: ${breakdown.offTee}")
@@ -95,7 +95,7 @@ class StrokesGainedBugInvestigation {
         )
         
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 400, shots = shots, putts = putts, penalties = emptyList(), stat = stat, holeAdjustment = 0.0
+            par = 4, holeYardage = 400, shots = shots, putts = putts, penalties = emptyList(), stat = stat
         )
         
         println("315y Fairway Drive SG: ${breakdown.offTee}")
@@ -121,7 +121,7 @@ class StrokesGainedBugInvestigation {
         )
         
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            par = 4, holeYardage = 400,
             shots = shots, putts = emptyList(), penalties = emptyList(), stat = stat
         )
         

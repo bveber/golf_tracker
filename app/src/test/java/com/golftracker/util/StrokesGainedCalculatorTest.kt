@@ -51,8 +51,7 @@ class StrokesGainedCalculatorTest {
             endDistanceYs = 150,
             endLie = ApproachLie.FAIRWAY,
             endDistanceFeetOnGreen = null,
-            penaltyStrokes = 0,
-            holeAdjustment = 0.0
+            penaltyStrokes = 0
         )
         assertEquals(0.8, sg, 0.01)
     }
@@ -69,8 +68,7 @@ class StrokesGainedCalculatorTest {
             endDistanceYs = 95,
             endLie = ApproachLie.FAIRWAY,
             endDistanceFeetOnGreen = null,
-            penaltyStrokes = 0,
-            holeAdjustment = 0.0
+            penaltyStrokes = 0
         )
         assertTrue("SG should be very negative for a shank (-0.98 approx), got $sg", sg < -0.9)
     }
@@ -86,8 +84,7 @@ class StrokesGainedCalculatorTest {
             endDistanceYs = 400,
             endLie = ApproachLie.TEE,
             endDistanceFeetOnGreen = null,
-            penaltyStrokes = 1,
-            holeAdjustment = 0.0
+            penaltyStrokes = 1
         )
         // SG = 4.2 - 4.2 - 1 (stroke) - 1 (penalty) = -2.0
         assertEquals(-2.0, sg, 0.01)
@@ -105,8 +102,7 @@ class StrokesGainedCalculatorTest {
             endDistanceYs = 0,
             endLie = null,
             endDistanceFeetOnGreen = 15f,
-            penaltyStrokes = 0,
-            holeAdjustment = 0.0
+            penaltyStrokes = 0
         )
         assertEquals(0.2, sg, 0.01)
     }
@@ -133,7 +129,7 @@ class StrokesGainedCalculatorTest {
         )
         
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            par = 4, holeYardage = 400,
             shots = shots, putts = putts, penalties = emptyList(), stat = stat
         )
         
@@ -156,8 +152,7 @@ class StrokesGainedCalculatorTest {
             endDistanceYs = 0,
             endLie = null,
             endDistanceFeetOnGreen = null,
-            penaltyStrokes = 0,
-            holeAdjustment = 0.0
+            penaltyStrokes = 0
         )
         assertEquals(1.3, sg, 0.01)
     }
@@ -174,8 +169,7 @@ class StrokesGainedCalculatorTest {
             endDistanceYs = 100,
             endLie = ApproachLie.FAIRWAY,
             endDistanceFeetOnGreen = null,
-            penaltyStrokes = 0,
-            holeAdjustment = 0.0
+            penaltyStrokes = 0
         )
         assertTrue(sg < 0.1 && sg > -0.1)
     }
@@ -208,7 +202,7 @@ class StrokesGainedCalculatorTest {
         val shot2 = com.golftracker.data.entity.Shot(holeStatId = 1, shotNumber = 2, distanceToPin = 180, isRecovery = true, penaltyAttribution = 0.1)
         
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            par = 4, holeYardage = 400,
             shots = listOf(shot1, shot2), putts = emptyList(), penalties = emptyList(), stat = stat
         )
         
@@ -231,7 +225,7 @@ class StrokesGainedCalculatorTest {
         val shot2 = com.golftracker.data.entity.Shot(holeStatId = 1, shotNumber = 2, distanceToPin = 180, isRecovery = true, penaltyAttribution = 0.5)
         
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            par = 4, holeYardage = 400,
             shots = listOf(shot1, shot2), putts = emptyList(), penalties = emptyList(), stat = stat
         )
         
@@ -253,7 +247,7 @@ class StrokesGainedCalculatorTest {
         val shot3 = com.golftracker.data.entity.Shot(holeStatId = 1, shotNumber = 3, distanceToPin = 100, lie = ApproachLie.FAIRWAY)
         
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            par = 4, holeYardage = 400,
             shots = listOf(shot1, shot2, shot3), putts = emptyList(), penalties = emptyList(), stat = stat
         )
         
@@ -286,7 +280,7 @@ class StrokesGainedCalculatorTest {
         )
         
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            par = 4, holeYardage = 400,
             shots = emptyList(), putts = emptyList(), penalties = emptyList(), stat = stat
         )
         
@@ -319,7 +313,7 @@ class StrokesGainedCalculatorTest {
         )
         
         val breakdown = calculator.calculateHoleSg(
-            par = 5, holeYardage = 525, holeAdjustment = 0.0,
+            par = 5, holeYardage = 525,
             shots = shots, putts = emptyList(), penalties = emptyList(), stat = stat
         )
         
@@ -345,7 +339,7 @@ class StrokesGainedCalculatorTest {
         )
         
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            par = 4, holeYardage = 400,
             shots = shots, putts = emptyList(), penalties = emptyList(), stat = stat
         )
         
@@ -364,7 +358,7 @@ class StrokesGainedCalculatorTest {
         )
         
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            par = 4, holeYardage = 400,
             shots = emptyList(), putts = emptyList(), penalties = emptyList(), stat = stat
         )
         
@@ -383,7 +377,7 @@ class StrokesGainedCalculatorTest {
         )
         
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            par = 4, holeYardage = 400,
             shots = emptyList(), putts = emptyList(), penalties = emptyList(), stat = stat
         )
         
@@ -421,8 +415,7 @@ class StrokesGainedCalculatorTest {
             endDistanceYs = 170,
             endLie = ApproachLie.OTHER,
             endDistanceFeetOnGreen = null,
-            penaltyStrokes = 0,
-            holeAdjustment = 0.0
+            penaltyStrokes = 0
         )
         
         assertEquals(-0.667, sg, 0.001)
@@ -460,7 +453,7 @@ class StrokesGainedCalculatorTest {
         // For simplicity, let's assume no more tracked shots, just score works.
         
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 454, holeAdjustment = 0.0,
+            par = 4, holeYardage = 454,
             shots = shots, putts = emptyList(), penalties = emptyList(), stat = stat
         )
         
@@ -503,7 +496,7 @@ class StrokesGainedCalculatorTest {
         )
         
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 454, holeAdjustment = 0.0,
+            par = 4, holeYardage = 454,
             shots = emptyList(), // No GPS tracked shots
             putts = putts, penalties = emptyList(), stat = stat
         )
@@ -516,26 +509,6 @@ class StrokesGainedCalculatorTest {
     }
 
     @Test
-    fun testHoleAdjustment_SignConstraint() {
-        // Total Course Adj > 0 (Rating 73, Par 72)
-        val posTotalAdj = 1.0
-        val posAdj1 = calculator.getHoleAdjustment(posTotalAdj, 1)
-        val posAdj18 = calculator.getHoleAdjustment(posTotalAdj, 18)
-        
-        assertTrue("Hole 1 adjustment should be positive", posAdj1 > 0)
-        assertTrue("Hole 18 adjustment should be positive", posAdj18 > 0)
-        assertTrue("Hardest hole should get more adjustment", posAdj1 > posAdj18)
-        
-        // Total Course Adj < 0 (Rating 71, Par 72)
-        val negTotalAdj = -1.0
-        val negAdj1 = calculator.getHoleAdjustment(negTotalAdj, 1)
-        val negAdj18 = calculator.getHoleAdjustment(negTotalAdj, 18)
-        
-        assertTrue("Hole 1 adjustment should be negative", negAdj1 < 0)
-        assertTrue("Hole 18 adjustment should be negative", negAdj18 < 0)
-        assertTrue("Hardest hole should get less of the negative adjustment (closer to zero)", negAdj1 > negAdj18)
-    }
-    @Test
     fun testCalculateHoleSg_AttributedPenalty_SubtractsFromShotAndComponent() {
         val stat = com.golftracker.data.entity.HoleStat(id = 1, roundId = 1, holeId = 1)
         val shot1 = com.golftracker.data.entity.Shot(holeStatId = 1, shotNumber = 1, distanceToPin = 400, lie = ApproachLie.TEE)
@@ -547,7 +520,7 @@ class StrokesGainedCalculatorTest {
         val penalty = com.golftracker.data.entity.Penalty(id = 1, holeStatId = 1, type = com.golftracker.data.model.PenaltyType.WATER, strokes = 1, shotNumber = 1)
         
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            par = 4, holeYardage = 400,
             shots = listOf(shot1, shot2), putts = emptyList(), penalties = listOf(penalty), stat = stat
         )
         
@@ -572,7 +545,7 @@ class StrokesGainedCalculatorTest {
         val shot2 = com.golftracker.data.entity.Shot(holeStatId = 1, shotNumber = 2, distanceToPin = 150, lie = ApproachLie.FAIRWAY)
         
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            par = 4, holeYardage = 400,
             shots = listOf(shot1, shot2), putts = emptyList(), penalties = emptyList(), stat = stat
         )
         
@@ -599,7 +572,7 @@ class StrokesGainedCalculatorTest {
         val putts = emptyList<com.golftracker.data.entity.Putt>()
 
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            par = 4, holeYardage = 400,
             shots = listOf(shot3, shot4), putts = putts, penalties = listOf(penalty), stat = stat
         )
         
@@ -635,7 +608,7 @@ class StrokesGainedCalculatorTest {
         val putts = emptyList<com.golftracker.data.entity.Putt>()
 
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            par = 4, holeYardage = 400,
             shots = listOf(shot3, shot4), putts = putts, penalties = listOf(penalty), stat = stat
         )
         
@@ -663,7 +636,7 @@ class StrokesGainedCalculatorTest {
         // It should be 400y -> 400y (fixed cost) = -1.0. With penalty = -2.0.
         
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            par = 4, holeYardage = 400,
             shots = emptyList(), putts = emptyList(), penalties = listOf(penalty), stat = stat
         )
         
@@ -688,7 +661,7 @@ class StrokesGainedCalculatorTest {
         val penalty = com.golftracker.data.entity.Penalty(id = 1, holeStatId = 1, type = com.golftracker.data.model.PenaltyType.OB, strokes = 1, shotNumber = 1)
         
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            par = 4, holeYardage = 400,
             shots = emptyList(), putts = emptyList(), penalties = listOf(penalty), stat = stat
         )
         
@@ -720,7 +693,7 @@ class StrokesGainedCalculatorTest {
         val putt5 = com.golftracker.data.entity.Putt(id = 1, holeStatId = 1, puttNumber = 5, distance = 9f, made = true)
 
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 400, holeAdjustment = 0.0,
+            par = 4, holeYardage = 400,
             shots = listOf(reTee, shot4), putts = listOf(putt5), penalties = listOf(penalty), stat = stat
         )
         

@@ -63,29 +63,18 @@ class SgRecalculationUseCase @Inject constructor(
                 .sumOf { it.par }
                 .takeIf { it > 0 } ?: 72
 
-            val courseAdj = sgCalculator.calculateCourseAdjustment(
-                teeSet.rating.toDouble(),
-                coursePar
-            )
-
             for (holeStatWithHole in roundWithDetails.holeStats) {
                 val hole = holeStatWithHole.hole
                 val holeStat = holeStatWithHole.holeStat
 
-                val holeYardage = allYardages
+                val defaultYardage = allYardages
                     .firstOrNull { it.holeId == hole.id && it.teeSetId == round.teeSetId }
                     ?.yardage ?: continue
-
-                val holeAdj = sgCalculator.getHoleAdjustment(
-                    courseAdj,
-                    hole.handicapIndex,
-                    18
-                )
+                val holeYardage = holeStat.adjustedYardage ?: defaultYardage
 
                 val breakdown = sgCalculator.calculateHoleSg(
                     par = hole.par,
                     holeYardage = holeYardage,
-                    holeAdjustment = holeAdj,
                     shots = holeStatWithHole.shots,
                     putts = holeStatWithHole.putts,
                     penalties = holeStatWithHole.penalties,

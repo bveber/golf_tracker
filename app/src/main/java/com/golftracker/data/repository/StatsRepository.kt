@@ -847,16 +847,13 @@ class StatsRepository @Inject constructor(
             val teeSet = round.round.teeSetId
             val coursePar = parMap[round.round.courseId] ?: 72
             
-            val courseAdj = sgCalculator.calculateCourseAdjustment(round.teeSet.rating.toDouble(), coursePar)
-
             for (hole in round.holeStats) {
-                val holeYardage = yardageMap[teeSet to hole.hole.id]?.yardage ?: 0
-                val holeAdj = sgCalculator.getHoleAdjustment(courseAdj, hole.hole.handicapIndex, 18)
+                val defaultYardage = yardageMap[teeSet to hole.hole.id]?.yardage ?: 0
+                val holeYardage = hole.holeStat.adjustedYardage ?: defaultYardage
                 
                 val breakdown = sgCalculator.calculateHoleSg(
                     par = hole.hole.par,
                     holeYardage = holeYardage,
-                    holeAdjustment = holeAdj,
                     shots = hole.shots,
                     putts = hole.putts,
                     penalties = hole.penalties,
