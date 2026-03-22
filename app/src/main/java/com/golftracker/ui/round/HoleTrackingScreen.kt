@@ -61,6 +61,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -1225,13 +1226,15 @@ fun IntegerInput(
     modifier: Modifier = Modifier
 ) {
     var textValue by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(value?.toString() ?: "")) }
+    // Track whether the field is currently focused so we can suppress external value syncs
+    // while the user is mid-edit (prevents the ViewModel from refilling a just-cleared field).
+    var isFocused by remember { mutableStateOf(false) }
 
-    // Sync external value changes to local state, only if they differ significantly
+    // Only sync external value changes back to local text when the field is NOT focused.
+    // This prevents the ViewModel emitting the old value and overwriting what the user is typing.
     androidx.compose.runtime.LaunchedEffect(value) {
-        val currentParsed = textValue.text.toIntOrNull()
-        if (currentParsed != value) {
+        if (!isFocused) {
             val newText = value?.toString() ?: ""
-            // Only update if the text representation is actually different (avoids cursor reset if just reformatting)
             if (textValue.text != newText) {
                 textValue = textValue.copy(text = newText, selection = androidx.compose.ui.text.TextRange(newText.length))
             }
@@ -1251,7 +1254,17 @@ fun IntegerInput(
             }
         },
         label = { Text(label) },
-        modifier = modifier,
+        modifier = modifier.onFocusChanged { focusState ->
+            isFocused = focusState.isFocused
+            // When the field loses focus, force-sync any pending ViewModel state so the
+            // displayed value is consistent (e.g. after the user tabs away).
+            if (!focusState.isFocused) {
+                val newText = value?.toString() ?: ""
+                if (textValue.text != newText) {
+                    textValue = textValue.copy(text = newText, selection = androidx.compose.ui.text.TextRange(newText.length))
+                }
+            }
+        },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
     )

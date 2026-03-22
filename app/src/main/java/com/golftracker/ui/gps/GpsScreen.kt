@@ -31,7 +31,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -214,7 +214,11 @@ fun GpsScreen(
             uiSettings = MapUiSettings(
                 myLocationButtonEnabled = true,
                 zoomControlsEnabled = false
-            )
+            ),
+            onMapLongClick = { latLng ->
+                flagMarkerState.position = latLng
+                viewModel.onFlagDragged(latLng)
+            }
         ) {
             MapOverlays(
                 uiState = uiState,
@@ -232,13 +236,14 @@ fun GpsScreen(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = 12.dp)
                     .padding(bottom = 0.dp)
-                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-                    .background(Color.Black.copy(alpha = 0.8f))
-                    .padding(16.dp)
+                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                    .background(Color.Black.copy(alpha = 0.85f))
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
             ) {
-                Column {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // Shot type chips
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
@@ -252,114 +257,132 @@ fun GpsScreen(
                             FilterChip(
                                 selected = uiState.pendingShotType == type,
                                 onClick = { viewModel.onShotTypeSelected(type) },
-                                label = { Text(type.name, color = Color.White) },
+                                label = {
+                                    Text(
+                                        type.name,
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = Color.White.copy(alpha = 0.3f)
                                 )
                             )
                         }
                     }
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
+
                     val filteredClubs = when(uiState.pendingShotType) {
                         ShotType.TEE -> uiState.clubs.filter { it.type in listOf("DRIVER", "WOOD", "HYBRID", "IRON") }
                         ShotType.APPROACH -> uiState.clubs.filter { it.type != "DRIVER" && it.type != "PUTTER" }
                         ShotType.CHIP -> uiState.clubs.filter { it.type == "WEDGE" }
                         else -> emptyList()
                     }
-                    
+
                     ClubDropdown(
-                        label = "Select Club",
+                        label = "Club",
                         clubs = filteredClubs,
                         selectedClubId = uiState.pendingClubId,
                         onClubSelected = { viewModel.onClubSelected(it) },
                         modifier = Modifier.fillMaxWidth()
                     )
 
+                    // Mishit toggle + Track button on same row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("Mishit", color = Color.White, style = MaterialTheme.typography.bodyMedium)
-                        Spacer(modifier = Modifier.weight(1f))
+                        Text(
+                            "Mishit",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelSmall
+                        )
                         Switch(
                             checked = uiState.pendingMishit,
                             onCheckedChange = { mishit: Boolean -> viewModel.updatePendingMishit(mishit) },
+                            modifier = Modifier.height(20.dp),
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color.White,
                                 checkedTrackColor = Color.White.copy(alpha = 0.5f)
                             )
                         )
+                        Spacer(modifier = Modifier.weight(1f))
+                        // Track shot button
+                        androidx.compose.material3.Button(
+                            onClick = { viewModel.onTrackShot() },
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                horizontal = 12.dp, vertical = 4.dp
+                            ),
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = Color.White,
+                                contentColor = Color.Black
+                            )
+                        ) {
+                            Icon(
+                                Icons.Filled.SportsGolf,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                "Track Shot",
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+
+                        // Green button
+                        val isNearGreen = distanceYards < 20
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = {
+                                viewModel.onGreenReached()
+                                onClose()
+                            },
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                horizontal = 12.dp, vertical = 4.dp
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.5.dp,
+                                if (isNearGreen) Color.Green else Color.White.copy(alpha = 0.5f)
+                            )
+                        ) {
+                            Text(
+                                "⛳ Green",
+                                color = if (isNearGreen) Color.Green else Color.White,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (isNearGreen) FontWeight.Black else FontWeight.Normal
+                            )
+                        }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    androidx.compose.material3.Button(
-                        onClick = { viewModel.onTrackShot() },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                            containerColor = Color.White,
-                            contentColor = Color.Black
-                        )
-                    ) {
-                        Icon(Icons.Filled.SportsGolf, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Track ${uiState.pendingShotType.name} Shot")
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Green transition button
-                    val isNearGreen = distanceYards < 20
-                    androidx.compose.material3.OutlinedButton(
-                        onClick = {
-                            viewModel.onGreenReached()
-                            onClose()
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        border = androidx.compose.foundation.BorderStroke(
-                            2.dp, 
-                            if (isNearGreen) Color.Green else Color.White.copy(alpha = 0.5f)
-                        )
-                    ) {
-                        Text(
-                            "⛳ I'm on the Green", 
-                            color = if (isNearGreen) Color.Green else Color.White,
-                            fontWeight = if (isNearGreen) FontWeight.Black else FontWeight.Normal
-                        )
-                    }
-                    
                     // Shot History Ribbon
                     if (uiState.trackedShots.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(12.dp))
                         LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             items(uiState.trackedShots.size) { index ->
                                 val shot = uiState.trackedShots[index]
                                 Box(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
+                                        .clip(RoundedCornerShape(6.dp))
                                         .background(Color.White.copy(alpha = 0.1f))
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
                                             "${index + 1}: ${shot.clubName ?: shot.shotType.name} ${shot.distanceYards?.let { "${it}y" } ?: "..."}",
                                             color = Color.White,
-                                            fontSize = 12.sp
+                                            fontSize = 11.sp
                                         )
                                         IconButton(
                                             onClick = { viewModel.onDeleteShot(index) },
-                                            modifier = Modifier.height(24.dp).width(24.dp)
+                                            modifier = Modifier.size(20.dp)
                                         ) {
                                             Icon(
                                                 Icons.Filled.Close,
                                                 contentDescription = "Delete",
                                                 tint = Color.White.copy(alpha = 0.5f),
-                                                modifier = Modifier.size(16.dp)
+                                                modifier = Modifier.size(12.dp)
                                             )
                                         }
                                     }
@@ -371,8 +394,8 @@ fun GpsScreen(
             }
         }
 
-        // Snap to real GPS location button
-        ExtendedFloatingActionButton(
+        // Snap to Me — icon-only FAB in top-right
+        FloatingActionButton(
             onClick = {
                 uiState.liveUserLocation?.let { realLocation ->
                     playerMarkerState.position = realLocation
@@ -380,15 +403,12 @@ fun GpsScreen(
                 }
             },
             modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(16.dp)
-                .padding(bottom = if (uiState.showShotPanel) 240.dp else 16.dp),
+                .align(Alignment.TopEnd)
+                .padding(12.dp),
             containerColor = Color.White,
             contentColor = Color.Black
         ) {
             Icon(Icons.Default.MyLocation, contentDescription = "Snap to Me")
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Snap to Me")
         }
 
         uiState.pendingLocationUpdate?.let { update ->

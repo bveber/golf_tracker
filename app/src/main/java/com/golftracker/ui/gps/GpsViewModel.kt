@@ -390,19 +390,19 @@ class GpsViewModel @Inject constructor(
     fun onClubSelected(clubId: Int?) {
         _uiState.update { state ->
             val updatedState = state.copy(pendingClubId = clubId)
-            
-            // If club has stock distance, update flag location to that "target" distance
-            // EXCEPTION: Don't move the flag automatically for CHIP shots, as the target is usually the pin.
+
+            // Only auto-position the flag for TEE shots where the user hasn't yet set a target.
+            // For APPROACH and CHIP shots the user may have manually placed (or long-pressed) the
+            // target pin, so we leave it alone to avoid overriding their intent.
             val club = state.clubs.find { it.id == clubId }
-            if (state.pendingShotType != ShotType.CHIP && club?.stockDistance != null && state.playerLocation != null) {
-                // Keep the current bearing if flag is already placed, otherwise North (0.0)
+            if (state.pendingShotType == ShotType.TEE && club?.stockDistance != null && state.playerLocation != null) {
                 val bearing = if (state.flagLocation != null) {
                     GpsUtils.calculateBearing(state.playerLocation, state.flagLocation)
                 } else 0.0
-                
+
                 val newFlag = GpsUtils.computeOffset(
-                    state.playerLocation, 
-                    club.stockDistance.toDouble(), 
+                    state.playerLocation,
+                    club.stockDistance.toDouble(),
                     bearing
                 )
                 updatedState.copy(flagLocation = newFlag)
@@ -410,7 +410,7 @@ class GpsViewModel @Inject constructor(
                 updatedState
             }
         }
-        
+
         // Asynchronously calculate dispersion when a club is selected
         viewModelScope.launch {
             calculateDispersion(clubId)
@@ -431,7 +431,12 @@ class GpsViewModel @Inject constructor(
         val stockDistance = club.stockDistance ?: 150 // Fallback if no stock distance
         
         // 1. Fetch club-specific stats
-        val clubFilter = StatsFilter(drivingClubId = clubId, approachClubId = clubId)
+        val dispersionRounds = userPreferencesRepository.dispersionRoundsFlow.first()
+        val clubFilter = StatsFilter(
+            drivingClubId = clubId, 
+            approachClubId = clubId,
+            lastNRounds = dispersionRounds
+        )
         val statsData = statsRepository.getFilteredStatsData(clubFilter).first()
         
         // Determine whether this club is primarily used off the tee or for approach
@@ -809,22 +814,28 @@ class GpsViewModel @Inject constructor(
     }
 
     /**
-     * Filters out points that are more than 3 standard deviations from the mean.
+     * Filters out extreme outliers using the Interquartile Range (IQR) method.
+     * Points outside [Q1 - 3*IQR, Q3 + 3*IQR] are considered extreme outliers.
      */
     private fun filterOutliers(points: List<Pair<Double, Double>>): List<Pair<Double, Double>> {
-        if (points.isEmpty()) return emptyList()
+        if (points.size < 4) return points
         
-        val meanX = points.map { it.first }.average()
-        val meanY = points.map { it.second }.average()
+        val xValues = points.map { it.first }.sorted()
+        val yValues = points.map { it.second }.sorted()
         
-        val varianceX = points.map { (it.first - meanX) * (it.first - meanX) }.average()
-        val varianceY = points.map { (it.second - meanY) * (it.second - meanY) }.average()
+        fun getIqrBounds(sortedData: List<Double>): Pair<Double, Double> {
+            val q1 = sortedData[(sortedData.size * 0.25).toInt()]
+            val q3 = sortedData[(sortedData.size * 0.75).toInt()]
+            val iqr = q3 - q1
+            // Use a factor of 3.0 for "extreme" outliers
+            return (q1 - 3.0 * iqr) to (q3 + 3.0 * iqr)
+        }
         
-        val stdDevX = sqrt(varianceX.coerceAtLeast(1.0))
-        val stdDevY = sqrt(varianceY.coerceAtLeast(1.0))
+        val (lowerX, upperX) = getIqrBounds(xValues)
+        val (lowerY, upperY) = getIqrBounds(yValues)
         
         return points.filter { (x, y) ->
-            Math.abs(x - meanX) <= 3 * stdDevX && Math.abs(y - meanY) <= 3 * stdDevY
+            x in lowerX..upperX && y in lowerY..upperY
         }
     }
 

@@ -13,14 +13,13 @@ import java.util.Calendar
 import java.util.Date
 import javax.inject.Inject
 import kotlin.math.sqrt
-import kotlin.math.sqrt
 
 // ── Filter ──────────────────────────────────────────────────────────────
 
 data class StatsFilter(
     val courseId: Int? = null,
     val teeSetId: Int? = null,
-    val lastNRounds: Int = 20,
+    val lastNRounds: Int = 0, // Default to All Rounds for dashboard
     val year: Int? = null,
     val startDate: java.util.Date? = null,
     val endDate: java.util.Date? = null,
@@ -64,7 +63,7 @@ class StatsRepository @Inject constructor(
                 approach = calculateApproachStats(filtered, filter.approachClubId, filter),
                 chipping = calculateChippingStats(filtered),
                 putting = calculatePuttingStats(filtered),
-                sg = calculateSgStats(filtered, yardageMapForSg, parMap)
+                sg = calculateSgStats(filtered, yardageMapForSg, parMap, filter)
             )
         }
     }
@@ -225,14 +224,6 @@ class StatsRepository @Inject constructor(
         if (drivingTriples.isEmpty()) return DrivingStats(perClubStats = perClub, selectedClubId = clubIdFilter)
 
         val drivingHoles = drivingTriples.map { it.first }
-        val teeShots = drivingHoles.mapNotNull { it.holeStat.teeOutcome }
-        val totalWithOutcome = teeShots.size.coerceAtLeast(1)
-
-        val fairwaysHit = teeShots.count { it == ShotOutcome.ON_TARGET }
-        val leftMisses = teeShots.count { it == ShotOutcome.MISS_LEFT }
-        val rightMisses = teeShots.count { it == ShotOutcome.MISS_RIGHT }
-        val shortMisses = teeShots.count { it == ShotOutcome.SHORT }
-        val longMisses = teeShots.count { it == ShotOutcome.LONG }
         
         // Extract raw dispersion points from both HoleStat (TEE fields) and Shot table
         val drivingShotsWithDispersion = drivingHoles.flatMap { h ->
@@ -267,11 +258,37 @@ class StatsRepository @Inject constructor(
 
         val pointsByLie = drivingShotsWithDispersion.groupBy({ it.first }, { it.second })
 
-        val troubleFreeCount = drivingHoles.count { it.holeStat.teeOutcome != null && !it.holeStat.teeInTrouble }
-        val troubleTotal = drivingHoles.count { it.holeStat.teeOutcome != null }.coerceAtLeast(1)
+        val avgLateralMiss = if (drivingShotsWithDispersion.isNotEmpty()) {
+            drivingShotsWithDispersion.sumOf { (it.second.right?.toDouble() ?: 0.0) - (it.second.left?.toDouble() ?: 0.0) } / drivingShotsWithDispersion.size
+        } else 0.0
+        val avgDistanceMiss = if (drivingShotsWithDispersion.isNotEmpty()) {
+            drivingShotsWithDispersion.sumOf { (it.second.long?.toDouble() ?: 0.0) - (it.second.short?.toDouble() ?: 0.0) } / drivingShotsWithDispersion.size
+        } else 0.0
+        
+
+        // Filter everything below for accuracy/distance based on includeMishits toggle
+        val effectiveDrivingHoles = if (!filter.includeMishits) {
+            drivingHoles.filter { !it.holeStat.teeMishit }
+        } else drivingHoles
+        
+        val effectiveTeeShots = effectiveDrivingHoles.mapNotNull { it.holeStat.teeOutcome }
+        val effectiveTotalWithOutcome = effectiveTeeShots.size.coerceAtLeast(1)
+
+        val fairwaysHit = effectiveTeeShots.count { it == ShotOutcome.ON_TARGET }
+        val leftMisses = effectiveTeeShots.count { it == ShotOutcome.MISS_LEFT }
+        val rightMisses = effectiveTeeShots.count { it == ShotOutcome.MISS_RIGHT }
+        val shortMisses = effectiveTeeShots.count { it == ShotOutcome.SHORT }
+        val longMisses = effectiveTeeShots.count { it == ShotOutcome.LONG }
+
+        val troubleFreeCount = effectiveDrivingHoles.count { it.holeStat.teeOutcome != null && !it.holeStat.teeInTrouble }
+        val troubleTotal = effectiveDrivingHoles.count { it.holeStat.teeOutcome != null }.coerceAtLeast(1)
+
+        val effectiveDrivingTriples = if (!filter.includeMishits) {
+            drivingTriples.filter { !it.first.holeStat.teeMishit }
+        } else drivingTriples
 
         // Calculate distances (explicit OR inferred)
-        val teeDistances = drivingTriples.mapNotNull { (h, teeSetId, _) ->
+        val teeDistances = effectiveDrivingTriples.mapNotNull { (h, teeSetId, _) ->
             if (h.holeStat.teeShotDistance != null && h.holeStat.teeShotDistance > 0) {
                  h.holeStat.teeShotDistance
             } else {
@@ -287,14 +304,14 @@ class StatsRepository @Inject constructor(
         
         val avgTeeDistance = if (teeDistances.isNotEmpty()) teeDistances.average() else 0.0
 
-        val fairwaysHitPct = (fairwaysHit.toDouble() / totalWithOutcome) * 100
+        val fairwaysHitPct = (fairwaysHit.toDouble() / effectiveTotalWithOutcome) * 100
         val troubleFreePct = (troubleFreeCount.toDouble() / troubleTotal) * 100
 
         val mishitCount = drivingHoles.count { it.holeStat.teeMishit }
         val mishitTotal = drivingHoles.count { it.holeStat.teeOutcome != null }.coerceAtLeast(1)
         val mishitPct = (mishitCount.toDouble() / mishitTotal) * 100
 
-        // Filtered distances (excluding mishits)
+        // Filtered distances (excluding mishits) - always "clean" for this specific metric
         val cleanDistances = drivingTriples.filter { (h, _, _) -> !h.holeStat.teeMishit }.mapNotNull { (h, teeSetId, _) ->
             if (h.holeStat.teeShotDistance != null && h.holeStat.teeShotDistance > 0) {
                 h.holeStat.teeShotDistance
@@ -307,9 +324,9 @@ class StatsRepository @Inject constructor(
                 } else null
             }
         }
-        val avgCleanDistance = if (cleanDistances.isNotEmpty()) cleanDistances.average() else 0.0
+        val avgDistanceExMishits = if (cleanDistances.isNotEmpty()) cleanDistances.average() else 0.0
 
-        val drivingByPar = drivingHoles.groupBy { it.hole.par }.mapValues { (par, holes) ->
+        val drivingByPar = effectiveDrivingHoles.groupBy { it.hole.par }.mapValues { (par, holes) ->
             val totalWithOutcome = holes.count { it.holeStat.teeOutcome != null }.coerceAtLeast(1)
             val fairways = holes.count { it.holeStat.teeOutcome == ShotOutcome.ON_TARGET }
             val distances = holes.mapNotNull { it.holeStat.teeShotDistance }.filter { it > 0 }
@@ -323,21 +340,23 @@ class StatsRepository @Inject constructor(
 
         return DrivingStats(
             fairwaysHitPct = fairwaysHitPct,
-            fairwaysHitMoE = calculateProportionMoE(fairwaysHitPct, totalWithOutcome),
+            fairwaysHitMoE = calculateProportionMoE(fairwaysHitPct, effectiveTotalWithOutcome),
             troubleFreePct = troubleFreePct,
             troubleFreeMoE = calculateProportionMoE(troubleFreePct, troubleTotal),
-            missLeftPct = (leftMisses.toDouble() / totalWithOutcome) * 100,
-            missRightPct = (rightMisses.toDouble() / totalWithOutcome) * 100,
-            missShortPct = (shortMisses.toDouble() / totalWithOutcome) * 100,
-            missLongPct = (longMisses.toDouble() / totalWithOutcome) * 100,
+            missLeftPct = (leftMisses.toDouble() / effectiveTotalWithOutcome) * 100,
+            missRightPct = (rightMisses.toDouble() / effectiveTotalWithOutcome) * 100,
+            missShortPct = (shortMisses.toDouble() / effectiveTotalWithOutcome) * 100,
+            missLongPct = (longMisses.toDouble() / effectiveTotalWithOutcome) * 100,
             avgDistance = avgTeeDistance,
             distanceMoE = calculateMeanMoE(teeDistances.map { it.toDouble() }),
-            avgDistanceExMishits = avgCleanDistance,
+            avgDistanceExMishits = avgDistanceExMishits,
             distanceExMishitsMoE = calculateMeanMoE(cleanDistances.map { it.toDouble() }),
             mishitPct = mishitPct,
             mishitMoE = calculateProportionMoE(mishitPct, mishitTotal),
+            avgLateralMiss = avgLateralMiss,
+            avgDistanceMiss = avgDistanceMiss,
             totalMishits = mishitCount,
-            totalDrivingHoles = drivingHoles.size,
+            totalDrivingHoles = effectiveDrivingHoles.size,
             perClubStats = perClub,
             selectedClubId = clubIdFilter,
             rawDispersion = RawDispersionData(
@@ -420,8 +439,16 @@ class StatsRepository @Inject constructor(
              )
         }
 
+        // Calculate mishit rate for approach (independent of toggle)
+        val allPrimaryApproachShots = allHoles.mapNotNull { h -> 
+            h.shots.maxByOrNull { it.shotNumber } ?: h.holeStat.approachOutcome?.let { h.holeStat }
+        }
+        val approachMishitCount = allHoles.count { it.holeStat.approachMishit }
+        val approachMishitTotal = allHoles.size.coerceAtLeast(1)
+        val approachMishitPct = (approachMishitCount.toDouble() / approachMishitTotal) * 100
+
         // Apply club filter for main stats
-        val holes = if (clubIdFilter != null) {
+        val clubFilteredHoles = if (clubIdFilter != null) {
             allHoles.filter { h -> 
                 val finalShot = h.shots.maxByOrNull { it.shotNumber }
                 if (finalShot != null) finalShot.clubId == clubIdFilter
@@ -429,7 +456,16 @@ class StatsRepository @Inject constructor(
             }
         } else allHoles
 
-        if (holes.isEmpty()) return ApproachStats(perClubStats = perClub, selectedClubId = clubIdFilter)
+        // Filter by mishit toggle for main metrics (GIR, accuracy, etc.)
+        val holes = if (!filter.includeMishits) {
+            clubFilteredHoles.filter { !it.holeStat.approachMishit }
+        } else clubFilteredHoles
+
+        if (holes.isEmpty()) return ApproachStats(
+            perClubStats = perClub, 
+            selectedClubId = clubIdFilter,
+            mishitPct = approachMishitPct
+        )
 
         val girCount = holes.count { isGir(it) }
         val nearGirCount = holes.count { isNearGir(it) }
@@ -458,11 +494,19 @@ class StatsRepository @Inject constructor(
             }
         }
 
+        // Avg Dispersion
+        val avgLateralMiss = if (rawPointsWithLie.isNotEmpty()) {
+            rawPointsWithLie.sumOf { (it.second.right?.toDouble() ?: 0.0) - (it.second.left?.toDouble() ?: 0.0) } / rawPointsWithLie.size
+        } else 0.0
+        val avgDistanceMiss = if (rawPointsWithLie.isNotEmpty()) {
+            rawPointsWithLie.sumOf { (it.second.long?.toDouble() ?: 0.0) - (it.second.short?.toDouble() ?: 0.0) } / rawPointsWithLie.size
+        } else 0.0
+
         val filteredPointsWithLie = if (!filter.includeMishits) {
             rawPointsWithLie.filter { !it.second.isMishit }
         } else rawPointsWithLie
 
-        val pointsByLie = rawPointsWithLie.groupBy({ it.first }, { it.second })
+        val pointsByLie = filteredPointsWithLie.groupBy({ it.first }, { it.second })
 
         // GIR by lie
         val detailsWithLie = holeDetails.filter { it.lie != null }
@@ -490,6 +534,31 @@ class StatsRepository @Inject constructor(
         val girPct = (girCount.toDouble() / holes.size) * 100
         val nearGirPct = (nearGirCount.toDouble() / holes.size) * 100
         val onTargetPct = (approachOnTarget.toDouble() / approachTotal) * 100
+
+        return ApproachStats(
+            girPct = girPct,
+            girMoE = calculateProportionMoE(girPct, holes.size),
+            nearGirPct = nearGirPct,
+            nearGirMoE = calculateProportionMoE(nearGirPct, holes.size),
+            totalHoles = holes.size,
+            avgDistance = avgApproachDistance,
+            distanceMoE = calculateMeanMoE(approachDistances.map { it.toDouble() }),
+            avgLateralMiss = avgLateralMiss,
+            avgDistanceMiss = avgDistanceMiss,
+            mishitPct = approachMishitPct,
+            onTargetPct = onTargetPct,
+            onTargetMoE = calculateProportionMoE(onTargetPct, approachTotal),
+            missLeftPct = (approachLeft.toDouble() / approachTotal) * 100,
+            missRightPct = (approachRight.toDouble() / approachTotal) * 100,
+            missShortPct = (approachShort.toDouble() / approachTotal) * 100,
+            missLongPct = (approachLong.toDouble() / approachTotal) * 100,
+            girByLie = girByLie,
+            countByLie = countByLie,
+            perClubStats = perClub,
+            selectedClubId = clubIdFilter,
+            totalShots = approachTotal,
+            rawDispersion = RawDispersionData(pointsByLie.values.flatten(), pointsByLie)
+        )
 
         // On-target by distance range
         val distanceRanges = listOf(0..99, 100..149, 150..199, 200..Int.MAX_VALUE)
@@ -758,7 +827,8 @@ class StatsRepository @Inject constructor(
     private fun calculateSgStats(
         rounds: List<RoundWithDetails>,
         yardageMap: Map<Pair<Int, Int>, com.golftracker.data.entity.HoleTeeYardage>,
-        parMap: Map<Int, Int>
+        parMap: Map<Int, Int>,
+        filter: StatsFilter
     ): SgStats {
         var totalSgOffTee = 0.0
         var totalSgApproach = 0.0
@@ -793,12 +863,33 @@ class StatsRepository @Inject constructor(
                     stat = hole.holeStat
                 )
 
-                totalSgOffTee += breakdown.offTee
-                totalSgApproach += breakdown.approach
+                // Apply club filters to SG categories
+                val teeClubMatches = filter.drivingClubId == null || hole.holeStat.teeClubId == filter.drivingClubId
+                val teeMishitExclude = !filter.includeMishits && hole.holeStat.teeMishit
+                
+                // For approach, we check if the CLUB filter matches ANY approach shot on the hole
+                // or if it matches the "primary" approach club stored in HoleStat.
+                val approachClubMatches = filter.approachClubId == null || 
+                    hole.shots.any { it.clubId == filter.approachClubId } || 
+                    hole.holeStat.approachClubId == filter.approachClubId
+                val approachMishitExclude = !filter.includeMishits && hole.holeStat.approachMishit
+
+                if (teeClubMatches && !teeMishitExclude) {
+                    totalSgOffTee += breakdown.offTee
+                }
+                if (approachClubMatches && !approachMishitExclude) {
+                    totalSgApproach += breakdown.approach
+                }
+                
+                // Around green and putting currently don't have club filters in the UI
                 totalSgAroundGreen += breakdown.aroundGreen
                 totalSgPutting += breakdown.putting
                 totalSgPenalties += breakdown.penalties
-                totalLiveSg += breakdown.total
+                
+                // Total SG for the hole only includes the components that match their respective club filters and mishit toggle
+                totalLiveSg += (if (teeClubMatches && !teeMishitExclude) breakdown.offTee else 0.0) +
+                               (if (approachClubMatches && !approachMishitExclude) breakdown.approach else 0.0) +
+                               breakdown.aroundGreen + breakdown.putting + breakdown.penalties
 
                 // Categorize for distributions
                 sgByLie.getOrPut(ApproachLie.TEE) { mutableListOf() }.add(breakdown.offTee)
@@ -899,6 +990,8 @@ data class DrivingStats(
     val distanceExMishitsMoE: Double = 0.0,
     val mishitPct: Double = 0.0,
     val mishitMoE: Double = 0.0,
+    val avgLateralMiss: Double = 0.0,
+    val avgDistanceMiss: Double = 0.0,
     val totalMishits: Int = 0,
     val totalDrivingHoles: Int = 0,
     val perClubStats: Map<Int, ClubStats> = emptyMap(),
@@ -917,6 +1010,9 @@ data class ApproachStats(
     val totalHoles: Int = 0,
     val avgDistance: Double = 0.0,
     val distanceMoE: Double = 0.0,
+    val avgLateralMiss: Double = 0.0,
+    val avgDistanceMiss: Double = 0.0,
+    val mishitPct: Double = 0.0,
     val onTargetPct: Double = 0.0,
     val onTargetMoE: Double = 0.0,
     val missLeftPct: Double = 0.0,
