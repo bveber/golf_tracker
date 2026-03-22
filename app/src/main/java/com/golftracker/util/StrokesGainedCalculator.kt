@@ -321,20 +321,22 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
         // 1. TEE SHOT (Par 4/5)
         // If tracked shots exist, we'll handle the tee shot in the "Shots" loop below to avoid double counting.
         // CHANGE: Only run heuristic if Shot 1 (the drive) is NOT among the tracked shots.
+        // CHANGE: Check for OB penalty first. If Shot 1 is OB, it's a fixed cost.
+        val hasObPenaltyOnShot1 = penalties.any { it.shotNumber == 1 && (it.type == PenaltyType.OB || it.type == PenaltyType.LOST_BALL) }
         if (par > 3 && sortedShots.none { it.shotNumber == 1 } && (stat.score > 0 || stat.teeOutcome != null || stat.teeShotDistance != null)) {
             var endDist = 0
             var endLie: ApproachLie? = null
             var greenFeet: Float? = null
             var hasEnd = false
 
-            // CHANGE: Check for OB penalty first. If Shot 1 is OB, it's a fixed cost.
-            val hasObPenaltyOnShot1 = penalties.any { it.shotNumber == 1 && (it.type == PenaltyType.OB || it.type == PenaltyType.LOST_BALL) }
             if (hasObPenaltyOnShot1) {
                 endDist = holeYardage
                 endLie = ApproachLie.TEE
                 hasEnd = true
-            } else if (stat.teeShotDistance != null) {
-                endDist = ShotDistanceCalculator.deriveEndDistance(holeYardage, stat.teeShotDistance!!, stat.teeOutcome)
+            } else if (sortedShots.isNotEmpty()) {
+                val firstTracked = sortedShots.first()
+                endDist = firstTracked.distanceToPin ?: (holeYardage - (stat.teeShotDistance ?: 0)).coerceAtLeast(0)
+                endLie = if (firstTracked.isRecovery) ApproachLie.OTHER else firstTracked.lie
                 hasEnd = true
             } else if (stat.chips > 0 || stat.sandShots > 0) {
                 endDist = stat.chipDistance ?: 15
@@ -343,15 +345,10 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
             } else if (sortedPutts.isNotEmpty()) {
                 greenFeet = sortedPutts.first().distance
                 hasEnd = true
-                val firstTracked = sortedShots.first()
-                endDist = firstTracked.distanceToPin ?: holeYardage
-                endLie = firstTracked.lie
+            } else if (stat.teeShotDistance != null) {
+                endDist = ShotDistanceCalculator.deriveEndDistance(holeYardage, stat.teeShotDistance!!, stat.teeOutcome)
                 hasEnd = true
             } else if (stat.score > 0) {
-                // CHANGE: Do NOT assume a tee shot holed out (endDist=0) just because score > 0.
-                // If it's the only shot and we have no other data, it's safer to leave hasEnd = false 
-                // and let the score-based heuristic below handle it, or just stick to the drive distance.
-                // We'll only assume 0 if it's explicitly a putt or par 3.
                 if (par == 3) {
                     endDist = 0
                     hasEnd = true
