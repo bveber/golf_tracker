@@ -17,7 +17,7 @@ android {
         applicationId = "com.golftracker"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
+        versionCode = 2
         versionName = "1.0"
 
         val localProperties = Properties()

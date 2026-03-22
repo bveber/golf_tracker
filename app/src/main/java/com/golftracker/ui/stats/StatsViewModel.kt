@@ -43,8 +43,8 @@ class StatsViewModel @Inject constructor(
     private val _teeSetsForCourse = MutableStateFlow<List<TeeSet>>(emptyList())
     val teeSetsForCourse: StateFlow<List<TeeSet>> = _teeSetsForCourse
 
-    // Available years extracted from rounds
-    val availableYears: StateFlow<List<Int>> = statsRepository.getStatsData()
+    // Available years extracted from rounds (consider all history)
+    val availableYears: StateFlow<List<Int>> = statsRepository.getFilteredStatsData(StatsFilter(lastNRounds = 0))
         .map { data ->
             val cal = Calendar.getInstance()
             data.rounds.map {

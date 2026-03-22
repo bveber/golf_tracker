@@ -35,6 +35,7 @@ import com.golftracker.ui.components.DistributionSegment
 import com.golftracker.ui.components.ShotDispersionVisual
 import com.golftracker.ui.components.StatCard
 import com.golftracker.ui.components.StatCardWithDistribution
+import com.golftracker.ui.components.DispersionCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -299,7 +300,7 @@ fun FilterBar(
         // Last N filter
         Box {
             FilterChip(
-                selected = lastNRounds != 20,
+                selected = lastNRounds != 0,
                 onClick = { lastNExpanded = true },
                 label = { Text(if (lastNRounds == 0) "All" else "Last $lastNRounds", style = MaterialTheme.typography.labelSmall) }
             )
@@ -314,7 +315,7 @@ fun FilterBar(
         }
 
         // Clear
-        if (selectedCourseId != null || selectedYear != null || lastNRounds != 20 || startDate != null || endDate != null || excludedCount > 0) {
+        if (selectedCourseId != null || selectedYear != null || lastNRounds != 0 || startDate != null || endDate != null || excludedCount > 0) {
             TextButton(onClick = onClearFilters) {
                 Text("Clear", style = MaterialTheme.typography.labelSmall)
             }
@@ -607,20 +608,17 @@ fun DrivingTab(
         )
     }
 
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        StatCard(
-            title = "Mishit Rate", 
-            value = String.format("%.1f%%", d.mishitPct),
-            moe = if (d.mishitMoE > 0) String.format("±%.1f%%", d.mishitMoE) else null,
-            modifier = Modifier.weight(1f)
-        )
-        StatCard(
-            title = "Trouble-Free", 
-            value = String.format("%.1f%%", d.troubleFreePct),
-            moe = if (d.troubleFreeMoE > 0) String.format("±%.1f%%", d.troubleFreeMoE) else null,
-            modifier = Modifier.weight(1f)
-        )
-    }
+    DispersionCard(
+        title = "Avg Dispersion", 
+        avgLateral = d.avgLateralMiss,
+        avgDistance = d.avgDistanceMiss
+    )
+
+    StatCard(
+        title = "Trouble-Free", 
+        value = String.format("%.1f%%", d.troubleFreePct),
+        moe = if (d.troubleFreeMoE > 0) String.format("±%.1f%%", d.troubleFreeMoE) else null
+    )
 
     // 2D shot dispersion visual
     if (d.totalDrivingHoles > 0) {
@@ -736,10 +734,24 @@ fun ApproachTab(
         moe = if (a.onTargetMoE > 0) String.format("±%.1f%%", a.onTargetMoE) else null
     )
     
-    StatCard(
-        title = "Avg Approach Distance", 
-        value = String.format("%.0f yds", a.avgDistance),
-        moe = if (a.distanceMoE > 0) String.format("±%.0f yds", a.distanceMoE) else null
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        StatCard(
+            title = "Avg Approach Dist", 
+            value = String.format("%.0f yds", a.avgDistance),
+            moe = if (a.distanceMoE > 0) String.format("±%.0f yds", a.distanceMoE) else null,
+            modifier = Modifier.weight(1f)
+        )
+        StatCard(
+            title = "Mishit Rate", 
+            value = String.format("%.1f%%", a.mishitPct),
+            modifier = Modifier.weight(1f)
+        )
+    }
+
+    DispersionCard(
+        title = "Avg Dispersion", 
+        avgLateral = a.avgLateralMiss,
+        avgDistance = a.avgDistanceMiss
     )
 
     // GIR by Lie
