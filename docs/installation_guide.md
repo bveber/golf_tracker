@@ -72,3 +72,40 @@ By default, simply clicking the **Run** button (the green play arrow) in Android
 If a new version of the app includes structural changes to the database (e.g., adding a new column like `chipLie`), the app uses Room migrations to update the database schema without losing your existing data.
 
 As long as you use the update methods outlined above (Android Studio "Run" or `adb install -r`), the migrations will run automatically upon the first launch of the updated app, preserving your history.
+
+---
+
+## Troubleshooting Build Issues
+
+If you encounter unexpected build errors or want to ensure a completely fresh installation without using any cached data, follow these steps.
+
+### Perform a Clean Build (No Cache)
+
+To build the app while ignoring the Gradle build cache and cleaning previous outputs:
+
+```bash
+./gradlew clean assembleDebug --no-build-cache
+```
+
+*   `clean`: Deletes the `build` directory.
+*   `assembleDebug`: Builds the debug APK.
+*   `--no-build-cache`: Tells Gradle not to use any cached task outputs from previous builds.
+
+### Clear Dependency Cache
+
+If you are having issues with library dependencies (e.g., a corrupted download or a missing version), you can force Gradle to refresh them:
+
+```bash
+./gradlew assembleDebug --refresh-dependencies
+```
+
+### Clearing the Global Gradle Cache (Nuclear Option)
+
+In extreme cases where the above doesn't work, you can manually delete the Gradle cache directory on your Mac:
+
+```bash
+rm -rf ~/.gradle/caches/
+```
+
+> [!CAUTION]
+> Deleting the global caches will cause Gradle to re-download all dependencies for EVERY project on your machine the next time you build them. This can take a significant amount of time and bandwidth.
