@@ -210,7 +210,8 @@ fun HoleTrackingScreen(
                             value = uiState.currentHoleYardage,
                             onValueChange = { viewModel.updateHoleYardage(it) },
                             label = "Yds",
-                            modifier = Modifier.width(90.dp)
+                            modifier = Modifier.width(90.dp),
+                            resetKey = hole.id
                         )
                     }
                     
@@ -274,7 +275,8 @@ fun HoleTrackingScreen(
                                             value = holeStat.teeShotDistance,
                                             onValueChange = { viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, effectiveTeeClubId, it, holeStat.teeMishit) },
                                             label = "Distance",
-                                            modifier = Modifier.width(100.dp)
+                                            modifier = Modifier.width(100.dp),
+                                            resetKey = holeStat.id
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(8.dp))
@@ -470,7 +472,8 @@ fun HoleTrackingScreen(
                                                     viewModel.updateShotDetails(shot, shot.outcome, shot.lie, newClubId, dist, shot.isRecovery, shot.distanceTraveled)
                                                 },
                                                 label = "Dist to Pin",
-                                                modifier = Modifier.weight(1f)
+                                                modifier = Modifier.weight(1f),
+                                                resetKey = shot.id
                                             )
                                             
                                             IntegerInput(
@@ -479,7 +482,8 @@ fun HoleTrackingScreen(
                                                     viewModel.updateShotDetails(shot, shot.outcome, shot.lie, shot.clubId, shot.distanceToPin, shot.isRecovery, dist)
                                                 },
                                                 label = "Shot Dist",
-                                                modifier = Modifier.weight(1f)
+                                                modifier = Modifier.weight(1f),
+                                                resetKey = shot.id
                                             )
                                             
                                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -659,7 +663,8 @@ fun HoleTrackingScreen(
                                         )
                                     },
                                     label = "Distance",
-                                    modifier = Modifier.width(100.dp)
+                                    modifier = Modifier.width(100.dp),
+                                    resetKey = holeStat.id
                                 )
                             }
 
@@ -760,7 +765,8 @@ fun HoleTrackingScreen(
                                             )
                                         },
                                         label = "Distance",
-                                        modifier = Modifier.width(100.dp)
+                                        modifier = Modifier.width(100.dp),
+                                        resetKey = holeStat.id
                                     )
                             }
 
@@ -1146,7 +1152,8 @@ private fun TeeShotItem(
                 value = shot.distanceToPin,
                 onValueChange = { viewModel.updateShotDetails(shot, shot.outcome, shot.lie, shot.clubId, it, shot.isRecovery, shot.distanceTraveled) },
                 label = "Distance",
-                modifier = Modifier.width(100.dp)
+                modifier = Modifier.width(100.dp),
+                resetKey = shot.id
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
@@ -1223,12 +1230,13 @@ fun IntegerInput(
     value: Int?,
     onValueChange: (Int?) -> Unit,
     label: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    resetKey: Any? = null
 ) {
-    var textValue by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(value?.toString() ?: "")) }
+    var textValue by remember(resetKey) { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(value?.toString() ?: "")) }
     // Track whether the field is currently focused so we can suppress external value syncs
     // while the user is mid-edit (prevents the ViewModel from refilling a just-cleared field).
-    var isFocused by remember { mutableStateOf(false) }
+    var isFocused by remember(resetKey) { mutableStateOf(false) }
 
     // Only sync external value changes back to local text when the field is NOT focused.
     // This prevents the ViewModel emitting the old value and overwriting what the user is typing.
@@ -1345,10 +1353,10 @@ fun DispersionDialog(
     onDismissRequest: () -> Unit,
     onSave: (left: Int?, right: Int?, short: Int?, long: Int?) -> Unit
 ) {
-    var left by remember { mutableStateOf(initialLeft) }
-    var right by remember { mutableStateOf(initialRight) }
-    var shortDist by remember { mutableStateOf(initialShort) }
-    var longDist by remember { mutableStateOf(initialLong) }
+    var left by remember(initialLeft) { mutableStateOf(initialLeft) }
+    var right by remember(initialRight) { mutableStateOf(initialRight) }
+    var shortDist by remember(initialShort) { mutableStateOf(initialShort) }
+    var longDist by remember(initialLong) { mutableStateOf(initialLong) }
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismissRequest,
@@ -1361,13 +1369,15 @@ fun DispersionDialog(
                         value = left, 
                         onValueChange = { left = it; if (it != null) right = null }, 
                         label = "Left", 
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        resetKey = left
                     )
                     IntegerInput(
                         value = right, 
                         onValueChange = { right = it; if (it != null) left = null }, 
                         label = "Right", 
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        resetKey = right
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1375,13 +1385,15 @@ fun DispersionDialog(
                         value = shortDist, 
                         onValueChange = { shortDist = it; if (it != null) longDist = null }, 
                         label = "Short", 
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        resetKey = shortDist
                     )
                     IntegerInput(
                         value = longDist, 
                         onValueChange = { longDist = it; if (it != null) shortDist = null }, 
                         label = "Long", 
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        resetKey = longDist
                     )
                 }
                 

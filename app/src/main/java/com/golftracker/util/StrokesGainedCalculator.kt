@@ -198,45 +198,6 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
         }
     }
 
-    /**
-     * Calculate the total adjustment needed to align the baseline with the given course rating.
-     * New logic: Anchored to Course Par.
-     *
-     * @param courseRating USGA Course Rating.
-     * @param coursePar Total course par (usually 70-72).
-     * @return The total adjustment in strokes for the 18-hole round.
-     */
-    fun calculateCourseAdjustment(
-        courseRating: Double,
-        coursePar: Int
-    ): Double {
-        return courseRating - coursePar.toDouble()
-    }
-
-    /**
-     * Calculate Hole Difficulty Adjustment to apply to the Tee shot.
-     * This distributes the total course adjustment across the holes based on handicap.
-     *
-     * Logic: Hardest holes (Index 1) receive the most positive shift (largest boost or smallest penalty).
-     * Easiest holes (Index 18) receive the most negative shift.
-     *
-     * @param totalCourseAdjustment Result from calculateCourseAdjustment (Rating - Par).
-     * @param holeIndex Handicap index of the specific hole (1 = hardest, 18 = easiest).
-     * @param holeCount Number of holes in the round (usually 18).
-     * @return The adjustment value for this specific hole in strokes.
-     */
-    fun getHoleAdjustment(totalCourseAdjustment: Double, holeIndex: Int?, holeCount: Int = 18): Double {
-        val validIndex = holeIndex ?: 9
-        val avgIndex = if (holeCount == 9) 5.0 else 9.5
-        
-        // Distribute the adjustment based on handicap index.
-        // Hardest holes (Index 1) get the most positive shift (largest boost or smallest penalty).
-        // This logic ensures sign(holeAdj) == sign(totalCourseAdjustment) and preserves the spread.
-        val avgAdj = totalCourseAdjustment / holeCount
-        val spreadFactor = Math.abs(avgAdj) / 9.0 // Ensures adjustment never flips sign
-        
-        return avgAdj + spreadFactor * (avgIndex - validIndex.toDouble())
-    }
 
     /**
      * Calculate Strokes Gained for an approach or tee shot.
@@ -248,7 +209,6 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
      * @param endLie The ending lie of the ball, or null if on the green/holed.
      * @param endDistanceFeetOnGreen The ending distance in feet if the ball landed on the green.
      * @param penaltyStrokes Any penalty strokes incurred on this shot.
-     * @param holeAdjustment The difficulty adjustment for this specific hole (from getHoleAdjustment).
      * @return The Strokes Gained value for this shot.
      */
     fun calculateShotSG(
@@ -258,8 +218,7 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
         endDistanceYs: Int, // 0 if holed
         endLie: ApproachLie?, // GREEN if on green, null if holed
         endDistanceFeetOnGreen: Float?, // if landed on green
-        penaltyStrokes: Int,
-        holeAdjustment: Double = 0.0
+        penaltyStrokes: Int
     ): Double {
         val expectedStart = getExpectedStrokes(startDistanceYs, startLie, isTeeShot)
         
@@ -271,9 +230,7 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
             getExpectedStrokes(endDistanceYs, endLie, false)
         }
         
-        // Correct: Apply hole adjustment to the final SG result for the tee shot only.
-        val sg = expectedStart - expectedEnd - 1.0 - penaltyStrokes
-        return if (isTeeShot) sg + holeAdjustment else sg
+        return expectedStart - expectedEnd - 1.0 - penaltyStrokes
     }
 
     /**
@@ -301,7 +258,6 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
     fun calculateHoleSg(
         par: Int,
         holeYardage: Int,
-        holeAdjustment: Double,
         shots: List<com.golftracker.data.entity.Shot>,
         putts: List<com.golftracker.data.entity.Putt>,
         penalties: List<com.golftracker.data.entity.Penalty>,
@@ -362,7 +318,7 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
                 val finalEndLie = if (hasObPenalty) ApproachLie.TEE else actualLie
 
                 offTeeExpected = getExpectedStrokes(holeYardage, ApproachLie.TEE, true)
-                offTee = calculateShotSG(holeYardage, ApproachLie.TEE, true, finalEndDist, finalEndLie, greenFeet, 0, holeAdjustment)
+                offTee = calculateShotSG(holeYardage, ApproachLie.TEE, true, finalEndDist, finalEndLie, greenFeet, 0)
                 shotSgs.add(1 to offTee)
             } else if (stat.score > 0) {
                 // Heuristic: If no shots tracked and no end state found, estimate based on score.
@@ -378,7 +334,7 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
                     else -> holeYardage - estimatedDriveLanding
                 }.coerceAtLeast(40)
                 
-                offTee = calculateShotSG(holeYardage, ApproachLie.TEE, true, adjustedEndDist, null, null, 0, holeAdjustment)
+                offTee = calculateShotSG(holeYardage, ApproachLie.TEE, true, adjustedEndDist, null, null, 0)
                 shotSgs.add(1 to offTee)
                 
                 // Then the remaining distance is assigned to approach
@@ -404,9 +360,6 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
             // CHANGE: Include all shots from the TEE on par 4/5 in Off-Tee (handles re-tees).
             val isTeeShotOfPar45 = (par > 3 && (shot.shotNumber == 1 || shot.lie == ApproachLie.TEE))
             val isTeeShot = isFirstShotOfPar3 || isTeeShotOfPar45
-            
-            // CRITICAL: Only apply holeAdjustment to the very first tee shot attempted.
-            val currentHoleAdjustment = if (isTeeShot && shotSgs.none { it.first < shot.shotNumber }) holeAdjustment else 0.0
             
             val startDist = shot.distanceToPin ?: if (isTeeShot) holeYardage else continue
             val startLie = if (isTeeShot) ApproachLie.TEE else if (shot.isRecovery) ApproachLie.OTHER else shot.lie ?: ApproachLie.FAIRWAY
@@ -460,7 +413,7 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
                 val finalEndDist = if (hasObPenalty) startDist else endDist
                 val finalEndLie = if (hasObPenalty) startLie else effectiveEndLie
 
-                val sg = calculateShotSG(startDist, startLie, isTeeShot, finalEndDist, finalEndLie, greenFeet, 0, currentHoleAdjustment)
+                val sg = calculateShotSG(startDist, startLie, isTeeShot, finalEndDist, finalEndLie, greenFeet, 0)
                 
                 // CRITICAL: Only the very first recorded shot on a Par 4/5 is "Off Tee".
                 // All other full swings/shots (including re-tees) are "Approach".

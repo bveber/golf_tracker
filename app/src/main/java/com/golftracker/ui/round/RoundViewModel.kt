@@ -705,11 +705,8 @@ class RoundViewModel @Inject constructor(
         val allHoles = courseRepository.getHoles(round.courseId).first()
         val allYardages = courseRepository.getYardagesForTeeSet(round.teeSetId).first()
         
-        val coursePar = allHoles.sumOf { it.par }
-        
-        val totalAdj = sgCalculator.calculateCourseAdjustment(teeSet.rating.toDouble(), coursePar)
-        val holeAdj = sgCalculator.getHoleAdjustment(totalAdj, hole.handicapIndex, allHoles.size)
-        val holeYardage = allYardages.find { it.holeId == hole.id }?.yardage ?: return
+        val defaultYardage = allYardages.find { it.holeId == hole.id }?.yardage ?: return
+        val holeYardage = currentStat.adjustedYardage ?: defaultYardage
         
         val rawShots = shots ?: roundRepository.getShotsForHoleStat(currentStat.id).first().sortedBy { it.shotNumber }
         
@@ -736,7 +733,6 @@ class RoundViewModel @Inject constructor(
         val breakdown = sgCalculator.calculateHoleSg(
             par = hole.par,
             holeYardage = holeYardage,
-            holeAdjustment = holeAdj,
             shots = currentShots,
             putts = currentPutts,
             penalties = currentPenalties,
@@ -790,7 +786,7 @@ class RoundViewModel @Inject constructor(
             sgAroundGreen = if (hasData) breakdown.aroundGreen else null,
             sgPutting = if (hasData) breakdown.putting else null,
             gir = isGir,
-            difficultyAdjustment = holeAdj,
+            difficultyAdjustment = 0.0,
             sgOffTeeExpected = if (hasData) breakdown.offTeeExpected else null
         )
         

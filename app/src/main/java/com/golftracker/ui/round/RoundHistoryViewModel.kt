@@ -101,21 +101,17 @@ class RoundHistoryViewModel @Inject constructor(
         val teeSetId = roundWithDetails.round.teeSetId
         val coursePar = parMap[roundWithDetails.course.id] ?: 72
             
-        val courseAdj = sgCalculator.calculateCourseAdjustment(roundWithDetails.teeSet.rating.toDouble(), coursePar)
-
         stats.forEach { hole ->
             if (hole.holeStat.score > 0) {
                 totalScore += hole.holeStat.score
                 totalPar += hole.hole.par
             }
-            
-            val holeYardage = yardageMap[teeSetId to hole.hole.id]?.yardage ?: 0
-            val holeAdj = sgCalculator.getHoleAdjustment(courseAdj, hole.hole.handicapIndex, 18)
+            val defaultYardage = yardageMap[teeSetId to hole.hole.id]?.yardage ?: 0
+            val holeYardage = hole.holeStat.adjustedYardage ?: defaultYardage
             
             val breakdown = sgCalculator.calculateHoleSg(
                 par = hole.hole.par,
                 holeYardage = holeYardage,
-                holeAdjustment = holeAdj,
                 shots = hole.shots,
                 putts = hole.putts,
                 penalties = hole.penalties,

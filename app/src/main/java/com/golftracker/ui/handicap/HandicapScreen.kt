@@ -139,7 +139,7 @@ fun HandicapScreen(
                 }
                 if (uiState.differentials.isEmpty()) {
                     item {
-                        Text("No finalized 18-hole rounds yet.", modifier = Modifier.padding(16.dp))
+                        Text("No finalized rounds yet.", modifier = Modifier.padding(16.dp))
                     }
                 }
             }
@@ -198,8 +198,9 @@ fun DifferentialItem(diff: HandicapCalculator.Differential) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+        val holesLabel = if (diff.totalHoles == 9) " (9 holes)" else ""
         Text(
-            text = dateFormat.format(diff.date),
+            text = "${dateFormat.format(diff.date)}$holesLabel",
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f)
         )

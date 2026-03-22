@@ -328,7 +328,7 @@ class SeedDataCallback(private val context: Context) : RoomDatabase.Callback() {
             val endDistanceTee = if (isGir) 0 else 15
             val endLieTee = if (isGir) null else if (random.nextBoolean()) ApproachLie.ROUGH else ApproachLie.SAND
             
-            val teeSg = sgCalc.calculateShotSG(holeYardage, ApproachLie.TEE, true, endDistanceTee, endLieTee, greenFeetTee, 0, 0.25)
+            val teeSg = sgCalc.calculateShotSG(holeYardage, ApproachLie.TEE, true, endDistanceTee, endLieTee, greenFeetTee, 0)
             sgOffTee += teeSg
             
             db.execSQL(
@@ -347,11 +347,11 @@ class SeedDataCallback(private val context: Context) : RoomDatabase.Callback() {
             
             if (par == 5) {
                 val distAfterS2 = 80 + random.nextInt(40)
-                val teeSg = sgCalc.calculateShotSG(holeYardage, ApproachLie.TEE, true, distRemainAfterTee, endLieTee, null, 0, 0.25)
+                val teeSg = sgCalc.calculateShotSG(holeYardage, ApproachLie.TEE, true, distRemainAfterTee, endLieTee, null, 0)
                 sgOffTee += teeSg
                 
                 val endLieS2 = ApproachLie.FAIRWAY
-                val shot2Sg = sgCalc.calculateShotSG(distRemainAfterTee, endLieTee, false, distAfterS2, endLieS2, null, 0, 0.0)
+                val shot2Sg = sgCalc.calculateShotSG(distRemainAfterTee, endLieTee, false, distAfterS2, endLieS2, null, 0)
                 sgApproach += shot2Sg
                 
                 db.execSQL(
@@ -364,7 +364,7 @@ class SeedDataCallback(private val context: Context) : RoomDatabase.Callback() {
                 val endDistS3 = if (isGir) 0 else 15
                 val endLieS3 = if (isGir) null else ApproachLie.ROUGH
                 
-                val shot3Sg = sgCalc.calculateShotSG(distAfterS2, endLieS2, false, endDistS3, endLieS3, greenFeetS3, 0, 0.0)
+                val shot3Sg = sgCalc.calculateShotSG(distAfterS2, endLieS2, false, endDistS3, endLieS3, greenFeetS3, 0)
                 sgApproach += shot3Sg
                 
                 db.execSQL(
@@ -378,14 +378,14 @@ class SeedDataCallback(private val context: Context) : RoomDatabase.Callback() {
                    sgAroundGreen += chipSg
                 }
             } else {
-                val teeSg = sgCalc.calculateShotSG(holeYardage, ApproachLie.TEE, true, distRemainAfterTee, endLieTee, null, 0, 0.25)
+                val teeSg = sgCalc.calculateShotSG(holeYardage, ApproachLie.TEE, true, distRemainAfterTee, endLieTee, null, 0)
                 sgOffTee += teeSg
                 
                 val greenFeetS2 = if (isGir) initialPuttDistance else null
                 val endDistS2 = if (isGir) 0 else 15
                 val endLieS2 = if (isGir) null else ApproachLie.ROUGH
                 
-                val approachSg = sgCalc.calculateShotSG(distRemainAfterTee, endLieTee, false, endDistS2, endLieS2, greenFeetS2, 0, 0.0)
+                val approachSg = sgCalc.calculateShotSG(distRemainAfterTee, endLieTee, false, endDistS2, endLieS2, greenFeetS2, 0)
                 sgApproach += approachSg
                 
                 db.execSQL(
