@@ -1052,15 +1052,22 @@ fun HoleTrackingScreen(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            val teeAdj = uiState.penalties.any { it.shotNumber == 1 }
-                            val approachAdj = uiState.penalties.any { it.shotNumber != null && it.shotNumber > 1 }
-                            SummarySgItem("Off Tee", holeStat.sgOffTee, holeStat.difficultyAdjustment, teeAdj)
-                            SummarySgItem("Appr", holeStat.sgApproach, isAdjusted = approachAdj)
-                            SummarySgItem("Around", holeStat.sgAroundGreen)
-                            SummarySgItem("Putt", holeStat.sgPutting)
+                            val score = holeStat.score.toDouble().coerceAtLeast(1.0)
+                            val adjPerShot = holeStat.difficultyAdjustment / score
+                            
+                            val teeShotCount = (if (hole.par > 3 && (holeStat.teeOutcome != null || holeStat.teeShotDistance != null || holeStat.teeClubId != null || holeStat.teeLat != null) && uiState.shots.none { it.shotNumber == 1 }) 1 else 0) + uiState.shots.count { it.shotNumber == 1 || it.lie == com.golftracker.data.model.ApproachLie.TEE }
+                            val approachShotCount = uiState.shots.count { it.shotNumber != 1 && it.lie != com.golftracker.data.model.ApproachLie.TEE }
+                            val puttingShotCount = holeStat.putts
+                            val aroundGreenShotCount = holeStat.chips + holeStat.sandShots
+                            
+                            SummarySgItem("Off Tee", holeStat.sgOffTee, adjPerShot * teeShotCount)
+                            SummarySgItem("Appr", holeStat.sgApproach, adjPerShot * approachShotCount)
+                            SummarySgItem("Around", holeStat.sgAroundGreen, adjPerShot * aroundGreenShotCount)
+                            SummarySgItem("Putt", holeStat.sgPutting, adjPerShot * puttingShotCount)
+                            
                             val penaltyStrokes = uiState.penalties.sumOf { it.strokes }
                             if (penaltyStrokes > 0) {
-                                SummarySgItem("Pen", -penaltyStrokes.toDouble())
+                                SummarySgItem("Pen", -penaltyStrokes.toDouble(), adjPerShot * penaltyStrokes)
                             }
                         }
                     }

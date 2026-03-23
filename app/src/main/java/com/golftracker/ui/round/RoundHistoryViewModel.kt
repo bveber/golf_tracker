@@ -2,6 +2,7 @@ package com.golftracker.ui.round
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.golftracker.data.entity.HoleStat
 import com.golftracker.data.entity.Round
 import com.golftracker.data.repository.CourseRepository
 import com.golftracker.data.repository.RoundRepository
@@ -27,7 +28,7 @@ class RoundHistoryViewModel @Inject constructor(
     private val roundRepository: RoundRepository,
     private val courseRepository: CourseRepository,
     private val jsonExporter: JsonExporter,
-    private val sgCalculator: com.golftracker.util.StrokesGainedCalculator,
+    private val sgRecalculationUseCase: com.golftracker.domain.SgRecalculationUseCase,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -102,22 +103,23 @@ class RoundHistoryViewModel @Inject constructor(
         val coursePar = parMap[roundWithDetails.course.id] ?: 72
             
         stats.forEach { hole ->
-            if (hole.holeStat.score > 0) {
-                totalScore += hole.holeStat.score
-                totalPar += hole.hole.par
-            }
             val defaultYardage = yardageMap[teeSetId to hole.hole.id]?.yardage ?: 0
             val holeYardage = hole.holeStat.adjustedYardage ?: defaultYardage
             
-            val breakdown = sgCalculator.calculateHoleSg(
+            val result = sgRecalculationUseCase.calculateHoleData(
                 par = hole.hole.par,
                 holeYardage = holeYardage,
+                stat = hole.holeStat,
                 shots = hole.shots,
                 putts = hole.putts,
-                penalties = hole.penalties,
-                stat = hole.holeStat
+                penalties = hole.penalties
             )
-            totalLiveSg += breakdown.total
+            
+            if (result.updatedStat.score > 0) {
+                totalScore += result.updatedStat.score
+                totalPar += hole.hole.par
+            }
+            totalLiveSg += result.totalSg
         }
         
         return RoundScoreData(

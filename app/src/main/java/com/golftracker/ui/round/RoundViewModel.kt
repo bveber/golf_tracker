@@ -21,6 +21,7 @@ import com.golftracker.data.model.ShotOutcome
 import com.golftracker.data.repository.ClubRepository
 import com.golftracker.data.repository.CourseRepository
 import com.golftracker.data.repository.RoundRepository
+import com.golftracker.domain.SgRecalculationUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -79,6 +80,7 @@ class RoundViewModel @Inject constructor(
     private val roundRepository: RoundRepository,
     private val courseRepository: CourseRepository,
     private val clubRepository: ClubRepository,
+    private val sgRecalculationUseCase: SgRecalculationUseCase,
     @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -108,6 +110,9 @@ class RoundViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true) }
             val round = roundRepository.getRound(roundId)
             if (round != null) {
+                // Ensure SG is up to date for the entire round
+                sgRecalculationUseCase.recalculateRound(roundId)
+
                 // One-time load of holes and yardages
                 val allHoles = courseRepository.getHoles(round.courseId).first()
                 val yardageList = courseRepository.getYardagesForTeeSet(round.teeSetId).first()
@@ -700,114 +705,33 @@ class RoundViewModel @Inject constructor(
         val currentStat = stat ?: state.currentHoleStat ?: return
         val hole = state.currentHole ?: return
         val round = state.activeRound ?: return
-        
-        val teeSet = courseRepository.getTeeSets(round.courseId).first().find { it.id == round.teeSetId } ?: return
-        val allHoles = courseRepository.getHoles(round.courseId).first()
-        val allYardages = courseRepository.getYardagesForTeeSet(round.teeSetId).first()
-        
-        val defaultYardage = allYardages.find { it.holeId == hole.id }?.yardage ?: return
-        val holeYardage = currentStat.adjustedYardage ?: defaultYardage
-        
-        val rawShots = shots ?: roundRepository.getShotsForHoleStat(currentStat.id).first().sortedBy { it.shotNumber }
-        
-        // DE-DUPLICATION: Ensure shot numbers are unique and sequential (1, 2, 3...)
-        // CHANGE: Account for the par 4/5 drive (HoleStat) being Shot 1.
-        val teeShotInStat = hole.par > 3 && (currentStat.teeOutcome != null || currentStat.teeShotDistance != null || currentStat.teeClubId != null)
-        val shotNumberOffset = if (teeShotInStat) 2 else 1
-        
-        val currentShots = rawShots.mapIndexed { index, shot ->
-            val expectedNumber = index + shotNumberOffset
-            if (shot.shotNumber != expectedNumber) {
-                val corrected = shot.copy(shotNumber = expectedNumber)
-                viewModelScope.launch { roundRepository.updateShot(corrected) }
-                corrected
-            } else {
-                shot
-            }
-        }
-        
-        val currentPutts = putts ?: roundRepository.getPuttsForHoleStat(currentStat.id).first().sortedBy { it.puttNumber }
-        val currentPenalties = penalties ?: roundRepository.getPenaltiesForHoleStat(currentStat.id).first()
-        
-        // 1. Unified Calculation
-        val breakdown = sgCalculator.calculateHoleSg(
-            par = hole.par,
-            holeYardage = holeYardage,
-            shots = currentShots,
-            putts = currentPutts,
-            penalties = currentPenalties,
-            stat = currentStat
+
+        val updatedStat: HoleStat? = sgRecalculationUseCase.recalculateHole(
+            roundId = round.id,
+            holeId = hole.id,
+            providedStat = currentStat,
+            providedShots = shots,
+            providedPutts = putts,
+            providedPenalties = penalties
         )
-
-        // 2. Update individual Shots in DB
-        val updatedShots = currentShots.map { shot ->
-            val sg = breakdown.shotSgs.find { it.first == shot.shotNumber }?.second
-            val updatedShot = shot.copy(strokesGained = sg)
-            if (updatedShot != shot) {
-                roundRepository.updateShot(updatedShot)
-            }
-            updatedShot
-        }
-
-        // 3. Update individual Putts in DB
-        val updatedPutts = currentPutts.map { putt ->
-            val sg = breakdown.puttSgs.find { it.first == putt.puttNumber }?.second
-            val updatedPutt = putt.copy(strokesGained = sg)
-            if (updatedPutt != putt) {
-                roundRepository.updatePutt(updatedPutt)
-            }
-            updatedPutt
-        }
-
-        // 4. Update HoleStat
-        val penaltyTotal = currentPenalties.sumOf { it.strokes }.toDouble()
-        val totalSg = breakdown.total
         
-        val shortGameStrokes = currentStat.chips + currentStat.sandShots
-        val teeShotTaken = hole.par > 3 && (currentStat.teeOutcome != null || currentStat.teeShotDistance != null || currentStat.teeClubId != null || currentStat.teeLat != null)
-        val holedOutFromOffGreen = (currentStat.teeOutcome == ShotOutcome.HOLED_OUT) || updatedShots.any { it.outcome == ShotOutcome.HOLED_OUT }
-        
-        val calculatedScore = (if (teeShotTaken && updatedShots.none { it.shotNumber == 1 }) 1 else 0) + 
-            updatedShots.size + 
-            shortGameStrokes + 
-            currentStat.putts + 
-            currentPenalties.sumOf { it.strokes }
+        if (updatedStat != null) {
+            val updatedShots = roundRepository.getShotsForHoleStat(updatedStat.id).first()
+            val updatedPutts = roundRepository.getPuttsForHoleStat(updatedStat.id).first()
             
-        val finishedHole = holedOutFromOffGreen || (currentStat.putts > 0 && updatedPutts.any { it.made })
-        val newScore = calculatedScore
-        val hasData = teeShotTaken || updatedShots.isNotEmpty() || updatedPutts.isNotEmpty() || shortGameStrokes > 0 || currentPenalties.isNotEmpty()
-        val isGir = finishedHole && (newScore - currentStat.putts <= hole.par - 2)
-        
-        val updatedStat = currentStat.copy(
-            score = if (currentStat.scoreManual) currentStat.score else newScore,
-            strokesGained = if (hasData) totalSg else null,
-            sgOffTee = if (hasData) breakdown.offTee else null,
-            sgApproach = if (hasData) breakdown.approach else null,
-            sgAroundGreen = if (hasData) breakdown.aroundGreen else null,
-            sgPutting = if (hasData) breakdown.putting else null,
-            gir = isGir,
-            difficultyAdjustment = 0.0,
-            sgOffTeeExpected = if (hasData) breakdown.offTeeExpected else null
-        )
-        
-        _uiState.update { it.copy(shots = updatedShots, putts = updatedPutts) }
-
-        if (updatedStat != currentStat) {
-            roundRepository.updateHoleStat(updatedStat)
-        }
-
-        // Refresh UI state
-        _uiState.update { 
-            val newStats = it.holeStats.toMutableList()
-            if (it.currentHoleIndex in newStats.indices) {
-                newStats[it.currentHoleIndex] = updatedStat
+            // Refresh UI state
+            _uiState.update { 
+                val newStats = it.holeStats.toMutableList()
+                if (it.currentHoleIndex in newStats.indices) {
+                    newStats[it.currentHoleIndex] = updatedStat
+                }
+                it.copy(
+                    currentHoleStat = updatedStat, 
+                    holeStats = newStats,
+                    shots = updatedShots,
+                    putts = updatedPutts
+                )
             }
-            it.copy(
-                currentHoleStat = updatedStat, 
-                holeStats = newStats,
-                shots = updatedShots,
-                putts = updatedPutts
-            )
         }
     }
 }

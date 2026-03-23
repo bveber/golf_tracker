@@ -53,6 +53,12 @@ interface CourseDao {
     @Query("SELECT * FROM holes WHERE course_id = :courseId ORDER BY hole_number ASC")
     fun getHoles(courseId: Int): Flow<List<Hole>>
     
+    @Query("SELECT * FROM holes WHERE id = :holeId")
+    fun getHoleFlow(holeId: Int): Flow<Hole?>
+
+    @Query("SELECT * FROM holes WHERE id = :holeId")
+    suspend fun getHole(holeId: Int): Hole?
+    
     @Upsert
     suspend fun insertHole(hole: Hole): Long
     
