@@ -300,18 +300,18 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
                 endDist = stat.chipDistance ?: 15
                 endLie = if (stat.sandShots > 0) ApproachLie.SAND else (stat.chipLie ?: ApproachLie.ROUGH)
                 hasEnd = true
-            } else if (stat.teeShotDistance != null) {
-                endDist = ShotDistanceCalculator.deriveEndDistance(holeYardage, stat.teeShotDistance!!, stat.teeOutcome)
-                hasEnd = true
             } else if (sortedPutts.isNotEmpty()) {
                 greenFeet = sortedPutts.first().distance
                 endDist = 0
                 hasEnd = true
-            } else if (stat.score > 0) {
-                if (par == 3) {
-                    endDist = 0
-                    hasEnd = true
-                }
+            } else if (stat.isScored && stat.teeShotDistance != null) {
+                // Final fallback if hole is finished but no intermediate shots were tracked.
+                endDist = ShotDistanceCalculator.deriveEndDistance(holeYardage, stat.teeShotDistance!!, stat.teeOutcome)
+                hasEnd = true
+            } else if (stat.isScored && par == 3) {
+                // If par 3 finished but no data, assume on green.
+                endDist = 0
+                hasEnd = true
             }
 
             if (hasEnd) {
