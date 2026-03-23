@@ -738,25 +738,25 @@ class StrokesGainedCalculatorTest {
             com.golftracker.data.entity.Putt(holeStatId = 1, puttNumber = 2, distance = 3f, made = true)
         )
         
-        // Total gap 3.92 for 18 holes. 
-        // Hole weight = 1/18. Hole adjustment = 3.92 / 18 = 0.2177
-        // Categorical gaps: Tee (1.13), Approach (1.56), Putting (0.88)
-        // Hole Tee Adj = holeWeight * 1.13 = 0.0628
-        // Hole Approach Adj = holeWeight * 1.56 = 0.0867
-        // Hole Putting Adj = holeWeight * 0.88 = 0.0489
+        // Total gap 5.14 for 18 holes. 
+        // Hole weight = 1/18. Hole adjustment = 5.14 / 18 = 0.2855
+        // Categorical gaps: Tee (1.78), Approach (2.03), Putting (0.94)
+        // Hole Tee Adj = holeWeight * 1.78 = 0.0988
+        // Hole Approach Adj = holeWeight * 2.03 = 0.1127
+        // Hole Putting Adj = holeWeight * 0.94 = 0.0522
         
-        // Passing 5.92 as totalRoundAdjustment (3.92 scratch + 2.0 course)
+        // Passing 7.14 as totalRoundAdjustment (5.14 scratch + 2.0 course)
         val breakdown = calculator.calculateHoleSg(
             par = 4, holeYardage = 400,
             shots = shots, putts = putts, penalties = emptyList(), stat = stat,
-            totalRoundAdjustment = 5.92,
+            totalRoundAdjustment = 7.14,
             numHoles = 18
         )
         
-        val totalHoleAdj = 5.92 / 18.0 // 0.3288
-        val expTeeAdj = totalHoleAdj * (1.13 / 3.92) // 0.0947
-        val expApproachAdj = totalHoleAdj * (1.56 / 3.92) // 0.1308
-        val expPuttingAdj = totalHoleAdj * (0.88 / 3.92) // 0.0738
+        val totalHoleAdj = 7.14 / 18.0 // 0.3966
+        val expTeeAdj = totalHoleAdj * (1.78 / 5.14) // 0.1373
+        val expApproachAdj = totalHoleAdj * (2.03 / 5.14) // 0.1566
+        val expPuttingAdj = totalHoleAdj * (0.94 / 5.14) // 0.0725
         
         println("Categorical Adjustment Test:")
         println("Off Tee: ${breakdown.offTee} (Expected: ${0.2 + expTeeAdj})")
@@ -765,11 +765,11 @@ class StrokesGainedCalculatorTest {
         
         // Verify split
         val expCourseTotal = 2.0 / 18.0 // 0.1111
-        val expScratchTotal = 3.92 / 18.0 // 0.2177
-        // Only Tee, Approach, and Putting are adjusted in this test.
-        // Total Adjusted = (1.13 + 1.56 + 0.88) / 3.92 * Adj = 3.57 / 3.92 * 0.3288 = 0.2995
-        val expCourseHole = expCourseTotal * (3.57 / 3.92) // 0.1012
-        val expScratchHole = expScratchTotal * (3.57 / 3.92) // 0.1983
+        val expScratchTotal = 5.14 / 18.0 // 0.2855
+        // Only Tee, Approach, and Putting are adjusted. Total = 1.78 + 2.03 + 0.94 = 4.75.
+        // Total Adjusted = (4.75 / 5.14) * TotalHoleAdj = (4.75 / 5.14) * 0.3966 = 0.3665
+        val expCourseHole = expCourseTotal * (4.75 / 5.14) // 0.1026
+        val expScratchHole = expScratchTotal * (4.75 / 5.14) // 0.2638
 
         assertEquals(0.2 + expTeeAdj, breakdown.offTee, 0.001)
         assertEquals(0.4 + expApproachAdj, breakdown.approach, 0.001)
@@ -866,8 +866,8 @@ class StrokesGainedCalculatorTest {
             com.golftracker.data.entity.Putt(holeStatId = 1, puttNumber = 2, distance = 3f, made = true) // Hole out
         )
         
-        // 2.0 course adjustment + 3.92 scratch gap = 5.92 total adjustment
-        val adjustment = 5.14
+        // 5.14 scratch + some course adj (e.g. 1.22 more for total 6.36)
+        val adjustment = 6.36 
         val breakdown = calculator.calculateHoleSg(
             par = 4, holeYardage = 400,
             shots = shots, putts = putts, penalties = emptyList(), stat = stat,
@@ -875,15 +875,15 @@ class StrokesGainedCalculatorTest {
             numHoles = 18
         )
         
-        // Total adjustment per hole = 5.14 / 18.0 = 0.2855
-        // Course part = (5.14 - 3.92) / 18.0 = 1.22 / 18.0 = 0.0677
-        // Scratch part = 3.92 / 18.0 = 0.2177
-        // Gaps involved: Tee (1.13), Approach (1.56), Putting (0.88). Total = 3.57.
-        // Final Course Adj = 0.0677 * (3.57 / 3.92) = 0.0617
-        // Final Scratch Adj = 0.2177 * (3.57 / 3.92) = 0.1983
+        // Total hole adjustment = 6.36 / 18 = 0.3533
+        // Course part = (6.36 - 5.14) / 18 = 1.22 / 18 = 0.0677
+        // Scratch part = 5.14 / 18 = 0.2855
+        // Gaps involved: Tee (1.78), Approach (2.03), Putting (0.94). Total = 4.75.
+        // Final Course Adj = 0.0677 * (4.75 / 5.14) = 0.06256
+        // Final Scratch Adj = 0.2855 * (4.75 / 5.14) = 0.26388
         
-        assertEquals(0.06168, breakdown.courseRatingAdjustment, 0.001)
-        assertEquals(0.1983, breakdown.scratchAdjustment, 0.001)
+        assertEquals(0.06256, breakdown.courseRatingAdjustment, 0.001)
+        assertEquals(0.26388, breakdown.scratchAdjustment, 0.001)
         
         // Final shot SG should be raw (3ft putt made: 1.42 exp - 1.0 = 0.42)
         val finalPuttSg = breakdown.puttSgs.find { it.first == 2 }?.second ?: 0.0

@@ -254,11 +254,11 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
 
     // Standard Scratch-to-Pro Gaps (per 18 holes) from Mark Broadie research
     companion object {
-        const val GAP_TEE = 1.13
-        const val GAP_APPROACH = 1.56
-        const val GAP_SHORT = 0.35
-        const val GAP_PUTTING = 0.88
-        const val TOTAL_GAP = GAP_TEE + GAP_APPROACH + GAP_SHORT + GAP_PUTTING // 3.92
+        const val GAP_TEE = 1.78
+        const val GAP_APPROACH = 2.03
+        const val GAP_SHORT = 0.39
+        const val GAP_PUTTING = 0.94
+        const val TOTAL_GAP = GAP_TEE + GAP_APPROACH + GAP_SHORT + GAP_PUTTING // 5.14
     }
 
     /**
