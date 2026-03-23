@@ -35,11 +35,11 @@ data class HoleSgBreakdown(
     val penalties: Double = 0.0,
     val offTeeExpected: Double? = null,
     val courseRatingAdjustment: Double = 0.0,
+    val scratchAdjustment: Double = 0.0,
     val shotSgs: List<Pair<Int, Double>> = emptyList(), // Pair(shotNumber, SG)
-    val puttSgs: List<Pair<Int, Double>> = emptyList()   // Pair(puttNumber, SG)
-) {
-    val total: Double get() = offTee + approach + aroundGreen + putting - penalties
-}
+    val puttSgs: List<Pair<Int, Double>> = emptyList(),  // Pair(puttNumber, SG)
+    val total: Double = 0.0
+)
 
 @Singleton
 class StrokesGainedCalculator @Inject constructor(@ApplicationContext private val context: Context) {
@@ -254,11 +254,11 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
 
     // Standard Scratch-to-Pro Gaps (per 18 holes) from Mark Broadie research
     companion object {
-        const val GAP_TEE = 1.78
-        const val GAP_APPROACH = 2.03
-        const val GAP_SHORT = 0.39
-        const val GAP_PUTTING = 0.94
-        const val TOTAL_GAP = GAP_TEE + GAP_APPROACH + GAP_SHORT + GAP_PUTTING // 5.14
+        const val GAP_TEE = 1.13
+        const val GAP_APPROACH = 1.56
+        const val GAP_SHORT = 0.35
+        const val GAP_PUTTING = 0.88
+        const val TOTAL_GAP = GAP_TEE + GAP_APPROACH + GAP_SHORT + GAP_PUTTING // 3.92
     }
 
     /**
@@ -527,28 +527,32 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
         val totalPenaltyStrokes = penalties.sumOf { it.strokes }.toDouble()
         val unattributedPenalties = (totalPenaltyStrokes - attributedPenaltyTotal).coerceAtLeast(0.0)
 
-        // 7. APPLY CATEGORICAL COURSE RATING ADJUSTMENT
+        // 7. APPLY CATEGORICAL ADJUSTMENT (SCRATCH GAP + COURSE RATING)
         var adjustedOffTee = offTee
         var adjustedApproach = approach
         var adjustedAroundGreen = aroundGreen
         var adjustedPutting = putting
         val adjustedShotSgs = shotSgs.toMutableList()
         val adjustedPuttSgs = puttSgs.toMutableList()
-        var totalAdjustmentApplied = 0.0
+        
+        var totalCourseAdjustmentApplied = 0.0
+        var totalScratchAdjustmentApplied = 0.0
 
         if (totalRoundAdjustment != 0.0) {
-            // Calculate hole-level categorical adjustments based on scratch gaps
             val holeWeight = 1.0 / numHoles
-            val holeAdjustment = totalRoundAdjustment * holeWeight
+            // The total adjustment is (Rating - ProBaseline)
+            // We split this into ScratchGap (3.92) and CourseRatingAdjustment (Rating - Par)
+            // TotalScratchGap is defined as TOTAL_GAP.
+            
+            val totalScratchPart = TOTAL_GAP
+            val totalCoursePart = totalRoundAdjustment - totalScratchPart
+            
+            val courseHoleAdj = totalCoursePart * holeWeight
+            val scratchHoleAdj = totalScratchPart * holeWeight
             
             // On a Par 3, we move the Tee adjustment into the Approach category.
             val finalTeeGap = if (par > 3) GAP_TEE else 0.0
             val finalApproachGap = if (par > 3) GAP_APPROACH else GAP_APPROACH + GAP_TEE
-            
-            val teeAdjPerHole = holeAdjustment * (finalTeeGap / TOTAL_GAP)
-            val approachAdjPerHole = holeAdjustment * (finalApproachGap / TOTAL_GAP)
-            val shortAdjPerHole = holeAdjustment * (GAP_SHORT / TOTAL_GAP)
-            val puttingAdjPerHole = holeAdjustment * (GAP_PUTTING / TOTAL_GAP)
             
             // Identify if the player holed out from off green (to skip final shot adjustment)
             val holedOutFromOffGreen = (stat.teeOutcome == ShotOutcome.HOLED_OUT) || shots.any { it.outcome == ShotOutcome.HOLED_OUT }
@@ -556,65 +560,60 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
             // Apply to Shots (Tee & Approach)
             for (i in adjustedShotSgs.indices) {
                 val (shotNumber, sg) = adjustedShotSgs[i]
-                
-                // Skip final shot adjustment if the player holed out from off green
                 if (holedOutFromOffGreen && i == adjustedShotSgs.lastIndex) continue
 
-                // Find the original shot to check its category
                 val originalShot = shots.find { it.shotNumber == shotNumber }
                 val isTee = par > 3 && (shotNumber == 1 || originalShot?.lie == ApproachLie.TEE)
 
-                // Category-specific adjustment per shot? 
-                // Broadie gaps are per round. To avoid sensitivity to shot count, 
-                // we distribute the HOLE's categorical adjustment across the shots in that category.
                 if (isTee) {
                     val teeShotCountOnHole = adjustedShotSgs.count { s -> 
                         val os = shots.find { it.shotNumber == s.first }
                         par > 3 && (s.first == 1 || os?.lie == ApproachLie.TEE)
                     }
-                    val adj = teeAdjPerHole / teeShotCountOnHole
-                    adjustedShotSgs[i] = shotNumber to (sg + adj)
-                    adjustedOffTee += adj
-                    totalAdjustmentApplied += adj
+                    val courseAdj = (courseHoleAdj * (finalTeeGap / TOTAL_GAP)) / teeShotCountOnHole
+                    val scratchAdj = (scratchHoleAdj * (finalTeeGap / TOTAL_GAP)) / teeShotCountOnHole
+                    
+                    adjustedShotSgs[i] = shotNumber to (sg + courseAdj + scratchAdj)
+                    adjustedOffTee += (courseAdj + scratchAdj)
+                    totalCourseAdjustmentApplied += courseAdj
+                    totalScratchAdjustmentApplied += scratchAdj
                 } else {
                     val approachShotCountOnHole = adjustedShotSgs.count { s -> 
                          val os = shots.find { it.shotNumber == s.first }
                          !(par > 3 && (s.first == 1 || os?.lie == ApproachLie.TEE))
                     }
-                    val adj = approachAdjPerHole / approachShotCountOnHole
-                    adjustedShotSgs[i] = shotNumber to (sg + adj)
-                    adjustedApproach += adj
-                    totalAdjustmentApplied += adj
+                    val courseAdj = (courseHoleAdj * (finalApproachGap / TOTAL_GAP)) / approachShotCountOnHole
+                    val scratchAdj = (scratchHoleAdj * (finalApproachGap / TOTAL_GAP)) / approachShotCountOnHole
+                    
+                    adjustedShotSgs[i] = shotNumber to (sg + courseAdj + scratchAdj)
+                    adjustedApproach += (courseAdj + scratchAdj)
+                    totalCourseAdjustmentApplied += courseAdj
+                    totalScratchAdjustmentApplied += scratchAdj
                 }
             }
             
             // Handle heuristic tee shot if no tracked shots exist
-            if (par > 3 && sortedShots.none { it.shotNumber == 1 } && adjustedOffTee != offTee) {
-                // If heuristic offTee exists but wasn't adjusted in loop above
-                if (adjustedShotSgs.any { it.first == 1 }) {
-                     // already handled in loop if it was added to adjustedShotSgs
-                } else if (offTee != 0.0) {
-                    adjustedOffTee += teeAdjPerHole
-                    totalAdjustmentApplied += teeAdjPerHole
-                }
+            if (par > 3 && sortedShots.none { it.shotNumber == 1 } && adjustedOffTee == offTee && offTee != 0.0) {
+                val courseAdj = courseHoleAdj * (finalTeeGap / TOTAL_GAP)
+                val scratchAdj = scratchHoleAdj * (finalTeeGap / TOTAL_GAP)
+                
+                adjustedOffTee += (courseAdj + scratchAdj)
+                totalCourseAdjustmentApplied += courseAdj
+                totalScratchAdjustmentApplied += scratchAdj
             }
 
             // Apply to Putts
-            val puttCount = adjustedPuttSgs.size
-            if (puttCount > 0) {
-                // Adjust all putts EXCEPT the final hole-out (unless it was a miss?)
-                // Actually, skipping the final stroke means adjusting (puttCount - 1) strokes.
-                val adjustedPuttCount = if (!holedOutFromOffGreen) puttCount - 1 else puttCount
-                if (adjustedPuttCount > 0) {
-                    val adj = puttingAdjPerHole / adjustedPuttCount
-                    for (i in adjustedPuttSgs.indices) {
-                        if (!holedOutFromOffGreen && i == adjustedPuttSgs.lastIndex) continue
-                        val (puttNumber, sg) = adjustedPuttSgs[i]
-                        adjustedPuttSgs[i] = puttNumber to (sg + adj)
-                        adjustedPutting += adj
-                        totalAdjustmentApplied += adj
-                    }
-                }
+            for (i in adjustedPuttSgs.indices) {
+                if (!holedOutFromOffGreen && i == adjustedPuttSgs.lastIndex) continue
+                val (puttNumber, sg) = adjustedPuttSgs[i]
+                
+                val courseAdj = (courseHoleAdj * (GAP_PUTTING / TOTAL_GAP)) / (if (stat.putts > 1) stat.putts - 1 else 1).coerceAtLeast(1)
+                val scratchAdj = (scratchHoleAdj * (GAP_PUTTING / TOTAL_GAP)) / (if (stat.putts > 1) stat.putts - 1 else 1).coerceAtLeast(1)
+                
+                adjustedPuttSgs[i] = puttNumber to (sg + courseAdj + scratchAdj)
+                adjustedPutting += (courseAdj + scratchAdj)
+                totalCourseAdjustmentApplied += courseAdj
+                totalScratchAdjustmentApplied += scratchAdj
             }
 
             // Apply to Short Game
@@ -623,54 +622,70 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
                 val isChipHoleOut = holedOutFromOffGreen && shots.isEmpty()
                 val adjustedShortGameCount = if (isChipHoleOut) shortGameCount - 1 else shortGameCount
                 if (adjustedShortGameCount > 0) {
-                    adjustedAroundGreen += shortAdjPerHole
-                    totalAdjustmentApplied += shortAdjPerHole
+                    val courseAdj = courseHoleAdj * (GAP_SHORT / TOTAL_GAP)
+                    val scratchAdj = scratchHoleAdj * (GAP_SHORT / TOTAL_GAP)
+                    
+                    adjustedAroundGreen += (courseAdj + scratchAdj)
+                    totalCourseAdjustmentApplied += courseAdj
+                    totalScratchAdjustmentApplied += scratchAdj
                 }
             }
             
             // Adjust unattributed penalty strokes (use Approach adjustment as fallback)
             if (unattributedPenalties > 0) {
-                val penaltyAdj = (approachAdjPerHole / (adjustedShotSgs.size.coerceAtLeast(1))) * unattributedPenalties
-                // Decreasing penalty cost
-                adjustedPutting += 0.0 // no-op for signature
-                val finalPenalties = (unattributedPenalties - penaltyAdj).coerceAtLeast(0.0)
+                val penaltyCourseAdj = (courseHoleAdj * (GAP_APPROACH / TOTAL_GAP) / (adjustedShotSgs.size.coerceAtLeast(1))) * unattributedPenalties
+                val penaltyScratchAdj = (scratchHoleAdj * (GAP_APPROACH / TOTAL_GAP) / (adjustedShotSgs.size.coerceAtLeast(1))) * unattributedPenalties
+                
+                val finalPenalties = (unattributedPenalties - (penaltyCourseAdj + penaltyScratchAdj)).coerceAtLeast(0.0)
+                
+                val finalTotal = adjustedOffTee + adjustedApproach + adjustedAroundGreen + adjustedPutting - finalPenalties
                 
                 return HoleSgBreakdown(
                     offTee = adjustedOffTee,
                     approach = adjustedApproach,
                     aroundGreen = adjustedAroundGreen,
                     putting = adjustedPutting,
-                    penalties = finalPenalties,
+                    penalties = -finalPenalties,
                     offTeeExpected = offTeeExpected,
-                    courseRatingAdjustment = totalAdjustmentApplied + penaltyAdj,
+                    courseRatingAdjustment = totalCourseAdjustmentApplied + penaltyCourseAdj,
+                    scratchAdjustment = totalScratchAdjustmentApplied + penaltyScratchAdj,
                     shotSgs = adjustedShotSgs,
-                    puttSgs = adjustedPuttSgs
+                    puttSgs = adjustedPuttSgs,
+                    total = finalTotal
                 )
             }
+
+            val finalTotal = adjustedOffTee + adjustedApproach + adjustedAroundGreen + adjustedPutting - unattributedPenalties
 
             return HoleSgBreakdown(
                 offTee = adjustedOffTee,
                 approach = adjustedApproach,
                 aroundGreen = adjustedAroundGreen,
                 putting = adjustedPutting,
-                penalties = unattributedPenalties,
+                penalties = -unattributedPenalties,
                 offTeeExpected = offTeeExpected,
-                courseRatingAdjustment = totalAdjustmentApplied,
+                courseRatingAdjustment = totalCourseAdjustmentApplied,
+                scratchAdjustment = totalScratchAdjustmentApplied,
                 shotSgs = adjustedShotSgs,
-                puttSgs = adjustedPuttSgs
+                puttSgs = adjustedPuttSgs,
+                total = finalTotal
             )
         }
+
+        val finalTotal = offTee + approach + aroundGreen + putting - unattributedPenalties
 
         return HoleSgBreakdown(
             offTee = offTee,
             approach = approach,
             aroundGreen = aroundGreen,
             putting = putting,
-            penalties = unattributedPenalties,
+            penalties = -unattributedPenalties,
             offTeeExpected = offTeeExpected,
             courseRatingAdjustment = 0.0,
+            scratchAdjustment = 0.0,
             shotSgs = shotSgs,
-            puttSgs = puttSgs
+            puttSgs = puttSgs,
+            total = finalTotal
         )
     }
 
