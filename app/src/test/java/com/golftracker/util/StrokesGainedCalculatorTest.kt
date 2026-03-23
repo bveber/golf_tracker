@@ -710,17 +710,22 @@ class StrokesGainedCalculatorTest {
     }
 
     @Test
-    fun testCalculateHoleSg_WithAdjustment() {
+    fun testCalculateHoleSg_WithCategoricalAdjustment() {
         // Par 4, 400y.
         // Shot 1: Tee to 150y Fairway (Exp 4.2 - 3.0 - 1 = 0.2)
         // Shot 2: 150y Fairway to 15ft Green (Exp 3.0 - 1.6 - 1 = 0.4)
-        // 2 Putts from 15ft (Exp 1.6 - 2 = -0.4)
+        // 2 Putts from 15ft (Exp 1.6 - 1.45 (next) - 1 = -0.85) // 15ft to made? No, 15ft to 3ft?
+        // Wait, setup has: 15ft (Exp 1.6), 10ft (Exp 1.45), 3ft (Exp 1.05)
+        // Putt 1 (15ft to 3ft): 1.6 - 1.05 - 1 = -0.45
+        // Putt 2 (3ft made): 1.05 - 1 = 0.05
+        // Total Putt raw SG: -0.4 
         // Total Raw SG = 0.2 + 0.4 - 0.4 = 0.2
         
         val stat = com.golftracker.data.entity.HoleStat(
             id = 1, roundId = 1, holeId = 1, score = 4,
             teeOutcome = com.golftracker.data.model.ShotOutcome.ON_TARGET,
-            putts = 2
+            putts = 2,
+            isScored = true
         )
         
         val shots = listOf(
@@ -729,24 +734,37 @@ class StrokesGainedCalculatorTest {
         )
         
         val putts = listOf(
-            com.golftracker.data.entity.Putt(holeStatId = 1, puttNumber = 3, distance = 15f, made = false),
-            com.golftracker.data.entity.Putt(holeStatId = 1, puttNumber = 4, distance = 3f, made = true)
+            com.golftracker.data.entity.Putt(holeStatId = 1, puttNumber = 1, distance = 15f, made = false),
+            com.golftracker.data.entity.Putt(holeStatId = 1, puttNumber = 2, distance = 3f, made = true)
         )
         
-        // Adjustment of 0.1 per shot. Total 4 shots (2 full + 2 putts) = 0.4 adjustment.
-        val adjustment = 0.1
+        // Total gap 5.14 for 18 holes. 
+        // Hole weight = 1/18. Hole adjustment = 5.14 / 18 = 0.2855
+        // Categorical gaps: Tee (1.78), Approach (2.03), Putting (0.94)
+        // Hole Tee Adj = holeWeight * 1.78 = 0.0988
+        // Hole Approach Adj = holeWeight * 2.03 = 0.1127
+        // Hole Putting Adj = holeWeight * 0.94 = 0.0522
+        
         val breakdown = calculator.calculateHoleSg(
             par = 4, holeYardage = 400,
             shots = shots, putts = putts, penalties = emptyList(), stat = stat,
-            adjustmentPerShot = adjustment
+            totalRoundAdjustment = 5.14,
+            numHoles = 18
         )
         
-        // Raw SG + Adjustment
-        assertEquals(0.2 + adjustment, breakdown.offTee, 0.01) // Shot 1
-        assertEquals(0.4 + adjustment, breakdown.approach, 0.01) // Shot 2
-        assertEquals(-0.4 + (2 * adjustment), breakdown.putting, 0.01) // 2 Putts
-        assertEquals(0.4, breakdown.courseRatingAdjustment, 0.01)
-        assertEquals(0.6, breakdown.total, 0.01) // 0.2 raw + 0.4 adj
+        println("Categorical Adjustment Test:")
+        println("Off Tee: ${breakdown.offTee} (Expected: ${0.2 + 0.0988})")
+        println("Approach: ${breakdown.approach} (Expected: ${0.4 + 0.1127})")
+        println("Putting: ${breakdown.putting} (Expected: ${-0.4 + 0.0522})")
+        println("Total Adj: ${breakdown.courseRatingAdjustment} (Expected: 0.2855)")
+        
+        // Final stroke (Putt 2) is skipped.
+        // So Putt 1 gets ALL the hole's putting adjustment.
+        assertEquals(0.2 + 0.0988, breakdown.offTee, 0.001)
+        assertEquals(0.4 + 0.1127, breakdown.approach, 0.001)
+        assertEquals(-0.4 + 0.0522, breakdown.putting, 0.001)
+        // Total hole adjustment = (1.78 + 2.03 + 0.94) / 18 = 4.75 / 18 = 0.263888
+        assertEquals(0.26388, breakdown.courseRatingAdjustment, 0.001)
     }
 
     @Test
@@ -808,52 +826,57 @@ class StrokesGainedCalculatorTest {
     }
 
     @Test
-    fun testCalculateHoleSg_DoubleCountingTheory() {
+    fun testCalculateHoleSg_AdjustmentFinalShotSkip() {
         val csvData = """
             Header,Distance,Tee,Fairway,Rough,Sand,Recovery,Other,GreenDist,GreenPutts,Other,Other,Other,Other,Other
             ,10,0.0,2.20,2.49,2.41,2.8,,5,1.42,,,,
-            ,340,3.86,3.88,4.02,4.26,4.44,,10,1.61,,,,
-            ,360,3.92,3.95,4.11,4.41,4.56,,15,1.78,,,,
+            ,400,4.2,4.1,4.3,4.5,4.7,,400.0,4.5,,,,
         """.trimIndent()
         
         val inputStream = ByteArrayInputStream(csvData.toByteArray())
         every { context.resources.openRawResource(any()) } returns inputStream
         calculator = StrokesGainedCalculator(context)
 
-        // Simulate SgRecalculationUseCase behavior:
-        // Shot 1 is missing from tracked shots, so heuristic fires.
-        // But the drive IS tracked as Shot 2.
-        
         val stat = com.golftracker.data.entity.HoleStat(
-            id = 1, roundId = 1, holeId = 1, score = 3,
-            putts = 1,
+            id = 1, roundId = 1, holeId = 1, score = 4,
+            teeOutcome = com.golftracker.data.model.ShotOutcome.ON_TARGET,
+            putts = 2,
             isScored = true
         )
         
         val shots = listOf(
-            com.golftracker.data.entity.Shot(
-                holeStatId = 1, shotNumber = 2, distanceToPin = 350, 
-                lie = ApproachLie.TEE, outcome = com.golftracker.data.model.ShotOutcome.ON_TARGET
-            )
+            com.golftracker.data.entity.Shot(holeStatId = 1, shotNumber = 1, distanceToPin = 400, lie = ApproachLie.TEE),
+            com.golftracker.data.entity.Shot(holeStatId = 1, shotNumber = 2, distanceToPin = 150, lie = ApproachLie.FAIRWAY)
         )
         
         val putts = listOf(
-            com.golftracker.data.entity.Putt(
-                holeStatId = 1, puttNumber = 3, distance = 10f, made = true
-            )
+            com.golftracker.data.entity.Putt(holeStatId = 1, puttNumber = 1, distance = 15f, made = false),
+            com.golftracker.data.entity.Putt(holeStatId = 1, puttNumber = 2, distance = 3f, made = true) // Hole out
         )
         
+        // 0.1 total adjustment per hole? No, let's use 5.14 / 18 = 0.2855
+        val adjustment = 5.14
         val breakdown = calculator.calculateHoleSg(
-            par = 4, holeYardage = 350,
-            shots = shots, putts = putts, penalties = emptyList(), stat = stat
+            par = 4, holeYardage = 400,
+            shots = shots, putts = putts, penalties = emptyList(), stat = stat,
+            totalRoundAdjustment = adjustment,
+            numHoles = 18
         )
         
-        println("Double Counting Results:")
-        println("Off Tee: ${breakdown.offTee}")
-        println("Approach: ${breakdown.approach}")
-        println("Shot SGs: ${breakdown.shotSgs}")
+        // Total adjustment should be 0.2638 (Tee + Approach + Putter portions)
+        assertEquals(0.26388, breakdown.courseRatingAdjustment, 0.001)
         
-        // This would result in OffTee = 1.28 and Approach = 1.28
-        // Total = 2.56.
+        // Final shot SG should be raw (3ft putt made: 1.42 exp - 1.0 = 0.42)
+        val finalPuttSg = breakdown.puttSgs.find { it.first == 2 }?.second ?: 0.0
+        assertEquals(0.42, finalPuttSg, 0.01) // No adjustment added
+        
+        // Previous putt (15ft) should have adjustment. 
+        // 15ft is interpolate between 5ft (1.42) and 400ft (4.5)? No, wait.
+        // Let's just check if it has the 0.1 adjustment.
+        // Raw SG for 15ft to 3ft:
+        // ExStart(15ft) = ?? 
+        // ExEnd(3ft) = 1.42
+        // Raw = ExStart - 1.42 - 1.0
+        // Adjusted = Raw + 0.1
     }
 }

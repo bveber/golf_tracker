@@ -97,35 +97,23 @@ class RoundHistoryViewModel @Inject constructor(
         val stats = roundWithDetails.holeStats
         var totalScore = 0
         var totalPar = 0
-        var totalLiveSg = 0.0
+        var totalSg = 0.0
         
         val teeSetId = roundWithDetails.round.teeSetId
-        val coursePar = parMap[roundWithDetails.course.id] ?: 72
             
         stats.forEach { hole ->
-            val defaultYardage = yardageMap[teeSetId to hole.hole.id]?.yardage ?: 0
-            val holeYardage = hole.holeStat.adjustedYardage ?: defaultYardage
-            
-            val result = sgRecalculationUseCase.calculateHoleData(
-                par = hole.hole.par,
-                holeYardage = holeYardage,
-                stat = hole.holeStat,
-                shots = hole.shots,
-                putts = hole.putts,
-                penalties = hole.penalties
-            )
-            
-            if (result.updatedStat.score > 0) {
-                totalScore += result.updatedStat.score
+            val stat = hole.holeStat
+            if (stat.score > 0) {
+                totalScore += stat.score
                 totalPar += hole.hole.par
             }
-            totalLiveSg += result.totalSg
+            totalSg += stat.strokesGained ?: 0.0
         }
         
         return RoundScoreData(
             score = totalScore,
             toPar = if (totalScore > 0) totalScore - totalPar else 0,
-            totalSg = totalLiveSg,
+            totalSg = totalSg,
             teeName = roundWithDetails.teeSet.name,
             rating = roundWithDetails.teeSet.rating.toDouble(),
             slope = roundWithDetails.teeSet.slope,
