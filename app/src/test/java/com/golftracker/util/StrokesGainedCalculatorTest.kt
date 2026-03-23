@@ -297,7 +297,8 @@ class StrokesGainedCalculatorTest {
         val stat = com.golftracker.data.entity.HoleStat(
             id = 1, roundId = 1, holeId = 1, score = 5,
             teeOutcome = com.golftracker.data.model.ShotOutcome.MISS_LEFT, // Cutting corner
-            putts = 2
+            putts = 2,
+            isScored = true
         )
         
         val shots = listOf(
@@ -330,7 +331,8 @@ class StrokesGainedCalculatorTest {
         val stat = com.golftracker.data.entity.HoleStat(
             id = 1, roundId = 1, holeId = 1, score = 4,
             chips = 1, chipDistance = 10, chipLie = ApproachLie.FAIRWAY,
-            putts = 1
+            putts = 1,
+            isScored = true
         )
         
         val shots = listOf(
@@ -702,5 +704,153 @@ class StrokesGainedCalculatorTest {
         
         // The gains/losses from Shot 3 and Shot 4 are in "Approach".
         assertEquals(-0.068, breakdown.approach, 0.01)
+    }
+
+    @Test
+    fun testCalculateHoleSg_WithAdjustment() {
+        // Par 4, 400y.
+        // Shot 1: Tee to 150y Fairway (Exp 4.2 - 3.0 - 1 = 0.2)
+        // Shot 2: 150y Fairway to 15ft Green (Exp 3.0 - 1.6 - 1 = 0.4)
+        // 2 Putts from 15ft (Exp 1.6 - 2 = -0.4)
+        // Total Raw SG = 0.2 + 0.4 - 0.4 = 0.2
+        
+        val stat = com.golftracker.data.entity.HoleStat(
+            id = 1, roundId = 1, holeId = 1, score = 4,
+            teeOutcome = com.golftracker.data.model.ShotOutcome.ON_TARGET,
+            putts = 2
+        )
+        
+        val shots = listOf(
+            com.golftracker.data.entity.Shot(holeStatId = 1, shotNumber = 1, distanceToPin = 400, lie = ApproachLie.TEE),
+            com.golftracker.data.entity.Shot(holeStatId = 1, shotNumber = 2, distanceToPin = 150, lie = ApproachLie.FAIRWAY)
+        )
+        
+        val putts = listOf(
+            com.golftracker.data.entity.Putt(holeStatId = 1, puttNumber = 3, distance = 15f, made = false),
+            com.golftracker.data.entity.Putt(holeStatId = 1, puttNumber = 4, distance = 3f, made = true)
+        )
+        
+        // Adjustment of 0.1 per shot. Total 4 shots (2 full + 2 putts) = 0.4 adjustment.
+        val adjustment = 0.1
+        val breakdown = calculator.calculateHoleSg(
+            par = 4, holeYardage = 400,
+            shots = shots, putts = putts, penalties = emptyList(), stat = stat,
+            adjustmentPerShot = adjustment
+        )
+        
+        // Raw SG + Adjustment
+        assertEquals(0.2 + adjustment, breakdown.offTee, 0.01) // Shot 1
+        assertEquals(0.4 + adjustment, breakdown.approach, 0.01) // Shot 2
+        assertEquals(-0.4 + (2 * adjustment), breakdown.putting, 0.01) // 2 Putts
+        assertEquals(0.4, breakdown.courseRatingAdjustment, 0.01)
+        assertEquals(0.6, breakdown.total, 0.01) // 0.2 raw + 0.4 adj
+    }
+
+    @Test
+    fun testCalculateHoleSg_UserReportedDrivingGreen() {
+        // Mock the actual baseline data values for 340, 350, 360, and 10ft putt.
+        val csvData = """
+            Header,Distance,Tee,Fairway,Rough,Sand,Recovery,Other,GreenDist,GreenPutts,Other,Other,Other,Other,Other
+            ,10,0.0,2.20,2.49,2.41,2.8,,5,1.42,,,,
+            ,340,3.86,3.88,4.02,4.26,4.44,,10,1.61,,,,
+            ,360,3.92,3.95,4.11,4.41,4.56,,15,1.78,,,,
+        """.trimIndent()
+        
+        val inputStream = ByteArrayInputStream(csvData.toByteArray())
+        every { context.resources.openRawResource(any()) } returns inputStream
+        calculator = StrokesGainedCalculator(context)
+
+        // Scenario: 350y Par 4. Tee shot goes to 10ft from pin (on green).
+        // Expected SG = 3.89 - 1.61 - 1.0 = 1.28
+        
+        val stat = com.golftracker.data.entity.HoleStat(
+            id = 1, roundId = 1, holeId = 1, score = 3, // Birdie
+            putts = 1,
+            isScored = true
+        )
+        
+        val shots = listOf(
+            com.golftracker.data.entity.Shot(
+                holeStatId = 1, shotNumber = 1, distanceToPin = 350, 
+                lie = ApproachLie.TEE, outcome = com.golftracker.data.model.ShotOutcome.ON_TARGET
+            )
+        )
+        
+        val putts = listOf(
+            com.golftracker.data.entity.Putt(
+                holeStatId = 1, puttNumber = 2, distance = 10f, made = true
+            )
+        )
+        
+
+        val breakdown = calculator.calculateHoleSg(
+            par = 4, holeYardage = 350,
+            shots = shots, putts = putts, penalties = emptyList(), stat = stat
+        )
+        
+        println("User Scenario Results:")
+        println("Off Tee: ${breakdown.offTee}")
+        println("Approach: ${breakdown.approach}")
+        println("Total: ${breakdown.total}")
+        println("Shot SGs: ${breakdown.shotSgs}")
+        
+        // Debug intermediate values for 350y Tee and 10ft Putt
+        val expStart = calculator.getExpectedStrokes(350, ApproachLie.TEE, true)
+        val expEnd = calculator.getExpectedPutts(10f)
+        println("Exp Start (350y Tee): $expStart")
+        println("Exp End (10ft Putt): $expEnd")
+        
+        // If we assumed hole out:
+        println("SG if holed out: ${expStart - 0.0 - 1.0}")
+    }
+
+    @Test
+    fun testCalculateHoleSg_DoubleCountingTheory() {
+        val csvData = """
+            Header,Distance,Tee,Fairway,Rough,Sand,Recovery,Other,GreenDist,GreenPutts,Other,Other,Other,Other,Other
+            ,10,0.0,2.20,2.49,2.41,2.8,,5,1.42,,,,
+            ,340,3.86,3.88,4.02,4.26,4.44,,10,1.61,,,,
+            ,360,3.92,3.95,4.11,4.41,4.56,,15,1.78,,,,
+        """.trimIndent()
+        
+        val inputStream = ByteArrayInputStream(csvData.toByteArray())
+        every { context.resources.openRawResource(any()) } returns inputStream
+        calculator = StrokesGainedCalculator(context)
+
+        // Simulate SgRecalculationUseCase behavior:
+        // Shot 1 is missing from tracked shots, so heuristic fires.
+        // But the drive IS tracked as Shot 2.
+        
+        val stat = com.golftracker.data.entity.HoleStat(
+            id = 1, roundId = 1, holeId = 1, score = 3,
+            putts = 1,
+            isScored = true
+        )
+        
+        val shots = listOf(
+            com.golftracker.data.entity.Shot(
+                holeStatId = 1, shotNumber = 2, distanceToPin = 350, 
+                lie = ApproachLie.TEE, outcome = com.golftracker.data.model.ShotOutcome.ON_TARGET
+            )
+        )
+        
+        val putts = listOf(
+            com.golftracker.data.entity.Putt(
+                holeStatId = 1, puttNumber = 3, distance = 10f, made = true
+            )
+        )
+        
+        val breakdown = calculator.calculateHoleSg(
+            par = 4, holeYardage = 350,
+            shots = shots, putts = putts, penalties = emptyList(), stat = stat
+        )
+        
+        println("Double Counting Results:")
+        println("Off Tee: ${breakdown.offTee}")
+        println("Approach: ${breakdown.approach}")
+        println("Shot SGs: ${breakdown.shotSgs}")
+        
+        // This would result in OffTee = 1.28 and Approach = 1.28
+        // Total = 2.56.
     }
 }

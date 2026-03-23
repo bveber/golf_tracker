@@ -4,6 +4,15 @@ import android.content.Context
 import android.content.pm.PackageManager
 import com.golftracker.data.repository.CourseRepository
 import com.golftracker.data.repository.RoundRepository
+import com.golftracker.data.entity.Hole
+import com.golftracker.data.entity.HoleStat
+import com.golftracker.data.entity.Shot
+import com.golftracker.data.entity.Putt
+import com.golftracker.data.entity.Penalty
+import com.golftracker.data.entity.TeeSet
+import com.golftracker.data.entity.Club
+import com.golftracker.data.model.RoundWithDetails
+import com.golftracker.data.model.HoleStatWithHole
 import com.golftracker.data.model.ShotOutcome
 import com.golftracker.data.model.ApproachLie
 import com.golftracker.util.StrokesGainedCalculator
@@ -13,6 +22,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
+
+data class HoleCalculationResult(
+    val updatedStat: HoleStat,
+    val correctedShots: List<Shot>,
+    val correctedPutts: List<Putt>,
+    val totalSg: Double,
+    val difficultyAdjustment: Double
+)
 
 /**
  * Recalculates and persists Strokes Gained for all finalized rounds whenever the
@@ -39,16 +56,165 @@ class SgRecalculationUseCase @Inject constructor(
      * when the current app [versionCode] differs from the last time recalculation ran.
      */
     suspend fun runIfNeeded() = withContext(Dispatchers.IO) {
-        val currentVersion = getVersionCode()
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val lastVersion = prefs.getLong(KEY_LAST_VERSION, -1L)
-
-        if (currentVersion == lastVersion) return@withContext
-
+        // Force recalculation on every startup for now to ensure consistency
         recalculateAll()
-
-        prefs.edit().putLong(KEY_LAST_VERSION, currentVersion).apply()
     }
+
+    /**
+     * Recalculates and persists Strokes Gained for all holes and shots in a specific round.
+     */
+    suspend fun recalculateRound(roundId: Int) = withContext(Dispatchers.IO) {
+        val roundWithDetails = roundRepository.getRoundWithDetails(roundId) ?: return@withContext
+        val allYardages = courseRepository.allYardages.first()
+        val allHoles = courseRepository.allHoles.first()
+        
+        val adjustmentPerShot = calculateAdjustmentPerShot(roundWithDetails.round)
+        recalculateSingleRound(roundWithDetails, allYardages, allHoles, adjustmentPerShot)
+    }
+
+    /**
+     * Performs a full recalculation of a single hole's stats and individual shot/putt SG.
+     */
+    suspend fun recalculateHole(
+        roundId: Int,
+        holeId: Int,
+        providedStat: HoleStat? = null,
+        providedShots: List<Shot>? = null,
+        providedPutts: List<Putt>? = null,
+        providedPenalties: List<Penalty>? = null,
+        providedAdjustment: Double? = null
+    ): HoleStat? = withContext(Dispatchers.IO) {
+        val round = roundRepository.getRound(roundId) ?: return@withContext null
+        val hole = courseRepository.getHole(holeId).first() ?: return@withContext null
+        
+        val record = providedStat ?: roundRepository.getHoleStat(roundId, holeId) ?: return@withContext null
+        val shots = providedShots ?: roundRepository.getShotsForHoleStat(record.id).first()
+        val putts = providedPutts ?: roundRepository.getPuttsForHoleStat(record.id).first()
+        val penalties = providedPenalties ?: roundRepository.getPenaltiesForHoleStat(record.id).first()
+        
+        val yardageList = courseRepository.getYardagesForTeeSet(round.teeSetId).first()
+        val defaultYardage = yardageList.find { it.holeId == hole.id }?.yardage ?: return@withContext null
+        val holeYardage = record.adjustedYardage ?: defaultYardage
+
+        val adjustmentPerShot = providedAdjustment ?: calculateAdjustmentPerShot(round)
+
+        // Unified Calculation Logic
+        val result = calculateHoleData(
+            par = hole.par,
+            holeYardage = holeYardage,
+            stat = record,
+            shots = shots,
+            putts = putts,
+            penalties = penalties,
+            adjustmentPerShot = adjustmentPerShot
+        )
+
+        // Persistence
+        for (corrected in result.correctedShots) {
+            val original = shots.find { it.id == corrected.id }
+            if (original != null && (original.shotNumber != corrected.shotNumber || original.strokesGained != corrected.strokesGained)) {
+                roundRepository.updateShot(corrected)
+            }
+        }
+
+        for (corrected in result.correctedPutts) {
+            val original = putts.find { it.id == corrected.id }
+            if (original != null && (original.puttNumber != corrected.puttNumber || original.strokesGained != corrected.strokesGained)) {
+                roundRepository.updatePutt(corrected)
+            }
+        }
+
+        if (result.updatedStat != record) {
+            roundRepository.updateHoleStat(result.updatedStat)
+        }
+        
+        result.updatedStat
+    }
+
+    /**
+     * Pure calculation logic for a hole, including shot number correction, SG, score, and GIR.
+     * Does NOT touch the database.
+     */
+    fun calculateHoleData(
+        par: Int,
+        holeYardage: Int,
+        stat: HoleStat,
+        shots: List<Shot>,
+        putts: List<Putt>,
+        penalties: List<Penalty>,
+        adjustmentPerShot: Double = 0.0
+    ): HoleCalculationResult {
+        // 1. Shot Number Correction (De-duplication & Offset)
+        val driveIsTracked = shots.any { it.shotNumber == 1 || it.lie == ApproachLie.TEE }
+        val teeShotInStat = par > 3 && (stat.teeOutcome != null || stat.teeShotDistance != null || stat.teeClubId != null)
+        val shotNumberOffset = if (teeShotInStat && !driveIsTracked) 2 else 1
+        
+        val sortedShots = shots.sortedBy { it.shotNumber }
+        val correctedShots = sortedShots.mapIndexed { index, shot ->
+            val expectedNumber = index + shotNumberOffset
+            shot.copy(shotNumber = expectedNumber)
+        }
+
+        // 2. Strokes Gained Calculation
+        val breakdown = sgCalculator.calculateHoleSg(
+            par = par,
+            holeYardage = holeYardage,
+            shots = correctedShots,
+            putts = putts.sortedBy { it.puttNumber },
+            penalties = penalties,
+            stat = stat,
+            adjustmentPerShot = adjustmentPerShot
+        )
+
+        // 3. Mark SG on shots/putts
+        val finalizedShots = correctedShots.map { shot ->
+            val sg = breakdown.shotSgs.find { it.first == shot.shotNumber }?.second
+            shot.copy(strokesGained = sg)
+        }
+
+        val finalizedPutts = putts.sortedBy { it.puttNumber }.map { putt ->
+            val sg = breakdown.puttSgs.find { it.first == putt.puttNumber }?.second
+            putt.copy(strokesGained = sg)
+        }
+
+        // 4. Score & GIR Calculation
+        val totalSg = breakdown.total
+        val shortGameStrokes = stat.chips + stat.sandShots
+        val teeShotTaken = par > 3 && (stat.teeOutcome != null || stat.teeShotDistance != null || stat.teeClubId != null || stat.teeLat != null)
+        val holedOutFromOffGreen = (stat.teeOutcome == ShotOutcome.HOLED_OUT) || finalizedShots.any { it.outcome == ShotOutcome.HOLED_OUT }
+        
+        val calculatedScore = (if (teeShotTaken && finalizedShots.none { it.shotNumber == 1 }) 1 else 0) + 
+            finalizedShots.size + 
+            shortGameStrokes + 
+            stat.putts + 
+            penalties.sumOf { it.strokes }
+            
+        val finishedHole = holedOutFromOffGreen || (stat.putts > 0 && finalizedPutts.any { it.made })
+        val newScore = calculatedScore
+        val hasData = teeShotTaken || finalizedShots.isNotEmpty() || finalizedPutts.isNotEmpty() || shortGameStrokes > 0 || penalties.isNotEmpty()
+        val isGir = finishedHole && (newScore - stat.putts <= par - 2)
+
+        val updatedStat = stat.copy(
+            score = if (stat.scoreManual) stat.score else newScore,
+            strokesGained = if (hasData) totalSg else null,
+            sgOffTee = if (hasData) breakdown.offTee else null,
+            sgApproach = if (hasData) breakdown.approach else null,
+            sgAroundGreen = if (hasData) breakdown.aroundGreen else null,
+            sgPutting = if (hasData) breakdown.putting else null,
+            gir = isGir,
+            sgOffTeeExpected = if (hasData) breakdown.offTeeExpected else null,
+            difficultyAdjustment = if (hasData) breakdown.courseRatingAdjustment else 0.0
+        )
+
+        return HoleCalculationResult(
+            updatedStat = updatedStat,
+            correctedShots = finalizedShots,
+            correctedPutts = finalizedPutts,
+            totalSg = totalSg,
+            difficultyAdjustment = breakdown.courseRatingAdjustment
+        )
+    }
+
 
     private suspend fun recalculateAll() {
         val allRoundsWithDetails = roundRepository.finalizedRoundsWithDetails.first()
@@ -56,68 +222,53 @@ class SgRecalculationUseCase @Inject constructor(
         val allHoles = courseRepository.allHoles.first()
 
         for (roundWithDetails in allRoundsWithDetails) {
-            val round = roundWithDetails.round
-            val teeSet = roundWithDetails.teeSet
-            val coursePar = allHoles
-                .filter { it.courseId == round.courseId }
-                .sumOf { it.par }
-                .takeIf { it > 0 } ?: 72
-
-            for (holeStatWithHole in roundWithDetails.holeStats) {
-                val hole = holeStatWithHole.hole
-                val holeStat = holeStatWithHole.holeStat
-
-                val defaultYardage = allYardages
-                    .firstOrNull { it.holeId == hole.id && it.teeSetId == round.teeSetId }
-                    ?.yardage ?: continue
-                val holeYardage = holeStat.adjustedYardage ?: defaultYardage
-
-                val breakdown = sgCalculator.calculateHoleSg(
-                    par = hole.par,
-                    holeYardage = holeYardage,
-                    shots = holeStatWithHole.shots,
-                    putts = holeStatWithHole.putts,
-                    penalties = holeStatWithHole.penalties,
-                    stat = holeStat
-                )
-
-                val hasData = holeStat.teeOutcome != null ||
-                        holeStat.teeShotDistance != null ||
-                        holeStatWithHole.shots.isNotEmpty() ||
-                        holeStatWithHole.putts.isNotEmpty() ||
-                        holeStat.chips > 0
-
-                val updatedStat = holeStat.copy(
-                    strokesGained = if (hasData) breakdown.total else null,
-                    sgOffTee = if (hasData) breakdown.offTee else null,
-                    sgApproach = if (hasData) breakdown.approach else null,
-                    sgAroundGreen = if (hasData) breakdown.aroundGreen else null,
-                    sgPutting = if (hasData) breakdown.putting else null
-                )
-
-                if (updatedStat != holeStat) {
-                    roundRepository.updateHoleStat(updatedStat)
-                }
-
-                // Also update per-shot SG values
-                for (shot in holeStatWithHole.shots) {
-                    val sg = breakdown.shotSgs.find { it.first == shot.shotNumber }?.second
-                    val updated = shot.copy(strokesGained = sg)
-                    if (updated != shot) {
-                        roundRepository.updateShot(updated)
-                    }
-                }
-
-                // And per-putt SG values
-                for (putt in holeStatWithHole.putts) {
-                    val sg = breakdown.puttSgs.find { it.first == putt.puttNumber }?.second
-                    val updated = putt.copy(strokesGained = sg)
-                    if (updated != putt) {
-                        roundRepository.updatePutt(updated)
-                    }
-                }
-            }
+            val adjustmentPerShot = calculateAdjustmentPerShot(roundWithDetails.round)
+            recalculateSingleRound(roundWithDetails, allYardages, allHoles, adjustmentPerShot)
         }
+    }
+
+    private suspend fun recalculateSingleRound(
+        roundWithDetails: RoundWithDetails,
+        allYardages: List<com.golftracker.data.entity.HoleTeeYardage>,
+        allHoles: List<com.golftracker.data.entity.Hole>,
+        adjustmentPerShot: Double = 0.0
+    ) {
+        for (holeStatWithHole in roundWithDetails.holeStats) {
+            recalculateHole(
+                roundId = roundWithDetails.round.id,
+                holeId = holeStatWithHole.hole.id,
+                providedStat = holeStatWithHole.holeStat,
+                providedShots = holeStatWithHole.shots,
+                providedPutts = holeStatWithHole.putts,
+                providedPenalties = holeStatWithHole.penalties,
+                providedAdjustment = adjustmentPerShot
+            )
+        }
+    }
+
+    internal suspend fun calculateAdjustmentPerShot(round: com.golftracker.data.entity.Round): Double {
+        val teeSet = courseRepository.getTeeSet(round.teeSetId) ?: return 0.0
+        if (teeSet.rating == 0.0) return 0.0
+        
+        val is9Holes = round.totalHoles == 9
+        val courseRating = if (is9Holes) teeSet.rating / 2.0 else teeSet.rating
+        
+        // Calculate total par for the round
+        val allHoles = courseRepository.getHoles(round.courseId).first()
+        val playedHoles = if (is9Holes) {
+            if (round.startHole == 1) allHoles.filter { it.holeNumber in 1..9 }
+            else allHoles.filter { it.holeNumber in 10..18 }
+        } else {
+            allHoles
+        }
+        val totalPar = playedHoles.sumOf { it.par }.toDouble()
+        if (totalPar == 0.0) return 0.0
+
+        val roundAdjustment = courseRating - totalPar
+        
+        // Normalize the adjustment per shot by dividing by the total expected strokes (Course Rating).
+        // Using actualStrokes causes spikes in incomplete rounds (e.g., after only 1 hole).
+        return roundAdjustment / courseRating
     }
 
     private fun getVersionCode(): Long {

@@ -11,12 +11,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.util.Calendar
 import javax.inject.Inject
 
 data class HandicapUiState(
     val handicapIndex: Double? = null,
     val estimatedHandicap: Double? = null,
     val differentials: List<HandicapCalculator.Differential> = emptyList(),
+    val timeSeries: List<HandicapCalculator.HandicapPoint> = emptyList(),
+    val availableYears: List<Int> = emptyList(),
+    val selectedYear: Int = Calendar.getInstance().get(Calendar.YEAR),
     val isLoading: Boolean = true
 )
 
@@ -26,14 +30,20 @@ class HandicapViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
-    val uiState: StateFlow<HandicapUiState> = kotlinx.coroutines.flow.combine(
+    val uiState: StateFlow<HandicapUiState> = combine(
         roundRepository.finalizedRoundsWithDetails,
         userPreferencesRepository.estimatedHandicapFlow
     ) { rounds, estimatedHandicap ->
+        val currentYear = Calendar.getInstance().get(Calendar.YEAR)
         val index = HandicapCalculator.calculateHandicapIndex(rounds)
-        val diffs = HandicapCalculator.calculateDifferentials(rounds)
-        
-        // Clear the estimated handicap if 3 or more rounds have been tracked
+        val diffs = HandicapCalculator.calculateDifferentials(rounds, currentYear)
+        val series = HandicapCalculator.buildHandicapTimeSeries(rounds)
+        val years = rounds
+            .map { Calendar.getInstance().also { c -> c.time = it.round.date }.get(Calendar.YEAR) }
+            .distinct()
+            .sortedDescending()
+
+        // Clear the estimated handicap if an official index is now available
         if (index != null && estimatedHandicap != null) {
             viewModelScope.launch {
                 userPreferencesRepository.setEstimatedHandicap(null)
@@ -44,6 +54,9 @@ class HandicapViewModel @Inject constructor(
             handicapIndex = index,
             estimatedHandicap = estimatedHandicap,
             differentials = diffs,
+            timeSeries = series,
+            availableYears = years,
+            selectedYear = currentYear,
             isLoading = false
         )
     }

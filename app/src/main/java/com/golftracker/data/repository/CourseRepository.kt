@@ -40,6 +40,10 @@ class CourseRepository @Inject constructor(
     val allHoles: Flow<List<Hole>> = courseDao.getAllHoles()
 
     fun getHoles(courseId: Int): Flow<List<Hole>> = courseDao.getHoles(courseId)
+    
+    fun getHole(holeId: Int): Flow<Hole?> = courseDao.getHoleFlow(holeId)
+    
+    suspend fun getHoleById(holeId: Int): Hole? = courseDao.getHole(holeId)
 
     suspend fun insertHole(hole: Hole) = courseDao.insertHole(hole)
 
