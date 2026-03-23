@@ -745,26 +745,38 @@ class StrokesGainedCalculatorTest {
         // Hole Approach Adj = holeWeight * 2.03 = 0.1127
         // Hole Putting Adj = holeWeight * 0.94 = 0.0522
         
+        // Passing 7.14 as totalRoundAdjustment (5.14 scratch + 2.0 course)
         val breakdown = calculator.calculateHoleSg(
             par = 4, holeYardage = 400,
             shots = shots, putts = putts, penalties = emptyList(), stat = stat,
-            totalRoundAdjustment = 5.14,
+            totalRoundAdjustment = 7.14,
             numHoles = 18
         )
         
-        println("Categorical Adjustment Test:")
-        println("Off Tee: ${breakdown.offTee} (Expected: ${0.2 + 0.0988})")
-        println("Approach: ${breakdown.approach} (Expected: ${0.4 + 0.1127})")
-        println("Putting: ${breakdown.putting} (Expected: ${-0.4 + 0.0522})")
-        println("Total Adj: ${breakdown.courseRatingAdjustment} (Expected: 0.2855)")
+        val totalHoleAdj = 7.14 / 18.0 // 0.3966
+        val expTeeAdj = totalHoleAdj * (1.78 / 5.14) // 0.1373
+        val expApproachAdj = totalHoleAdj * (2.03 / 5.14) // 0.1566
+        val expPuttingAdj = totalHoleAdj * (0.94 / 5.14) // 0.0725
         
-        // Final stroke (Putt 2) is skipped.
-        // So Putt 1 gets ALL the hole's putting adjustment.
-        assertEquals(0.2 + 0.0988, breakdown.offTee, 0.001)
-        assertEquals(0.4 + 0.1127, breakdown.approach, 0.001)
-        assertEquals(-0.4 + 0.0522, breakdown.putting, 0.001)
-        // Total hole adjustment = (1.78 + 2.03 + 0.94) / 18 = 4.75 / 18 = 0.263888
-        assertEquals(0.26388, breakdown.courseRatingAdjustment, 0.001)
+        println("Categorical Adjustment Test:")
+        println("Off Tee: ${breakdown.offTee} (Expected: ${0.2 + expTeeAdj})")
+        println("Approach: ${breakdown.approach} (Expected: ${0.4 + expApproachAdj})")
+        println("Putting: ${breakdown.putting} (Expected: ${-0.4 + expPuttingAdj})")
+        
+        // Verify split
+        val expCourseTotal = 2.0 / 18.0 // 0.1111
+        val expScratchTotal = 5.14 / 18.0 // 0.2855
+        // Only Tee, Approach, and Putting are adjusted. Total = 1.78 + 2.03 + 0.94 = 4.75.
+        // Total Adjusted = (4.75 / 5.14) * TotalHoleAdj = (4.75 / 5.14) * 0.3966 = 0.3665
+        val expCourseHole = expCourseTotal * (4.75 / 5.14) // 0.1026
+        val expScratchHole = expScratchTotal * (4.75 / 5.14) // 0.2638
+
+        assertEquals(0.2 + expTeeAdj, breakdown.offTee, 0.001)
+        assertEquals(0.4 + expApproachAdj, breakdown.approach, 0.001)
+        assertEquals(-0.4 + expPuttingAdj, breakdown.putting, 0.001)
+        
+        assertEquals(expCourseHole, breakdown.courseRatingAdjustment, 0.001)
+        assertEquals(expScratchHole, breakdown.scratchAdjustment, 0.001)
     }
 
     @Test
@@ -854,8 +866,8 @@ class StrokesGainedCalculatorTest {
             com.golftracker.data.entity.Putt(holeStatId = 1, puttNumber = 2, distance = 3f, made = true) // Hole out
         )
         
-        // 0.1 total adjustment per hole? No, let's use 5.14 / 18 = 0.2855
-        val adjustment = 5.14
+        // 5.14 scratch + some course adj (e.g. 1.22 more for total 6.36)
+        val adjustment = 6.36 
         val breakdown = calculator.calculateHoleSg(
             par = 4, holeYardage = 400,
             shots = shots, putts = putts, penalties = emptyList(), stat = stat,
@@ -863,20 +875,18 @@ class StrokesGainedCalculatorTest {
             numHoles = 18
         )
         
-        // Total adjustment should be 0.2638 (Tee + Approach + Putter portions)
-        assertEquals(0.26388, breakdown.courseRatingAdjustment, 0.001)
+        // Total hole adjustment = 6.36 / 18 = 0.3533
+        // Course part = (6.36 - 5.14) / 18 = 1.22 / 18 = 0.0677
+        // Scratch part = 5.14 / 18 = 0.2855
+        // Gaps involved: Tee (1.78), Approach (2.03), Putting (0.94). Total = 4.75.
+        // Final Course Adj = 0.0677 * (4.75 / 5.14) = 0.06256
+        // Final Scratch Adj = 0.2855 * (4.75 / 5.14) = 0.26388
+        
+        assertEquals(0.06256, breakdown.courseRatingAdjustment, 0.001)
+        assertEquals(0.26388, breakdown.scratchAdjustment, 0.001)
         
         // Final shot SG should be raw (3ft putt made: 1.42 exp - 1.0 = 0.42)
         val finalPuttSg = breakdown.puttSgs.find { it.first == 2 }?.second ?: 0.0
         assertEquals(0.42, finalPuttSg, 0.01) // No adjustment added
-        
-        // Previous putt (15ft) should have adjustment. 
-        // 15ft is interpolate between 5ft (1.42) and 400ft (4.5)? No, wait.
-        // Let's just check if it has the 0.1 adjustment.
-        // Raw SG for 15ft to 3ft:
-        // ExStart(15ft) = ?? 
-        // ExEnd(3ft) = 1.42
-        // Raw = ExStart - 1.42 - 1.0
-        // Adjusted = Raw + 0.1
     }
 }

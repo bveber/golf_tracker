@@ -1016,7 +1016,7 @@ fun HoleTrackingScreen(
                                 )
                                 if (adj != 0.0) {
                                     Text(
-                                        "($rawSign${String.format(java.util.Locale.US, "%.2f", raw)} raw $adjSign${String.format(java.util.Locale.US, "%.2f", adj)} adj)",
+                                        "($rawSign${String.format(java.util.Locale.US, "%.2f", raw)} raw $adjSign${String.format(java.util.Locale.US, "%.2f", adj)} course adj)",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -1302,7 +1302,7 @@ private fun SummarySgItem(label: String, sg: Double?, adj: Double = 0.0, isAdjus
         if (adj != 0.0) {
             val adjSign = if (adj > 0) "+" else ""
             Text(
-                "${adjSign}${String.format(java.util.Locale.US, "%.2f", adj)} adj",
+                "${adjSign}${String.format(java.util.Locale.US, "%.2f", adj)} course adj",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
