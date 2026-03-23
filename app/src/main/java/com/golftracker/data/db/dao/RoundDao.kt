@@ -25,6 +25,8 @@ interface RoundDao {
     @Query("""
         SELECT DISTINCT r.* FROM rounds r
         LEFT JOIN hole_stats hs ON r.id = hs.round_id
+        LEFT JOIN shots s ON hs.id = s.hole_stat_id
+        LEFT JOIN putts p ON hs.id = p.hole_stat_id
         WHERE r.is_finalized = 1 
         ORDER BY r.date DESC
     """)

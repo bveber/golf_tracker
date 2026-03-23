@@ -844,11 +844,26 @@ class StatsRepository @Inject constructor(
         var totalLiveSg = 0.0
 
         for (round in rounds) {
-            val teeSet = round.round.teeSetId
-            val coursePar = parMap[round.round.courseId] ?: 72
+            // Calculate difficulty adjustment for the round
+            val is9Holes = round.round.totalHoles == 9
+            val teeSetId = round.round.teeSetId
+            val courseRating = if (is9Holes) round.teeSet.rating / 2.0 else round.teeSet.rating
             
+            // Note: StatsRepository usually should have correct ratings. 
+            // If rating is 0, we'll skip adjustment.
+            var totalRoundAdjustment = 0.0
+            if (courseRating > 0.0) {
+                var totalPgaExpected = 0.0
+                round.holeStats.forEach { hole ->
+                    val yardage = yardageMap[Pair(teeSetId, hole.hole.id)]?.yardage ?: hole.hole.par * 40
+                    totalPgaExpected += sgCalculator.getExpectedStrokes(yardage, ApproachLie.TEE, true)
+                }
+                totalRoundAdjustment = courseRating - totalPgaExpected
+            }
+            val numHoles = if (is9Holes) 9 else 18
+
             for (hole in round.holeStats) {
-                val defaultYardage = yardageMap[teeSet to hole.hole.id]?.yardage ?: 0
+                val defaultYardage = yardageMap[Pair(teeSetId, hole.hole.id)]?.yardage ?: 0
                 val holeYardage = hole.holeStat.adjustedYardage ?: defaultYardage
                 
                 val breakdown = sgCalculator.calculateHoleSg(
@@ -857,7 +872,9 @@ class StatsRepository @Inject constructor(
                     shots = hole.shots,
                     putts = hole.putts,
                     penalties = hole.penalties,
-                    stat = hole.holeStat
+                    stat = hole.holeStat,
+                    totalRoundAdjustment = totalRoundAdjustment,
+                    numHoles = numHoles
                 )
 
                 // Apply club filters to SG categories

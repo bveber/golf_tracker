@@ -68,8 +68,8 @@ class SgRecalculationUseCase @Inject constructor(
         val allYardages = courseRepository.allYardages.first()
         val allHoles = courseRepository.allHoles.first()
         
-        val adjustmentPerShot = calculateAdjustmentPerShot(roundWithDetails.round)
-        recalculateSingleRound(roundWithDetails, allYardages, allHoles, adjustmentPerShot)
+        val totalAdjustment = calculateTotalRoundAdjustment(roundWithDetails.round)
+        recalculateSingleRound(roundWithDetails, allYardages, allHoles, totalAdjustment)
     }
 
     /**
@@ -96,7 +96,7 @@ class SgRecalculationUseCase @Inject constructor(
         val defaultYardage = yardageList.find { it.holeId == hole.id }?.yardage ?: return@withContext null
         val holeYardage = record.adjustedYardage ?: defaultYardage
 
-        val adjustmentPerShot = providedAdjustment ?: calculateAdjustmentPerShot(round)
+        val totalAdjustment = providedAdjustment ?: calculateTotalRoundAdjustment(round)
 
         // Unified Calculation Logic
         val result = calculateHoleData(
@@ -106,7 +106,8 @@ class SgRecalculationUseCase @Inject constructor(
             shots = shots,
             putts = putts,
             penalties = penalties,
-            adjustmentPerShot = adjustmentPerShot
+            totalRoundAdjustment = totalAdjustment,
+            numHoles = if (round.totalHoles == 9) 9 else 18
         )
 
         // Persistence
@@ -142,7 +143,8 @@ class SgRecalculationUseCase @Inject constructor(
         shots: List<Shot>,
         putts: List<Putt>,
         penalties: List<Penalty>,
-        adjustmentPerShot: Double = 0.0
+        totalRoundAdjustment: Double = 0.0,
+        numHoles: Int = 18
     ): HoleCalculationResult {
         // 1. Shot Number Correction (De-duplication & Offset)
         val driveIsTracked = shots.any { it.shotNumber == 1 || it.lie == ApproachLie.TEE }
@@ -163,7 +165,8 @@ class SgRecalculationUseCase @Inject constructor(
             putts = putts.sortedBy { it.puttNumber },
             penalties = penalties,
             stat = stat,
-            adjustmentPerShot = adjustmentPerShot
+            totalRoundAdjustment = totalRoundAdjustment,
+            numHoles = numHoles
         )
 
         // 3. Mark SG on shots/putts
@@ -222,8 +225,8 @@ class SgRecalculationUseCase @Inject constructor(
         val allHoles = courseRepository.allHoles.first()
 
         for (roundWithDetails in allRoundsWithDetails) {
-            val adjustmentPerShot = calculateAdjustmentPerShot(roundWithDetails.round)
-            recalculateSingleRound(roundWithDetails, allYardages, allHoles, adjustmentPerShot)
+            val totalAdjustment = calculateTotalRoundAdjustment(roundWithDetails.round)
+            recalculateSingleRound(roundWithDetails, allYardages, allHoles, totalAdjustment)
         }
     }
 
@@ -231,7 +234,7 @@ class SgRecalculationUseCase @Inject constructor(
         roundWithDetails: RoundWithDetails,
         allYardages: List<com.golftracker.data.entity.HoleTeeYardage>,
         allHoles: List<com.golftracker.data.entity.Hole>,
-        adjustmentPerShot: Double = 0.0
+        totalRoundAdjustment: Double = 0.0
     ) {
         for (holeStatWithHole in roundWithDetails.holeStats) {
             recalculateHole(
@@ -241,19 +244,20 @@ class SgRecalculationUseCase @Inject constructor(
                 providedShots = holeStatWithHole.shots,
                 providedPutts = holeStatWithHole.putts,
                 providedPenalties = holeStatWithHole.penalties,
-                providedAdjustment = adjustmentPerShot
+                providedAdjustment = totalRoundAdjustment
             )
         }
     }
 
-    internal suspend fun calculateAdjustmentPerShot(round: com.golftracker.data.entity.Round): Double {
+    internal suspend fun calculateTotalRoundAdjustment(round: com.golftracker.data.entity.Round): Double {
         val teeSet = courseRepository.getTeeSet(round.teeSetId) ?: return 0.0
         if (teeSet.rating == 0.0) return 0.0
         
         val is9Holes = round.totalHoles == 9
         val courseRating = if (is9Holes) teeSet.rating / 2.0 else teeSet.rating
         
-        // Calculate total par for the round
+        // 1. Fetch yardages and holes for the round
+        val allYardages = courseRepository.getYardagesForTeeSet(round.teeSetId).first()
         val allHoles = courseRepository.getHoles(round.courseId).first()
         val playedHoles = if (is9Holes) {
             if (round.startHole == 1) allHoles.filter { it.holeNumber in 1..9 }
@@ -261,14 +265,22 @@ class SgRecalculationUseCase @Inject constructor(
         } else {
             allHoles
         }
-        val totalPar = playedHoles.sumOf { it.par }.toDouble()
-        if (totalPar == 0.0) return 0.0
-
-        val roundAdjustment = courseRating - totalPar
         
-        // Normalize the adjustment per shot by dividing by the total expected strokes (Course Rating).
-        // Using actualStrokes causes spikes in incomplete rounds (e.g., after only 1 hole).
-        return roundAdjustment / courseRating
+        if (playedHoles.isEmpty()) return 0.0
+
+        // 2. Calculate the Sum of PGA Expected Strokes for this set of holes
+        var totalPgaExpected = 0.0
+        playedHoles.forEach { hole ->
+            val yardage = allYardages.find { it.holeId == hole.id }?.yardage ?: hole.par * 40
+            totalPgaExpected += sgCalculator.getExpectedStrokes(
+                distance = yardage,
+                lie = ApproachLie.TEE,
+                isTeeShot = true
+            )
+        }
+
+        // 3. Difference between Scratch baseline (Course Rating) and PGA baseline
+        return courseRating - totalPgaExpected
     }
 
     private fun getVersionCode(): Long {

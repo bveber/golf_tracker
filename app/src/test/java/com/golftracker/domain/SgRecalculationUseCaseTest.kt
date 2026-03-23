@@ -26,32 +26,24 @@ class SgRecalculationUseCaseTest {
     )
 
     @Test
-    fun testCalculateAdjustmentPerShot_HardCourse() = runBlocking {
-        // Par 72, Rating 76.6
-        val teeSet = TeeSet(id = 1, courseId = 1, name = "Black", slope = 145, rating = 76.6)
+    fun testCalculateTotalRoundAdjustment_Basic() = runBlocking {
+        // Par 72, Rating 74.0
+        val teeSet = TeeSet(id = 1, courseId = 1, name = "Black", slope = 145, rating = 74.0)
         val round = Round(id = 1, courseId = 1, teeSetId = 1, date = Date(), totalHoles = 18, isFinalized = false)
         
         val holes = (1..18).map { Hole(id = it, courseId = 1, holeNumber = it, par = 4) }
+        val yardages = holes.map { HoleTeeYardage(id = it.id, teeSetId = 1, holeId = it.id, yardage = 400) }
         
         coEvery { courseRepository.getTeeSet(1) } returns teeSet
         every { courseRepository.getHoles(1) } returns flowOf(holes)
+        every { courseRepository.getYardagesForTeeSet(1) } returns flowOf(yardages)
         
-        // Scenario 1: No holes played yet
-        every { roundRepository.getHoleStatsForRound(1) } returns flowOf(emptyList())
+        // Mock PGA Expected: 4.1 per 400y hole. Total = 18 * 4.1 = 73.8
+        every { sgCalculator.getExpectedStrokes(400, any(), any()) } returns 4.1
         
-        val adj1 = useCase.calculateAdjustmentPerShot(round)
-        // roundAdjustment = 76.6 - 72 = 4.6
-        // adj = 4.6 / 76.6 = 0.06005...
-        assertEquals(0.06, adj1, 0.01)
+        val totalAdj = useCase.calculateTotalRoundAdjustment(round)
         
-        // Scenario 2: One hole played, Birdie (score 3)
-        // Previous buggy behavior would give 4.6 / 3 = 1.53
-        val stat = HoleStat(id = 1, roundId = 1, holeId = 1, score = 3)
-        every { roundRepository.getHoleStatsForRound(1) } returns flowOf(listOf(stat))
-        
-        val finalizedRound = round.copy(isFinalized = true)
-        val adj2 = useCase.calculateAdjustmentPerShot(finalizedRound)
-        // New fixed behavior should still be ~0.06
-        assertEquals(0.06, adj2, 0.01)
+        // totalRoundAdjustment = 74.0 - 73.8 = 0.2
+        assertEquals(0.2, totalAdj, 0.01)
     }
 }
