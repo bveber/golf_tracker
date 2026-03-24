@@ -159,7 +159,9 @@ class StatsRepository @Inject constructor(
                 roundId = r.round.id,
                 date = r.round.date,
                 toPar = normToPar.toInt(),
-                differential = diffMap[r.round.id]?.value
+                differential = diffMap[r.round.id]?.value,
+                courseName = r.course.name,
+                totalHoles = r.round.totalHoles
             )
         }.sortedBy { it.date }
 
@@ -224,28 +226,36 @@ class StatsRepository @Inject constructor(
         if (drivingTriples.isEmpty()) return DrivingStats(perClubStats = perClub, selectedClubId = clubIdFilter)
 
         val drivingHoles = drivingTriples.map { it.first }
-        
+
+        // Build a lookup from holeStat.id → (holeNumber, roundDate, courseName) for tooltip metadata
+        val holeStatContext: Map<Int, Triple<Int, Long, String>> = rounds.flatMap { r ->
+            r.holeStats.map { h -> h.holeStat.id to Triple(h.hole.holeNumber, r.round.date.time, r.course.name) }
+        }.toMap()
+
         // Extract raw dispersion points from both HoleStat (TEE fields) and Shot table
         val drivingShotsWithDispersion = drivingHoles.flatMap { h ->
             val points = mutableListOf<Pair<ApproachLie, DispersionPoint>>()
-            
+            val ctx = holeStatContext[h.holeStat.id]
+
             // 1. From HoleStat
             val stat = h.holeStat
-            if (stat.teeOutcome != null && stat.teeOutcome != ShotOutcome.ON_TARGET && 
+            if (stat.teeOutcome != null &&
                 (stat.teeDispersionLeft != null || stat.teeDispersionRight != null || stat.teeDispersionShort != null || stat.teeDispersionLong != null)) {
-                
+
                 val isMishit = stat.teeMishit
-                points.add(ApproachLie.TEE to DispersionPoint(stat.teeDispersionLeft, stat.teeDispersionRight, stat.teeDispersionShort, stat.teeDispersionLong, isMishit))
+                points.add(ApproachLie.TEE to DispersionPoint(stat.teeDispersionLeft, stat.teeDispersionRight, stat.teeDispersionShort, stat.teeDispersionLong, isMishit,
+                    holeNumber = h.hole.holeNumber, roundDate = ctx?.second, courseName = ctx?.third))
             }
-            
+
             // 2. From Shot table (if they aren't duplicates of the HoleStat entry managed by GPS)
-            // For driving, we typically care about the first shot on par 4/5. 
+            // For driving, we typically care about the first shot on par 4/5.
             // However, GPS VM logic saves the TEE shot's dispersion ONLY to HoleStat (see GpsViewModel.kt:729)
             // But if there are secondary drives, they might be in Shot table.
             h.shots.filter { it.shotNumber > 1 && it.lie == ApproachLie.TEE }.forEach { shot ->
-                if (shot.outcome != null && shot.outcome != ShotOutcome.ON_TARGET && 
+                if (shot.outcome != null &&
                     (shot.dispersionLeft != null || shot.dispersionRight != null || shot.dispersionShort != null || shot.dispersionLong != null)) {
-                    points.add(ApproachLie.TEE to DispersionPoint(shot.dispersionLeft, shot.dispersionRight, shot.dispersionShort, shot.dispersionLong, shot.isMishit))
+                    points.add(ApproachLie.TEE to DispersionPoint(shot.dispersionLeft, shot.dispersionRight, shot.dispersionShort, shot.dispersionLong, shot.isMishit,
+                        holeNumber = h.hole.holeNumber, roundDate = ctx?.second, courseName = ctx?.third))
                 }
             }
             
@@ -401,6 +411,11 @@ class StatsRepository @Inject constructor(
         val allHoles = rounds.flatMap { it.holeStats }.filter { it.holeStat.score > 0 || it.shots.isNotEmpty() }
         if (allHoles.isEmpty()) return ApproachStats()
 
+        // Build a lookup from holeStat.id → (holeNumber, roundDate, courseName) for tooltip metadata
+        val holeStatContext: Map<Int, Triple<Int, Long, String>> = rounds.flatMap { r ->
+            r.holeStats.map { h -> h.holeStat.id to Triple(h.hole.holeNumber, r.round.date.time, r.course.name) }
+        }.toMap()
+
         fun isGir(h: HoleStatWithHole): Boolean {
             return GirCalculator.isGir(h.holeStat.score, h.hole.par, h.holeStat.putts)
         }
@@ -485,12 +500,14 @@ class StatsRepository @Inject constructor(
         
         // Collect dispersion points from the Shot table
         val rawPointsWithLie = allHoles.flatMap { h ->
+            val ctx = holeStatContext[h.holeStat.id]
             h.shots.filter { shot ->
                 val matchesClub = clubIdFilter == null || shot.clubId == clubIdFilter
-                matchesClub && shot.outcome != null && shot.outcome != ShotOutcome.ON_TARGET && 
+                matchesClub && shot.outcome != null &&
                 (shot.dispersionLeft != null || shot.dispersionRight != null || shot.dispersionShort != null || shot.dispersionLong != null)
             }.map { shot ->
-                (shot.lie ?: ApproachLie.OTHER) to DispersionPoint(shot.dispersionLeft, shot.dispersionRight, shot.dispersionShort, shot.dispersionLong, shot.isMishit)
+                (shot.lie ?: ApproachLie.OTHER) to DispersionPoint(shot.dispersionLeft, shot.dispersionRight, shot.dispersionShort, shot.dispersionLong, shot.isMishit,
+                    holeNumber = h.hole.holeNumber, roundDate = ctx?.second, courseName = ctx?.third)
             }
         }
 
@@ -662,6 +679,17 @@ class StatsRepository @Inject constructor(
         val missedGirHoles = holes.filter { !isGir(it) }
         val missedCount = missedGirHoles.size.coerceAtLeast(1)
 
+        // Up & Down: any hole where the player chipped, regardless of GIR status.
+        // This covers missed-GIR situations as well as cases where a player drives close to
+        // the green on a par 4 or reaches the par-5 green area in 2 and still chips on.
+        // Success = exactly 1 chip AND at most 1 putt (covers chip-ins and standard up-and-downs).
+        // Failure = 2+ chips, or 1 chip + 2+ putts.
+        val upAndDownHoles = holes.filter { it.holeStat.chips >= 1 }
+        val upAndDownOpportunities = upAndDownHoles.size.coerceAtLeast(1)
+        val upAndDownSuccesses = upAndDownHoles.count { it.holeStat.chips == 1 && it.holeStat.putts <= 1 }
+        val upAndDownPct = (upAndDownSuccesses.toDouble() / upAndDownOpportunities) * 100
+
+        // Par Save: missed GIR but still made par or better (score-based, unchanged)
         val parSaves = missedGirHoles.count { isParSave(it) }
         val parSavePct = (parSaves.toDouble() / missedCount) * 100
 
@@ -671,14 +699,14 @@ class StatsRepository @Inject constructor(
 
         val doubleChips = holes.count { it.holeStat.chips >= 2 }
         val chipsPerHole = holes.sumOf { it.holeStat.chips }.toDouble() / holes.size
-        
+
         // Proximity (Avg Next Putt Distance in feet)
         val proximityHoles = holes.filter { it.holeStat.chips > 0 || it.holeStat.sandShots > 0 }
         val proximities = proximityHoles.mapNotNull { it.putts.firstOrNull()?.distance }
         val avgProximity = if (proximities.isNotEmpty()) proximities.average() else 0.0
-        
+
         // Proximity by Lie
-        val proximityByLie = proximityHoles.groupBy { 
+        val proximityByLie = proximityHoles.groupBy {
             if (it.holeStat.sandShots > 0) ApproachLie.SAND else (it.holeStat.chipLie ?: ApproachLie.ROUGH)
         }.mapValues { (_, holesWithLie) ->
             val proximitiesForLie = holesWithLie.mapNotNull { it.putts.firstOrNull()?.distance }
@@ -686,13 +714,13 @@ class StatsRepository @Inject constructor(
         }
 
         val totalHolesPlayed = holes.size
-        val chipsPerRound = (holes.sumOf { it.holeStat.chips }.toDouble() / totalHolesPlayed) * 18
+        val upAndDownsPerRound = (upAndDownSuccesses.toDouble() / totalHolesPlayed) * 18
         val parSavesPerRound = (parSaves.toDouble() / totalHolesPlayed) * 18
         val doubleChipsPerRound = (doubleChips.toDouble() / totalHolesPlayed) * 18
 
         return ChippingStats(
-            upAndDownPct = parSavePct,
-            upAndDownMoE = calculateProportionMoE(parSavePct, missedCount),
+            upAndDownPct = upAndDownPct,
+            upAndDownMoE = calculateProportionMoE(upAndDownPct, upAndDownOpportunities),
             parSavePct = parSavePct,
             parSaveMoE = calculateProportionMoE(parSavePct, missedCount),
             sandSavePct = sandSavePct,
@@ -704,7 +732,7 @@ class StatsRepository @Inject constructor(
             proximityByLie = proximityByLie,
             totalMissedGir = missedCount,
             totalSandHoles = sandHoles.size,
-            upAndDownsPerRound = parSavesPerRound,
+            upAndDownsPerRound = upAndDownsPerRound,
             parSavesPerRound = parSavesPerRound,
             doubleChipsPerRound = doubleChipsPerRound
         )
@@ -768,6 +796,63 @@ class StatsRepository @Inject constructor(
 
         val onePuttPct = if (holes.isNotEmpty()) (onePutts.toDouble() / holes.size) * 100 else 0.0
 
+        // ── Lag putting (first putt ≥ 25 ft) ────────────────────────────
+        val lagHoles = holes.filter { h ->
+            val firstPutt = h.putts.filter { (it.distance ?: 0f) > 0f }.minByOrNull { it.puttNumber }
+            (firstPutt?.distance ?: 0f) >= 25f
+        }
+        val lagPuttCount = lagHoles.size
+
+        // Within 3 ft: holed on the lag (1-putt hole) counts as 0 ft remaining
+        val lagWithin3Ft = lagHoles.count { h ->
+            if (h.holeStat.putts == 1) {
+                true // holed the lag putt
+            } else {
+                val sorted = h.putts.filter { (it.distance ?: 0f) > 0f }.sortedBy { it.puttNumber }
+                val secondDist = sorted.getOrNull(1)?.distance
+                secondDist != null && secondDist <= 3f
+            }
+        }
+        val lagWithin3FtPct = if (lagPuttCount > 0) (lagWithin3Ft.toDouble() / lagPuttCount) * 100 else 0.0
+
+        // Remaining % — hole-outs contribute 0 %; only include holes where we can determine the value
+        val lagRemainingPcts = lagHoles.mapNotNull { h ->
+            val sorted = h.putts.filter { (it.distance ?: 0f) > 0f }.sortedBy { it.puttNumber }
+            val firstDist = sorted.firstOrNull()?.distance ?: return@mapNotNull null
+            if (firstDist <= 0f) return@mapNotNull null
+            if (h.holeStat.putts == 1) {
+                0.0 // holed it
+            } else {
+                val secondDist = sorted.getOrNull(1)?.distance ?: return@mapNotNull null
+                (secondDist.toDouble() / firstDist.toDouble()) * 100.0
+            }
+        }
+        val avgLagRemainingPct = if (lagRemainingPcts.isNotEmpty()) lagRemainingPcts.average() else 0.0
+
+        // ── Make % by 5-ft distance buckets ─────────────────────────────
+        // Putt.made is not reliably set by the tracking UI, so infer it:
+        // the last putt on each hole (highest puttNumber) is always made.
+        val puttsWithDist = holes.flatMap { h ->
+            val maxPuttNum = h.putts.maxOfOrNull { it.puttNumber } ?: 0
+            h.putts.filter { (it.distance ?: 0f) > 0f }
+                .map { putt -> putt.copy(made = putt.puttNumber == maxPuttNum) }
+        }
+        data class BucketDef(val label: String, val min: Float, val max: Float)
+        val bucketDefs = listOf(
+            BucketDef("0-5 ft",   0f,  5f),
+            BucketDef("5-10 ft",  5f, 10f),
+            BucketDef("10-15 ft",10f, 15f),
+            BucketDef("15-20 ft",15f, 20f),
+            BucketDef("20-25 ft",20f, 25f),
+            BucketDef("25+ ft",  25f, Float.MAX_VALUE)
+        )
+        val makePctByDistance = bucketDefs.mapNotNull { (label, min, max) ->
+            val inRange = puttsWithDist.filter { it.distance!! >= min && it.distance < max }
+            if (inRange.isEmpty()) return@mapNotNull null
+            val made = inRange.count { it.made }
+            DistanceBucket(label, (made.toDouble() / inRange.size) * 100, inRange.size)
+        }
+
         return PuttingStats(
             totalPutts = totalPutts,
             avgPuttsPerRound = avgPuttsPerRound,
@@ -785,7 +870,12 @@ class StatsRepository @Inject constructor(
             onePuttsPerRound = onePuttsPerRound,
             twoPuttsPerRound = twoPuttsPerRound,
             threePlusPuttsPerRound = threePlusPuttsPerRound,
-            puttsPerRoundDistribution = normalizedPuttsPerRound
+            puttsPerRoundDistribution = normalizedPuttsPerRound,
+            lagPuttCount = lagPuttCount,
+            lagWithin3FtPct = lagWithin3FtPct,
+            lagWithin3FtMoE = calculateProportionMoE(lagWithin3FtPct, lagPuttCount),
+            avgLagRemainingPct = avgLagRemainingPct,
+            makePctByDistance = makePctByDistance
         )
     }
 
@@ -957,7 +1047,9 @@ data class RoundScoreSummary(
     val roundId: Int,
     val date: Date,
     val toPar: Int,
-    val differential: Double?
+    val differential: Double?,
+    val courseName: String = "",
+    val totalHoles: Int = 18
 )
 
 data class ScoringStats(
@@ -1062,7 +1154,10 @@ data class DispersionPoint(
     val right: Int? = null,
     val short: Int? = null,
     val long: Int? = null,
-    val isMishit: Boolean = false
+    val isMishit: Boolean = false,
+    val holeNumber: Int? = null,
+    val roundDate: Long? = null,
+    val courseName: String? = null
 )
 
 data class OnTargetBreakdown(
@@ -1090,6 +1185,12 @@ data class ChippingStats(
     val doubleChipsPerRound: Double = 0.0
 )
 
+data class DistanceBucket(
+    val label: String,
+    val makePct: Double,
+    val attempts: Int
+)
+
 data class PuttingStats(
     val totalPutts: Int = 0,
     val avgPuttsPerRound: Double = 0.0,
@@ -1107,7 +1208,14 @@ data class PuttingStats(
     val onePuttsPerRound: Double = 0.0,
     val twoPuttsPerRound: Double = 0.0,
     val threePlusPuttsPerRound: Double = 0.0,
-    val puttsPerRoundDistribution: List<Double> = emptyList()
+    val puttsPerRoundDistribution: List<Double> = emptyList(),
+    // Lag putting (first putt ≥ 25 ft)
+    val lagPuttCount: Int = 0,
+    val lagWithin3FtPct: Double = 0.0,
+    val lagWithin3FtMoE: Double = 0.0,
+    val avgLagRemainingPct: Double = 0.0,
+    // Make % by 5-ft distance buckets
+    val makePctByDistance: List<DistanceBucket> = emptyList()
 )
 
 data class SgStats(

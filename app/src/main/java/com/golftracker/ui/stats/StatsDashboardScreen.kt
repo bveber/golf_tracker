@@ -1,6 +1,7 @@
 package com.golftracker.ui.stats
 
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -27,6 +28,7 @@ import com.golftracker.data.repository.ApproachStats
 import com.golftracker.data.repository.ChippingStats
 import com.golftracker.data.repository.DrivingStats
 import com.golftracker.data.repository.OnTargetBreakdown
+import com.golftracker.data.repository.DistanceBucket
 import com.golftracker.data.repository.PuttingStats
 import com.golftracker.data.repository.ScoringStats
 import com.golftracker.data.repository.StatsData
@@ -652,8 +654,7 @@ fun DrivingTab(
                 com.golftracker.ui.components.RawDispersionVisual(
                     data = d.rawDispersion.copy(
                         points = d.rawDispersion.pointsByLie.filterKeys { it in selectedLies }.values.flatten()
-                    ),
-                    ringStepOverride = 20f
+                    )
                 )
             }
         }
@@ -858,8 +859,7 @@ fun ApproachTab(
                 com.golftracker.ui.components.RawDispersionVisual(
                     data = a.rawDispersion.copy(
                         points = a.rawDispersion.pointsByLie.filterKeys { it in selectedLies }.values.flatten()
-                    ),
-                    ringStepOverride = 10f
+                    )
                 )
             }
         }
@@ -1035,6 +1035,92 @@ fun PuttingTab(p: PuttingStats, sg: com.golftracker.data.repository.SgStats) {
         StatCard(title = "1-Putts / Round", value = String.format("%.1f", p.onePuttsPerRound), modifier = Modifier.weight(1f))
         StatCard(title = "2-Putts / Round", value = String.format("%.1f", p.twoPuttsPerRound), modifier = Modifier.weight(1f))
         StatCard(title = "3+ Putts / Round", value = String.format("%.1f", p.threePlusPuttsPerRound), modifier = Modifier.weight(1f))
+    }
+
+    // Lag Putting
+    if (p.lagPuttCount > 0) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    "Lag Putting (≥25 ft)",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatCard(
+                        title = "Lag Putts",
+                        value = p.lagPuttCount.toString(),
+                        modifier = Modifier.weight(1f)
+                    )
+                    StatCard(
+                        title = "Within 3 ft",
+                        value = String.format("%.1f%%", p.lagWithin3FtPct),
+                        moe = if (p.lagWithin3FtMoE > 0) String.format("±%.1f%%", p.lagWithin3FtMoE) else null,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                if (p.avgLagRemainingPct > 0) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    StatCard(
+                        title = "Avg Remaining Distance",
+                        value = String.format("%.0f%% of lag distance", p.avgLagRemainingPct)
+                    )
+                }
+            }
+        }
+    }
+
+    // Make % by Distance
+    if (p.makePctByDistance.isNotEmpty()) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    "Make % by Distance",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                p.makePctByDistance.forEach { bucket ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = bucket.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.width(72.dp)
+                        )
+                        LinearProgressIndicator(
+                            progress = { (bucket.makePct / 100.0).toFloat().coerceIn(0f, 1f) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(8.dp)
+                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp)),
+                            color = when {
+                                bucket.makePct >= 80 -> Color(0xFF4CAF50)
+                                bucket.makePct >= 50 -> Color(0xFF2196F3)
+                                else -> Color(0xFFFF9800)
+                            },
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                        Text(
+                            text = String.format("  %.0f%%", bucket.makePct),
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.width(44.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.End
+                        )
+                        Text(
+                            text = " (${bucket.attempts})",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
