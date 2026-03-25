@@ -413,7 +413,7 @@ fun HoleTrackingScreen(
                         val firstApproach = uiState.shots.firstOrNull()
                         val currentTeeDist = holeStat.teeShotDistance
                         val holeYardage = uiState.currentHoleYardage
-                        if (firstApproach != null && firstApproach.distanceToPin != null && holeYardage != null) {
+                        if (hole.par > 3 && firstApproach != null && firstApproach.distanceToPin != null && holeYardage != null) {
                             val potentialTeeDist = holeYardage - firstApproach.distanceToPin!!
                             if (currentTeeDist == null || currentTeeDist != potentialTeeDist) {
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -1040,7 +1040,7 @@ fun HoleTrackingScreen(
                                 )
                                 if (adj != 0.0) {
                                     Text(
-                                        "($rawSign${String.format(java.util.Locale.US, "%.2f", raw)} raw $adjSign${String.format(java.util.Locale.US, "%.2f", adj)} course adj)",
+                                        "($rawSign${String.format(java.util.Locale.US, "%.2f", raw)} raw $adjSign${String.format(java.util.Locale.US, "%.2f", adj)} adj)",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -1343,7 +1343,7 @@ private fun SummarySgItem(label: String, sg: Double?, adj: Double = 0.0, isAdjus
         if (adj != 0.0) {
             val adjSign = if (adj > 0) "+" else ""
             Text(
-                "${adjSign}${String.format(java.util.Locale.US, "%.2f", adj)} course adj",
+                "${adjSign}${String.format(java.util.Locale.US, "%.2f", adj)} adj",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )

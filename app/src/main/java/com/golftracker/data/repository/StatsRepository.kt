@@ -939,23 +939,27 @@ class StatsRepository @Inject constructor(
             val teeSetId = round.round.teeSetId
             val courseRating = if (is9Holes) round.teeSet.rating / 2.0 else round.teeSet.rating
             
-            // Note: StatsRepository usually should have correct ratings. 
+            // Note: StatsRepository usually should have correct ratings.
             // If rating is 0, we'll skip adjustment.
             var totalRoundAdjustment = 0.0
+            var courseDiff = 0.0
             if (courseRating > 0.0) {
                 var totalPgaExpected = 0.0
+                var coursePar = 0
                 round.holeStats.forEach { hole ->
                     val yardage = yardageMap[Pair(teeSetId, hole.hole.id)]?.yardage ?: hole.hole.par * 40
                     totalPgaExpected += sgCalculator.getExpectedStrokes(yardage, ApproachLie.TEE, true)
+                    coursePar += hole.hole.par
                 }
                 totalRoundAdjustment = courseRating - totalPgaExpected
+                courseDiff = courseRating - coursePar
             }
             val numHoles = if (is9Holes) 9 else 18
 
             for (hole in round.holeStats) {
                 val defaultYardage = yardageMap[Pair(teeSetId, hole.hole.id)]?.yardage ?: 0
                 val holeYardage = hole.holeStat.adjustedYardage ?: defaultYardage
-                
+
                 val breakdown = sgCalculator.calculateHoleSg(
                     par = hole.hole.par,
                     holeYardage = holeYardage,
@@ -964,7 +968,8 @@ class StatsRepository @Inject constructor(
                     penalties = hole.penalties,
                     stat = hole.holeStat,
                     totalRoundAdjustment = totalRoundAdjustment,
-                    numHoles = numHoles
+                    numHoles = numHoles,
+                    courseDiff = courseDiff
                 )
 
                 // Apply club filters to SG categories

@@ -3,6 +3,7 @@ package com.golftracker.ui.round
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -108,6 +110,9 @@ fun RoundSummaryScreen(
                     yardages = uiState.yardages,
                     onHoleClick = onNavigateToHole
                 )
+                Spacer(modifier = Modifier.height(16.dp))
+                SgBreakdownCard(stats = stats)
+                Spacer(modifier = Modifier.height(16.dp))
             } else {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("Loading scorecard...")
@@ -220,6 +225,8 @@ fun ScorecardTable(
         HorizontalDivider()
     }
 
+    // Totals accumulation for SG (done in the forEach above)
+
     // Total Row
     Row(
         modifier = Modifier
@@ -246,5 +253,59 @@ fun ScorecardTable(
         Box(modifier = Modifier.width(36.dp), contentAlignment = Alignment.Center) {
             Text(if (totalScore > 0) totalGir.toString() else "-", fontWeight = FontWeight.Bold, fontSize = 14.sp)
         }
+    }
+}
+
+@Composable
+fun SgBreakdownCard(stats: List<HoleStat>) {
+    val holesWithSg = stats.filter { it.strokesGained != null }
+    if (holesWithSg.isEmpty()) return
+
+    val totalSg = holesWithSg.sumOf { it.strokesGained ?: 0.0 }
+    val offTee = holesWithSg.sumOf { it.sgOffTee ?: 0.0 }
+    val approach = holesWithSg.sumOf { it.sgApproach ?: 0.0 }
+    val aroundGreen = holesWithSg.sumOf { it.sgAroundGreen ?: 0.0 }
+    val putting = holesWithSg.sumOf { it.sgPutting ?: 0.0 }
+
+    fun sgColor(value: Double): Color = when {
+        value > 0.05 -> Color(0xFF4CAF50)
+        value < -0.05 -> Color(0xFFE57373)
+        else -> Color.Unspecified
+    }
+
+    fun fmt(value: Double): String {
+        val sign = if (value > 0) "+" else ""
+        return "$sign${String.format(java.util.Locale.US, "%.2f", value)}"
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Strokes Gained", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                SgBreakdownItem("Off Tee", offTee, ::sgColor, ::fmt)
+                SgBreakdownItem("Approach", approach, ::sgColor, ::fmt)
+                SgBreakdownItem("Around", aroundGreen, ::sgColor, ::fmt)
+                SgBreakdownItem("Putting", putting, ::sgColor, ::fmt)
+            }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                Text("Total  ", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                Text(fmt(totalSg), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = sgColor(totalSg))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SgBreakdownItem(label: String, value: Double, colorFn: (Double) -> Color, fmtFn: (Double) -> String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(fmtFn(value), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = colorFn(value))
     }
 }

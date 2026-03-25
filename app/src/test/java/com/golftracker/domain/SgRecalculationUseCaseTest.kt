@@ -41,9 +41,11 @@ class SgRecalculationUseCaseTest {
         // Mock PGA Expected: 4.1 per 400y hole. Total = 18 * 4.1 = 73.8
         every { sgCalculator.getExpectedStrokes(400, any(), any()) } returns 4.1
         
-        val totalAdj = useCase.calculateTotalRoundAdjustment(round)
-        
-        // totalRoundAdjustment = 74.0 - 73.8 = 0.2
-        assertEquals(0.2, totalAdj, 0.01)
+        val adjustments = useCase.calculateTotalRoundAdjustment(round)
+
+        // totalAdjustment = 74.0 - 73.8 = 0.2
+        assertEquals(0.2, adjustments.totalAdjustment, 0.01)
+        // courseDiff = rating - par = 74.0 - (18 * 4) = 74.0 - 72.0 = 2.0
+        assertEquals(2.0, adjustments.courseDiff, 0.01)
     }
 }

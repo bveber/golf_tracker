@@ -13,3 +13,6 @@ app/build/
 jdk-17.0.18+8/
 *.txt
 .kotlin/
+
+# Github workflows - remove when ready for automated build process
+.github/
