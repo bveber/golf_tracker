@@ -466,6 +466,40 @@ class RoundViewModel @Inject constructor(
         }
     }
     
+    fun clearAllShotsForCurrentHole() {
+        val stat = uiState.value.currentHoleStat ?: return
+        val round = uiState.value.activeRound ?: return
+        viewModelScope.launch {
+            roundRepository.replaceShots(stat.id, emptyList())
+            roundRepository.replacePutts(stat.id, emptyList())
+            roundRepository.updateHoleStat(stat.copy(
+                teeOutcome = null,
+                teeInTrouble = false,
+                teeMishit = false,
+                teeSlope = null,
+                teeStance = null,
+                teeDispersionLeft = null,
+                teeDispersionRight = null,
+                teeDispersionShort = null,
+                teeDispersionLong = null,
+                teeClubId = null,
+                teeShotDistance = null,
+                teeLat = null,
+                teeLng = null,
+                teeTargetLat = null,
+                teeTargetLng = null,
+                chips = 0,
+                sandShots = 0,
+                chipDistance = null,
+                chipLie = null,
+                putts = 0,
+                score = 0
+            ))
+            _uiState.update { it.copy(shots = emptyList(), putts = emptyList()) }
+            sgRecalculationUseCase.recalculateRound(round.id)
+        }
+    }
+
     private suspend fun refreshShots(holeStatId: Int) {
          val shots = roundRepository.getShotsForHoleStat(holeStatId).first()
          _uiState.update { it.copy(shots = shots) }
