@@ -31,6 +31,11 @@ data class HoleCalculationResult(
     val difficultyAdjustment: Double
 )
 
+data class RoundAdjustments(
+    val totalAdjustment: Double,
+    val courseDiff: Double
+)
+
 /**
  * Recalculates and persists Strokes Gained for all finalized rounds whenever the
  * app's version code changes. This ensures that improvements to the
@@ -68,8 +73,8 @@ class SgRecalculationUseCase @Inject constructor(
         val allYardages = courseRepository.allYardages.first()
         val allHoles = courseRepository.allHoles.first()
         
-        val totalAdjustment = calculateTotalRoundAdjustment(roundWithDetails.round)
-        recalculateSingleRound(roundWithDetails, allYardages, allHoles, totalAdjustment)
+        val adjustments = calculateTotalRoundAdjustment(roundWithDetails.round)
+        recalculateSingleRound(roundWithDetails, allYardages, allHoles, adjustments)
     }
 
     /**
@@ -82,7 +87,7 @@ class SgRecalculationUseCase @Inject constructor(
         providedShots: List<Shot>? = null,
         providedPutts: List<Putt>? = null,
         providedPenalties: List<Penalty>? = null,
-        providedAdjustment: Double? = null
+        providedAdjustments: RoundAdjustments? = null
     ): HoleStat? = withContext(Dispatchers.IO) {
         val round = roundRepository.getRound(roundId) ?: return@withContext null
         val hole = courseRepository.getHole(holeId).first() ?: return@withContext null
@@ -96,7 +101,7 @@ class SgRecalculationUseCase @Inject constructor(
         val defaultYardage = yardageList.find { it.holeId == hole.id }?.yardage ?: return@withContext null
         val holeYardage = record.adjustedYardage ?: defaultYardage
 
-        val totalAdjustment = providedAdjustment ?: calculateTotalRoundAdjustment(round)
+        val adjustments = providedAdjustments ?: calculateTotalRoundAdjustment(round)
 
         // Unified Calculation Logic
         val result = calculateHoleData(
@@ -106,8 +111,9 @@ class SgRecalculationUseCase @Inject constructor(
             shots = shots,
             putts = putts,
             penalties = penalties,
-            totalRoundAdjustment = totalAdjustment,
-            numHoles = if (round.totalHoles == 9) 9 else 18
+            totalRoundAdjustment = adjustments.totalAdjustment,
+            numHoles = if (round.totalHoles == 9) 9 else 18,
+            courseDiff = adjustments.courseDiff
         )
 
         // Persistence
@@ -144,7 +150,8 @@ class SgRecalculationUseCase @Inject constructor(
         putts: List<Putt>,
         penalties: List<Penalty>,
         totalRoundAdjustment: Double = 0.0,
-        numHoles: Int = 18
+        numHoles: Int = 18,
+        courseDiff: Double? = null
     ): HoleCalculationResult {
         // 1. Shot Number Correction (De-duplication & Offset)
         val driveIsTracked = shots.any { it.shotNumber == 1 || it.lie == ApproachLie.TEE }
@@ -166,7 +173,8 @@ class SgRecalculationUseCase @Inject constructor(
             penalties = penalties,
             stat = stat,
             totalRoundAdjustment = totalRoundAdjustment,
-            numHoles = numHoles
+            numHoles = numHoles,
+            courseDiff = courseDiff
         )
 
         // 3. Mark SG on shots/putts
@@ -225,8 +233,8 @@ class SgRecalculationUseCase @Inject constructor(
         val allHoles = courseRepository.allHoles.first()
 
         for (roundWithDetails in allRoundsWithDetails) {
-            val totalAdjustment = calculateTotalRoundAdjustment(roundWithDetails.round)
-            recalculateSingleRound(roundWithDetails, allYardages, allHoles, totalAdjustment)
+            val adjustments = calculateTotalRoundAdjustment(roundWithDetails.round)
+            recalculateSingleRound(roundWithDetails, allYardages, allHoles, adjustments)
         }
     }
 
@@ -234,7 +242,7 @@ class SgRecalculationUseCase @Inject constructor(
         roundWithDetails: RoundWithDetails,
         allYardages: List<com.golftracker.data.entity.HoleTeeYardage>,
         allHoles: List<com.golftracker.data.entity.Hole>,
-        totalRoundAdjustment: Double = 0.0
+        adjustments: RoundAdjustments
     ) {
         for (holeStatWithHole in roundWithDetails.holeStats) {
             recalculateHole(
@@ -244,18 +252,18 @@ class SgRecalculationUseCase @Inject constructor(
                 providedShots = holeStatWithHole.shots,
                 providedPutts = holeStatWithHole.putts,
                 providedPenalties = holeStatWithHole.penalties,
-                providedAdjustment = totalRoundAdjustment
+                providedAdjustments = adjustments
             )
         }
     }
 
-    internal suspend fun calculateTotalRoundAdjustment(round: com.golftracker.data.entity.Round): Double {
-        val teeSet = courseRepository.getTeeSet(round.teeSetId) ?: return 0.0
-        if (teeSet.rating == 0.0) return 0.0
-        
+    internal suspend fun calculateTotalRoundAdjustment(round: com.golftracker.data.entity.Round): RoundAdjustments {
+        val teeSet = courseRepository.getTeeSet(round.teeSetId) ?: return RoundAdjustments(0.0, 0.0)
+        if (teeSet.rating == 0.0) return RoundAdjustments(0.0, 0.0)
+
         val is9Holes = round.totalHoles == 9
         val courseRating = if (is9Holes) teeSet.rating / 2.0 else teeSet.rating
-        
+
         // 1. Fetch yardages and holes for the round
         val allYardages = courseRepository.getYardagesForTeeSet(round.teeSetId).first()
         val allHoles = courseRepository.getHoles(round.courseId).first()
@@ -265,11 +273,12 @@ class SgRecalculationUseCase @Inject constructor(
         } else {
             allHoles
         }
-        
-        if (playedHoles.isEmpty()) return 0.0
 
-        // 2. Calculate the Sum of PGA Expected Strokes for this set of holes
+        if (playedHoles.isEmpty()) return RoundAdjustments(0.0, 0.0)
+
+        // 2. Calculate the Sum of PGA Expected Strokes and course par for the played holes
         var totalPgaExpected = 0.0
+        var coursePar = 0
         playedHoles.forEach { hole ->
             val yardage = allYardages.find { it.holeId == hole.id }?.yardage ?: hole.par * 40
             totalPgaExpected += sgCalculator.getExpectedStrokes(
@@ -277,10 +286,13 @@ class SgRecalculationUseCase @Inject constructor(
                 lie = ApproachLie.TEE,
                 isTeeShot = true
             )
+            coursePar += hole.par
         }
 
-        // 3. Difference between Scratch baseline (Course Rating) and PGA baseline
-        return courseRating - totalPgaExpected
+        return RoundAdjustments(
+            totalAdjustment = courseRating - totalPgaExpected,
+            courseDiff = courseRating - coursePar
+        )
     }
 
     private fun getVersionCode(): Long {

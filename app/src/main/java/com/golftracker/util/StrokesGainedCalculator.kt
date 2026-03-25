@@ -273,7 +273,8 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
         penalties: List<com.golftracker.data.entity.Penalty>,
         stat: com.golftracker.data.entity.HoleStat,
         totalRoundAdjustment: Double = 0.0,
-        numHoles: Int = 18
+        numHoles: Int = 18,
+        courseDiff: Double? = null
     ): HoleSgBreakdown {
         var offTee = 0.0
         var offTeeExpected: Double? = null
@@ -544,8 +545,8 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
             // We split this into ScratchGap (3.92) and CourseRatingAdjustment (Rating - Par)
             // TotalScratchGap is defined as TOTAL_GAP.
             
-            val totalScratchPart = TOTAL_GAP
-            val totalCoursePart = totalRoundAdjustment - totalScratchPart
+            val totalCoursePart = courseDiff ?: (totalRoundAdjustment - TOTAL_GAP)
+            val totalScratchPart = totalRoundAdjustment - totalCoursePart
             
             val courseHoleAdj = totalCoursePart * holeWeight
             val scratchHoleAdj = totalScratchPart * holeWeight
