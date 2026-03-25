@@ -356,6 +356,23 @@ fun GpsScreen(
 
                     // Shot History Ribbon
                     if (uiState.trackedShots.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            androidx.compose.material3.TextButton(
+                                onClick = { viewModel.clearTrackedShots() },
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                    horizontal = 8.dp, vertical = 0.dp
+                                )
+                            ) {
+                                Text(
+                                    "Clear All",
+                                    color = Color.White.copy(alpha = 0.5f),
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        }
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.fillMaxWidth()
