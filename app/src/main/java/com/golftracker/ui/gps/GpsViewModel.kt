@@ -587,7 +587,7 @@ class GpsViewModel @Inject constructor(
      */
     fun onGreenReached() {
         val state = _uiState.value
-        val currentLocation = state.playerLocation ?: return
+        val currentLocation = state.liveUserLocation ?: state.playerLocation ?: return
         val updatedShots = state.trackedShots.toMutableList()
 
         if (updatedShots.isNotEmpty()) {
@@ -804,7 +804,7 @@ class GpsViewModel @Inject constructor(
                     currentHoleStat?.let {
                         roundRepository.updateHoleStat(it.copy(
                             chips = it.chips.coerceAtLeast(1),
-                            chipDistance = trackedShot.distanceYards ?: it.chipDistance
+                            chipDistance = trackedShot.distanceToPin ?: it.chipDistance
                         ))
                     }
                 }
