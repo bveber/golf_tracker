@@ -86,6 +86,7 @@ fun HoleTrackingScreen(
     val hole = uiState.currentHole
     var showGps by remember { mutableStateOf(false) }
     var showFinishConfirmation by remember { mutableStateOf(false) }
+    var showClearShotsConfirmation by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -173,6 +174,29 @@ fun HoleTrackingScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showFinishConfirmation = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        if (showClearShotsConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showClearShotsConfirmation = false },
+                title = { Text("Clear All Shots?") },
+                text = { Text("This will permanently delete all shots, putts, and tee shot data for this hole and reset the score to 0.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            viewModel.clearAllShotsForCurrentHole()
+                            showClearShotsConfirmation = false
+                        }
+                    ) {
+                        Text("Clear All", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showClearShotsConfirmation = false }) {
                         Text("Cancel")
                     }
                 }
@@ -1027,6 +1051,23 @@ fun HoleTrackingScreen(
                 }
             }
             
+            // Clear All Shots (visible only when shots or putts exist)
+            if (uiState.shots.isNotEmpty() || uiState.putts.isNotEmpty()) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        OutlinedButton(
+                            onClick = { showClearShotsConfirmation = true },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("Clear All Shots")
+                        }
+                    }
+                }
+            }
+
             // Hole Summary Header (Strokes Gained Overview)
             item {
                 Card(
@@ -1373,34 +1414,34 @@ fun DispersionDialog(
                 Text("Enter the distance missed for applicable directions. Leave blank if on target.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     IntegerInput(
-                        value = left, 
-                        onValueChange = { left = it; if (it != null) right = null }, 
-                        label = "Left", 
+                        value = left,
+                        onValueChange = { left = it; if (it != null) right = null },
+                        label = "Left",
                         modifier = Modifier.weight(1f),
-                        resetKey = left
+                        resetKey = initialLeft
                     )
                     IntegerInput(
-                        value = right, 
-                        onValueChange = { right = it; if (it != null) left = null }, 
-                        label = "Right", 
+                        value = right,
+                        onValueChange = { right = it; if (it != null) left = null },
+                        label = "Right",
                         modifier = Modifier.weight(1f),
-                        resetKey = right
+                        resetKey = initialRight
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     IntegerInput(
-                        value = shortDist, 
-                        onValueChange = { shortDist = it; if (it != null) longDist = null }, 
-                        label = "Short", 
+                        value = shortDist,
+                        onValueChange = { shortDist = it; if (it != null) longDist = null },
+                        label = "Short",
                         modifier = Modifier.weight(1f),
-                        resetKey = shortDist
+                        resetKey = initialShort
                     )
                     IntegerInput(
-                        value = longDist, 
-                        onValueChange = { longDist = it; if (it != null) shortDist = null }, 
-                        label = "Long", 
+                        value = longDist,
+                        onValueChange = { longDist = it; if (it != null) shortDist = null },
+                        label = "Long",
                         modifier = Modifier.weight(1f),
-                        resetKey = longDist
+                        resetKey = initialLong
                     )
                 }
                 

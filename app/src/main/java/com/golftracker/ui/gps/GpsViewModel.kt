@@ -15,7 +15,6 @@ import com.golftracker.data.repository.RoundRepository
 import com.golftracker.data.repository.StatsFilter
 import com.golftracker.data.repository.StatsRepository
 import com.golftracker.data.repository.UserPreferencesRepository
-import com.golftracker.domain.SgRecalculationUseCase
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
@@ -146,8 +145,7 @@ class GpsViewModel @Inject constructor(
     private val roundRepository: RoundRepository,
     private val courseRepository: CourseRepository,
     private val statsRepository: StatsRepository,
-    private val userPreferencesRepository: UserPreferencesRepository,
-    private val sgRecalculationUseCase: SgRecalculationUseCase
+    private val userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(GpsUiState())
@@ -706,30 +704,6 @@ class GpsViewModel @Inject constructor(
                 }
                 else -> {}
             }
-        }
-    }
-
-    /**
-     * Deletes all tracked Shot entities for the current hole and resets approach-related
-     * HoleStat fields, giving a clean slate for re-entry without touching putts, score,
-     * or tee dispersion data. Triggers an immediate SG recalculation for the round.
-     */
-    fun clearTrackedShots() {
-        val holeStatId = _uiState.value.holeStatId ?: return
-        val roundId = _uiState.value.roundId ?: return
-        viewModelScope.launch {
-            roundRepository.replaceShots(holeStatId, emptyList())
-            val currentStat = roundRepository.getHoleStatsForRound(roundId).first().find { it.id == holeStatId }
-            currentStat?.let {
-                roundRepository.updateHoleStat(it.copy(
-                    chips = 0,
-                    sandShots = 0,
-                    chipDistance = null,
-                    chipLie = null
-                ))
-            }
-            _uiState.update { it.copy(trackedShots = emptyList()) }
-            sgRecalculationUseCase.recalculateRound(roundId)
         }
     }
 
