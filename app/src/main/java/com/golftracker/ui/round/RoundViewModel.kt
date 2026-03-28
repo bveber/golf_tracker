@@ -15,6 +15,10 @@ import com.golftracker.data.entity.Penalty
 import com.golftracker.data.entity.Putt
 import com.golftracker.data.entity.Round
 import com.golftracker.data.entity.TeeSet
+import com.golftracker.data.entity.DirectionMiss
+import com.golftracker.data.entity.PaceMiss
+import com.golftracker.data.entity.PuttBreak
+import com.golftracker.data.entity.PuttSlopeDirection
 import com.golftracker.data.model.ApproachLie
 import com.golftracker.data.model.PenaltyType
 import com.golftracker.data.model.ShotOutcome
@@ -679,6 +683,27 @@ class RoundViewModel @Inject constructor(
     fun incrementPuttDistance(putt: Putt, delta: Float) {
         val currentDistance = putt.distance ?: 1f
         updatePuttDistance(putt, currentDistance + delta)
+    }
+
+    fun updatePuttAdvancedDetails(
+        putt: Putt,
+        breakDirection: PuttBreak?,
+        slopeDirection: PuttSlopeDirection?,
+        paceMiss: PaceMiss?,
+        directionMiss: DirectionMiss?
+    ) {
+        viewModelScope.launch {
+            roundRepository.updatePutt(
+                putt.copy(
+                    breakDirection = breakDirection,
+                    slopeDirection = slopeDirection,
+                    paceMiss = paceMiss,
+                    directionMiss = directionMiss
+                )
+            )
+            val newPutts = roundRepository.getPuttsForHoleStat(putt.holeStatId).first()
+            _uiState.update { it.copy(putts = newPutts) }
+        }
     }
     
     fun addPenalty(type: PenaltyType, strokes: Int, shotNumber: Int? = null) {

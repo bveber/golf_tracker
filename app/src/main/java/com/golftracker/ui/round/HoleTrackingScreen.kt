@@ -881,14 +881,51 @@ fun HoleTrackingScreen(
                             }
                         }
                         
+                        if (holeStat.putts > 0) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            val hasAdvancedData = uiState.putts.any {
+                                it.breakDirection != null || it.slopeDirection != null ||
+                                it.paceMiss != null || it.directionMiss != null
+                            }
+                            var showPuttAdvanced by remember(holeStat.id) { mutableStateOf(false) }
+                            OutlinedButton(
+                                onClick = { showPuttAdvanced = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                                    contentColor = if (hasAdvancedData) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            ) {
+                                Text("Advanced Putt Details")
+                            }
+                            if (showPuttAdvanced) {
+                                PuttAdvancedDialog(
+                                    putts = uiState.putts,
+                                    onDismissRequest = { showPuttAdvanced = false },
+                                    onSave = { updatedStates ->
+                                        updatedStates.forEach { state ->
+                                            viewModel.updatePuttAdvancedDetails(
+                                                putt = state.putt,
+                                                breakDirection = state.breakDirection,
+                                                slopeDirection = state.slopeDirection,
+                                                paceMiss = state.paceMiss,
+                                                directionMiss = state.directionMiss
+                                            )
+                                        }
+                                        showPuttAdvanced = false
+                                    }
+                                )
+                            }
+                        }
+
                         holeStat.sgPutting?.let { sg ->
                             Spacer(modifier = Modifier.height(16.dp))
                             val sgColor = if (sg > 0) MaterialTheme.colorScheme.primary else if (sg < -0.1) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
                             val sign = if (sg > 0) "+" else ""
                             Text(
-                                "SG Putting: $sign${String.format(java.util.Locale.US, "%.2f", sg)}", 
-                                color = sgColor, 
-                                style = MaterialTheme.typography.bodyMedium, 
+                                "SG Putting: $sign${String.format(java.util.Locale.US, "%.2f", sg)}",
+                                color = sgColor,
+                                style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold
                             )
                         }
