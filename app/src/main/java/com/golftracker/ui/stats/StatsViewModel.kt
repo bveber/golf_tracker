@@ -126,6 +126,10 @@ class StatsViewModel @Inject constructor(
     fun updateMishitFilter(include: Boolean) {
         _filter.update { it.copy(includeMishits = include) }
     }
+
+    fun updatePracticeFilter(exclude: Boolean) {
+        _filter.update { it.copy(excludePractice = exclude) }
+    }
 }
 
 sealed interface StatsUiState {

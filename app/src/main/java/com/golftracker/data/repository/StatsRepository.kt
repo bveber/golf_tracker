@@ -1,7 +1,12 @@
 package com.golftracker.data.repository
 
 import com.golftracker.data.db.dao.RoundDao
+import com.golftracker.data.entity.DirectionMiss
+import com.golftracker.data.entity.PaceMiss
+import com.golftracker.data.entity.PuttBreak
+import com.golftracker.data.entity.PuttSlopeDirection
 import com.golftracker.data.model.ApproachLie
+import com.golftracker.util.inferSlideMiss
 import com.golftracker.data.model.HoleStatWithHole
 import com.golftracker.data.model.RoundWithDetails
 import com.golftracker.data.model.ShotOutcome
@@ -26,7 +31,8 @@ data class StatsFilter(
     val drivingClubId: Int? = null,
     val approachClubId: Int? = null,
     val excludedRoundIds: Set<Int> = emptySet(),
-    val includeMishits: Boolean = true
+    val includeMishits: Boolean = true,
+    val excludePractice: Boolean = true
 )
 
 // ── Repository ──────────────────────────────────────────────────────────
@@ -63,6 +69,7 @@ class StatsRepository @Inject constructor(
                 approach = calculateApproachStats(filtered, filter.approachClubId, filter),
                 chipping = calculateChippingStats(filtered),
                 putting = calculatePuttingStats(filtered),
+                puttAdvanced = calculatePuttAdvancedStats(filtered),
                 sg = calculateSgStats(filtered, yardageMapForSg, parMap, filter)
             )
         }
@@ -71,7 +78,12 @@ class StatsRepository @Inject constructor(
     private fun applyFilter(rounds: List<RoundWithDetails>, filter: StatsFilter): List<RoundWithDetails> {
         var result = rounds
 
-        // 1. Exclude specific rounds
+        // 1. Exclude practice rounds (default on)
+        if (filter.excludePractice) {
+            result = result.filter { !it.round.isPractice }
+        }
+
+        // 2. Exclude specific rounds
         if (filter.excludedRoundIds.isNotEmpty()) {
             result = result.filter { it.round.id !in filter.excludedRoundIds }
         }
@@ -879,6 +891,138 @@ class StatsRepository @Inject constructor(
         )
     }
 
+    // ── Advanced Putting ─────────────────────────────────────────────────
+
+    private fun calculatePuttAdvancedStats(rounds: List<RoundWithDetails>): PuttAdvancedStats {
+        val allPutts = rounds.flatMap { it.holeStats }
+            .filter { it.holeStat.score > 0 }
+            .flatMap { h ->
+                // Infer made: last putt on hole is the made putt
+                val maxNum = h.putts.maxOfOrNull { it.puttNumber } ?: 0
+                h.putts.map { p -> p.copy(made = p.puttNumber == maxNum) }
+            }
+
+        val missedPutts = allPutts.filter { !it.made }
+
+        fun <T> countDistribution(list: List<T?>): Map<T, Float> {
+            if (list.isEmpty()) return emptyMap()
+            val nonNull = list.filterNotNull()
+            if (nonNull.isEmpty()) return emptyMap()
+            val counts = nonNull.groupingBy { it }.eachCount()
+            return counts.mapValues { (_, c) -> c.toFloat() / nonNull.size }
+        }
+
+        // Break & slope distributions (all putts with field recorded)
+        val breakDist = countDistribution(allPutts.map { it.breakDirection })
+        val slopeDist = countDistribution(allPutts.map { it.slopeDirection })
+
+        // Make % by slope (all putts with slopeDirection)
+        val makeRateBySlope = PuttSlopeDirection.values().associateWith { slope ->
+            val bucket = allPutts.filter { it.slopeDirection == slope }
+            if (bucket.size < 5) null
+            else bucket.count { it.made }.toFloat() / bucket.size
+        }
+
+        // Pace & direction miss distributions (missed putts only)
+        val paceDist = countDistribution(missedPutts.map { it.paceMiss })
+        val dirDist = countDistribution(missedPutts.map { it.directionMiss })
+
+        // Miss grid counts
+        val missGridCounts = missedPutts
+            .filter { it.paceMiss != null && it.directionMiss != null }
+            .groupingBy { Pair(it.paceMiss!!, it.directionMiss!!) }
+            .eachCount()
+
+        // High/low side (missed putts with both break + direction recorded)
+        val slidePutts = missedPutts.mapNotNull { p ->
+            inferSlideMiss(p.breakDirection, p.directionMiss)
+        }
+        val highSidePct = if (slidePutts.size >= 10) {
+            slidePutts.count { it == com.golftracker.data.entity.SlideMiss.HIGH }.toFloat() / slidePutts.size
+        } else null
+        val lowSidePct = if (slidePutts.size >= 10) {
+            slidePutts.count { it == com.golftracker.data.entity.SlideMiss.LOW }.toFloat() / slidePutts.size
+        } else null
+
+        // Pace by slope cross-tab
+        val paceBySlope = PuttSlopeDirection.values().associateWith { slope ->
+            val bucket = missedPutts.filter { it.slopeDirection == slope && it.paceMiss != null }
+            if (bucket.size < 5) emptyMap()
+            else countDistribution(bucket.map { it.paceMiss })
+        }
+
+        // Slide % by break magnitude ("big" = BIG_LEFT/BIG_RIGHT, "small" = SMALL_LEFT/SMALL_RIGHT)
+        fun slideForMagnitude(bigBreak: Boolean): Float? {
+            val matching = missedPutts.filter { p ->
+                val b = p.breakDirection ?: return@filter false
+                if (bigBreak) b == PuttBreak.BIG_LEFT || b == PuttBreak.BIG_RIGHT
+                else b == PuttBreak.SMALL_LEFT || b == PuttBreak.SMALL_RIGHT
+            }
+            val slides = matching.mapNotNull { inferSlideMiss(it.breakDirection, it.directionMiss) }
+            return if (slides.size >= 5)
+                slides.count { it == com.golftracker.data.entity.SlideMiss.LOW }.toFloat() / slides.size
+            else null
+        }
+        val slideByBreakMagnitude = mapOf(
+            "big" to slideForMagnitude(true),
+            "small" to slideForMagnitude(false)
+        )
+
+        // Slide % by break direction (left-breaking vs right-breaking putts)
+        fun slideSplitFor(isLeft: Boolean): SlideByDirection {
+            val matching = missedPutts.filter { p ->
+                val b = p.breakDirection ?: return@filter false
+                if (isLeft) b == PuttBreak.BIG_LEFT || b == PuttBreak.SMALL_LEFT
+                else b == PuttBreak.BIG_RIGHT || b == PuttBreak.SMALL_RIGHT
+            }
+            val slides = matching.mapNotNull { inferSlideMiss(it.breakDirection, it.directionMiss) }
+            return SlideByDirection(
+                highSidePct = if (slides.size >= 5) slides.count { it == com.golftracker.data.entity.SlideMiss.HIGH }.toFloat() / slides.size else null,
+                lowSidePct = if (slides.size >= 5) slides.count { it == com.golftracker.data.entity.SlideMiss.LOW }.toFloat() / slides.size else null,
+                n = slides.size
+            )
+        }
+        val slideByBreakDirection = mapOf(
+            "left" to slideSplitFor(true),
+            "right" to slideSplitFor(false)
+        )
+
+        // Distance-stratified splits
+        fun rangeSplit(minFt: Float, maxFt: Float): PuttRangeSplit? {
+            val inRange = missedPutts.filter { (it.distance ?: 0f) in minFt..maxFt }
+            if (inRange.isEmpty()) return null
+            val paceD = countDistribution(inRange.map { it.paceMiss })
+            val dirD = countDistribution(inRange.map { it.directionMiss })
+            val slides = inRange.mapNotNull { inferSlideMiss(it.breakDirection, it.directionMiss) }
+            return PuttRangeSplit(
+                missedPutts = inRange.size,
+                paceMissDistribution = paceD,
+                directionMissDistribution = dirD,
+                highSidePct = if (slides.size >= 5) slides.count { it == com.golftracker.data.entity.SlideMiss.HIGH }.toFloat() / slides.size else null,
+                lowSidePct = if (slides.size >= 5) slides.count { it == com.golftracker.data.entity.SlideMiss.LOW }.toFloat() / slides.size else null
+            )
+        }
+
+        return PuttAdvancedStats(
+            totalPuttCount = allPutts.size,
+            missedPuttCount = missedPutts.size,
+            breakDistribution = breakDist,
+            slopeDistribution = slopeDist,
+            makeRateBySlope = makeRateBySlope,
+            paceMissDistribution = paceDist,
+            directionMissDistribution = dirDist,
+            missGridCounts = missGridCounts,
+            highSidePct = highSidePct,
+            lowSidePct = lowSidePct,
+            paceBySlope = paceBySlope,
+            slideByBreakMagnitude = slideByBreakMagnitude,
+            slideByBreakDirection = slideByBreakDirection,
+            shortRange = rangeSplit(0f, 6f),
+            midRange = rangeSplit(6f, 15f),
+            longRange = rangeSplit(15f, Float.MAX_VALUE)
+        )
+    }
+
     // ── Helper functions for Margin of Error ─────────────────────────────
 
     /**
@@ -1045,6 +1189,7 @@ data class StatsData(
     val approach: ApproachStats = ApproachStats(),
     val chipping: ChippingStats = ChippingStats(),
     val putting: PuttingStats = PuttingStats(),
+    val puttAdvanced: PuttAdvancedStats = PuttAdvancedStats(),
     val sg: SgStats = SgStats()
 )
 
@@ -1232,4 +1377,59 @@ data class SgStats(
     val sgPenaltiesPerRound: Double = 0.0,
     val sgByLie: Map<ApproachLie, Double> = emptyMap(),
     val sgByDistance: Map<String, Double> = emptyMap()
+)
+
+data class PuttAdvancedStats(
+    val totalPuttCount: Int = 0,
+    val missedPuttCount: Int = 0,
+
+    // Break distribution (all putts with breakDirection recorded)
+    val breakDistribution: Map<PuttBreak, Float> = emptyMap(),
+
+    // Slope distribution (all putts with slopeDirection recorded)
+    val slopeDistribution: Map<PuttSlopeDirection, Float> = emptyMap(),
+
+    // Make % by slope grade (null if < 5 putts in bucket)
+    val makeRateBySlope: Map<PuttSlopeDirection, Float?> = emptyMap(),
+
+    // Pace miss distribution (missed putts with paceMiss)
+    val paceMissDistribution: Map<PaceMiss, Float> = emptyMap(),
+
+    // Direction miss distribution (missed putts with directionMiss)
+    val directionMissDistribution: Map<DirectionMiss, Float> = emptyMap(),
+
+    // Combined miss grid counts — Pair(PaceMiss, DirectionMiss) -> count
+    val missGridCounts: Map<Pair<PaceMiss, DirectionMiss>, Int> = emptyMap(),
+
+    // Inferred slide (null if < 10 qualifying putts)
+    val highSidePct: Float? = null,
+    val lowSidePct: Float? = null,
+
+    // Pace by slope cross-tab
+    val paceBySlope: Map<PuttSlopeDirection, Map<PaceMiss, Float>> = emptyMap(),
+
+    // Low-side % by break magnitude ("big" / "small" → null if < 5 putts)
+    val slideByBreakMagnitude: Map<String, Float?> = emptyMap(),
+
+    // High/low split by break direction ("left" / "right" → null if < 5 qualifying putts)
+    val slideByBreakDirection: Map<String, SlideByDirection> = emptyMap(),
+
+    // Distance-stratified breakdowns
+    val shortRange: PuttRangeSplit? = null,   // < 6 ft
+    val midRange: PuttRangeSplit? = null,     // 6–15 ft
+    val longRange: PuttRangeSplit? = null,    // > 15 ft
+)
+
+data class SlideByDirection(
+    val highSidePct: Float? = null,
+    val lowSidePct: Float? = null,
+    val n: Int = 0
+)
+
+data class PuttRangeSplit(
+    val missedPutts: Int = 0,
+    val paceMissDistribution: Map<PaceMiss, Float> = emptyMap(),
+    val directionMissDistribution: Map<DirectionMiss, Float> = emptyMap(),
+    val highSidePct: Float? = null,
+    val lowSidePct: Float? = null,
 )

@@ -20,7 +20,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,6 +36,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -55,14 +61,32 @@ fun RoundSummaryScreen(
     val uiState by viewModel.uiState.collectAsState()
     val holes = uiState.holes
     val stats = uiState.holeStats
+    val isPractice = uiState.activeRound?.isPractice == true
+    var showRoundMenu by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Scorecard") },
+                title = { Text(if (isPractice) "Scorecard (Practice)" else "Scorecard") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    Box {
+                        IconButton(onClick = { showRoundMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                        }
+                        DropdownMenu(expanded = showRoundMenu, onDismissRequest = { showRoundMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text(if (isPractice) "Remove Practice Flag" else "Mark as Practice Round") },
+                                onClick = {
+                                    viewModel.togglePracticeRound()
+                                    showRoundMenu = false
+                                }
+                            )
+                        }
                     }
                 }
             )

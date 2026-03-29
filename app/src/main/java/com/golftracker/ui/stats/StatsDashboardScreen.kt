@@ -1,5 +1,6 @@
 package com.golftracker.ui.stats
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.horizontalScroll
@@ -29,6 +30,12 @@ import com.golftracker.data.repository.ChippingStats
 import com.golftracker.data.repository.DrivingStats
 import com.golftracker.data.repository.OnTargetBreakdown
 import com.golftracker.data.repository.DistanceBucket
+import com.golftracker.data.entity.DirectionMiss
+import com.golftracker.data.entity.PaceMiss
+import com.golftracker.data.entity.PuttBreak
+import com.golftracker.data.entity.PuttSlopeDirection
+import com.golftracker.data.repository.PuttAdvancedStats
+import com.golftracker.data.repository.SlideByDirection
 import com.golftracker.data.repository.PuttingStats
 import com.golftracker.data.repository.ScoringStats
 import com.golftracker.data.repository.StatsData
@@ -80,12 +87,14 @@ fun StatsDashboardScreen(
                 startDate = filter.startDate,
                 endDate = filter.endDate,
                 excludedCount = filter.excludedRoundIds.size,
+                excludePractice = filter.excludePractice,
                 onCourseSelected = { viewModel.updateCourseFilter(it) },
                 onYearSelected = { viewModel.updateYearFilter(it) },
                 onLastNChanged = { viewModel.updateLastNRounds(it) },
                 onShowDateRange = { showDateRangePicker = true },
                 onShowManageRounds = { showManageRounds = true },
-                onClearFilters = { viewModel.clearFilters() }
+                onClearFilters = { viewModel.clearFilters() },
+                onTogglePractice = { viewModel.updatePracticeFilter(!filter.excludePractice) }
             )
 
             // ── Tabs ────────────────────────────────────────────────
@@ -141,7 +150,7 @@ fun StatsDashboardScreen(
                                     sg = data.sg
                                 )
                                 3 -> ChippingTab(data.chipping, data.sg)
-                                4 -> PuttingTab(data.putting, data.sg)
+                                4 -> PuttingTab(data.putting, data.puttAdvanced, data.sg)
                                 5 -> SgTab(data.sg)
                             }
                             Spacer(modifier = Modifier.height(16.dp))
@@ -192,12 +201,14 @@ fun FilterBar(
     startDate: Date?,
     endDate: Date?,
     excludedCount: Int,
+    excludePractice: Boolean,
     onCourseSelected: (Int?) -> Unit,
     onYearSelected: (Int?) -> Unit,
     onLastNChanged: (Int) -> Unit,
     onShowDateRange: () -> Unit,
     onShowManageRounds: () -> Unit,
-    onClearFilters: () -> Unit
+    onClearFilters: () -> Unit,
+    onTogglePractice: () -> Unit
 ) {
     var courseExpanded by remember { mutableStateOf(false) }
     var yearExpanded by remember { mutableStateOf(false) }
@@ -232,6 +243,13 @@ fun FilterBar(
                     )
                 }
             }
+        )
+
+        // Practice round filter
+        FilterChip(
+            selected = excludePractice,
+            onClick = onTogglePractice,
+            label = { Text("No Practice", style = MaterialTheme.typography.labelSmall) }
         )
 
         // Course filter
@@ -960,7 +978,7 @@ fun ChippingTab(c: ChippingStats, sg: com.golftracker.data.repository.SgStats) {
 // ── Putting Tab ─────────────────────────────────────────────────────────
 
 @Composable
-fun PuttingTab(p: PuttingStats, sg: com.golftracker.data.repository.SgStats) {
+fun PuttingTab(p: PuttingStats, adv: PuttAdvancedStats, sg: com.golftracker.data.repository.SgStats) {
     StatCard(
         title = "SG: Putting", 
         value = String.format(java.util.Locale.US, "%+.2f", sg.sgPuttingPerRound)
@@ -1119,6 +1137,339 @@ fun PuttingTab(p: PuttingStats, sg: com.golftracker.data.repository.SgStats) {
                         )
                     }
                 }
+            }
+        }
+    }
+
+    PuttDetailsSection(adv)
+}
+
+// ── Putt Details Section ─────────────────────────────────────────────────
+
+private fun paceLabel(p: PaceMiss) = when (p) {
+    PaceMiss.BIG_SHORT -> "↓↓ Short"
+    PaceMiss.SHORT -> "↓ Short"
+    PaceMiss.GOOD -> "Good"
+    PaceMiss.LONG -> "↑ Long"
+    PaceMiss.BIG_LONG -> "↑↑ Long"
+}
+
+private fun dirLabel(d: DirectionMiss) = when (d) {
+    DirectionMiss.BIG_LEFT -> "←← Left"
+    DirectionMiss.LEFT -> "← Left"
+    DirectionMiss.STRAIGHT -> "· Center"
+    DirectionMiss.RIGHT -> "→ Right"
+    DirectionMiss.BIG_RIGHT -> "→→ Right"
+}
+
+private fun breakLabel(b: PuttBreak) = when (b) {
+    PuttBreak.BIG_LEFT -> "←← Big Left"
+    PuttBreak.SMALL_LEFT -> "← Left"
+    PuttBreak.STRAIGHT -> "— Straight"
+    PuttBreak.SMALL_RIGHT -> "→ Right"
+    PuttBreak.BIG_RIGHT -> "→→ Big Right"
+}
+
+private fun slopeLabel(s: PuttSlopeDirection) = when (s) {
+    PuttSlopeDirection.STEEP_UPHILL -> "↑↑ Steep Up"
+    PuttSlopeDirection.UPHILL -> "↑ Uphill"
+    PuttSlopeDirection.FLAT -> "— Flat"
+    PuttSlopeDirection.DOWNHILL -> "↓ Downhill"
+    PuttSlopeDirection.STEEP_DOWNHILL -> "↓↓ Steep Down"
+}
+
+@Composable
+private fun PuttDetailsSection(adv: PuttAdvancedStats) {
+    val hasBreakData = adv.breakDistribution.isNotEmpty()
+    val hasSlopeData = adv.slopeDistribution.isNotEmpty()
+    val hasMissData = adv.missGridCounts.isNotEmpty()
+    val hasPaceData = adv.paceMissDistribution.isNotEmpty()
+    val hasDirData = adv.directionMissDistribution.isNotEmpty()
+    val hasSlideData = adv.highSidePct != null
+
+    if (!hasBreakData && !hasMissData) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Putt Details", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Record advanced putt data to unlock detailed break, slope, and miss pattern analysis.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        return
+    }
+
+    // Break distribution bar
+    if (adv.breakDistribution.size >= 1) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Break Distribution", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                if (adv.breakDistribution.values.sumOf { it.toDouble() } > 0) {
+                    val breakOrder = listOf(PuttBreak.BIG_LEFT, PuttBreak.SMALL_LEFT, PuttBreak.STRAIGHT, PuttBreak.SMALL_RIGHT, PuttBreak.BIG_RIGHT)
+                    val breakColors = listOf(
+                        Color(0xFFE57373), Color(0xFFFFB74D), Color(0xFF81C784),
+                        Color(0xFF64B5F6), Color(0xFF7986CB)
+                    )
+                    DistributionBar(
+                        segments = breakOrder.mapIndexedNotNull { i, b ->
+                            val pct = adv.breakDistribution[b] ?: 0f
+                            if (pct > 0f) DistributionSegment(breakLabel(b), pct.toDouble() * 100, breakColors[i]) else null
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    // Slope make % table
+    if (hasSlopeData) {
+        val slopeOrder = listOf(
+            PuttSlopeDirection.STEEP_UPHILL, PuttSlopeDirection.UPHILL, PuttSlopeDirection.FLAT,
+            PuttSlopeDirection.DOWNHILL, PuttSlopeDirection.STEEP_DOWNHILL
+        )
+        val anyMakeData = slopeOrder.any { adv.makeRateBySlope[it] != null }
+        if (anyMakeData) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Make % by Slope", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    slopeOrder.forEach { slope ->
+                        val rate = adv.makeRateBySlope[slope]
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(slopeLabel(slope), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                            Text(
+                                if (rate != null) String.format(Locale.US, "%.0f%%", rate * 100) else "—",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (rate != null && rate >= 0.5f) MaterialTheme.colorScheme.primary
+                                else if (rate != null && rate < 0.3f) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                    Text(
+                        "Shown for buckets with ≥ 5 putts",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+
+    // Miss heatmap
+    if (hasMissData && adv.missedPuttCount >= 10) {
+        val paceOrder = listOf(PaceMiss.BIG_LONG, PaceMiss.LONG, PaceMiss.GOOD, PaceMiss.SHORT, PaceMiss.BIG_SHORT)
+        val dirOrder = listOf(DirectionMiss.BIG_LEFT, DirectionMiss.LEFT, DirectionMiss.STRAIGHT, DirectionMiss.RIGHT, DirectionMiss.BIG_RIGHT)
+        val maxCount = adv.missGridCounts.values.maxOrNull() ?: 1
+
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Miss Heatmap", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Tap cells in the hole tracking screen to record misses",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Column headers
+                Row {
+                    Spacer(modifier = Modifier.width(56.dp))
+                    dirOrder.forEach { dir ->
+                        Text(
+                            when (dir) {
+                                DirectionMiss.BIG_LEFT -> "←←"; DirectionMiss.LEFT -> "←"
+                                DirectionMiss.STRAIGHT -> "·"; DirectionMiss.RIGHT -> "→"
+                                DirectionMiss.BIG_RIGHT -> "→→"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.size(36.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+
+                paceOrder.forEach { pace ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            paceLabel(pace).substringBefore(" "),
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.width(56.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.End
+                        )
+                        dirOrder.forEach { dir ->
+                            val count = adv.missGridCounts[Pair(pace, dir)] ?: 0
+                            val intensity = if (maxCount > 0) count.toFloat() / maxCount else 0f
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .padding(2.dp)
+                                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
+                                    .background(
+                                        MaterialTheme.colorScheme.error.copy(alpha = (0.1f + intensity * 0.85f).coerceIn(0f, 1f))
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (count > 0) {
+                                    Text(
+                                        "$count",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (intensity > 0.5f) Color.White else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Pace miss bar
+    if (hasPaceData && adv.missedPuttCount >= 10) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Pace Miss Distribution", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                val paceOrder = listOf(PaceMiss.BIG_LONG, PaceMiss.LONG, PaceMiss.GOOD, PaceMiss.SHORT, PaceMiss.BIG_SHORT)
+                val paceColors = listOf(Color(0xFF5C6BC0), Color(0xFF42A5F5), Color(0xFF81C784), Color(0xFFFFB74D), Color(0xFFEF5350))
+                DistributionBar(
+                    segments = paceOrder.mapIndexedNotNull { i, p ->
+                        val pct = adv.paceMissDistribution[p] ?: 0f
+                        if (pct > 0f) DistributionSegment(paceLabel(p), pct.toDouble() * 100, paceColors[i]) else null
+                    }
+                )
+            }
+        }
+    }
+
+    // Direction miss bar
+    if (hasDirData && adv.missedPuttCount >= 10) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Direction Miss Distribution", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                val dirOrder = listOf(DirectionMiss.BIG_LEFT, DirectionMiss.LEFT, DirectionMiss.STRAIGHT, DirectionMiss.RIGHT, DirectionMiss.BIG_RIGHT)
+                val dirColors = listOf(Color(0xFFE57373), Color(0xFFFFB74D), Color(0xFF81C784), Color(0xFF64B5F6), Color(0xFF7986CB))
+                DistributionBar(
+                    segments = dirOrder.mapIndexedNotNull { i, d ->
+                        val pct = adv.directionMissDistribution[d] ?: 0f
+                        if (pct > 0f) DistributionSegment(dirLabel(d), pct.toDouble() * 100, dirColors[i]) else null
+                    }
+                )
+            }
+        }
+    }
+
+    // High / low side bar
+    val leftSplit = adv.slideByBreakDirection["left"]
+    val rightSplit = adv.slideByBreakDirection["right"]
+    val hasByDirectionData = (leftSplit?.highSidePct != null) || (rightSplit?.highSidePct != null)
+    if (hasSlideData || hasByDirectionData) {
+        val high = adv.highSidePct ?: 0f
+        val low = adv.lowSidePct ?: 0f
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("High / Low Side", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Inferred from break + direction",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (hasSlideData) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Overall", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    DistributionBar(
+                        segments = listOf(
+                            DistributionSegment("High Side", high.toDouble() * 100, Color(0xFF42A5F5)),
+                            DistributionSegment("Low Side", low.toDouble() * 100, Color(0xFFEF5350))
+                        ).filter { it.value > 0.0 }
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("High (pro side): ${String.format(Locale.US, "%.0f%%", high * 100)}", style = MaterialTheme.typography.bodySmall)
+                        Text("Low (amateur): ${String.format(Locale.US, "%.0f%%", low * 100)}", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                if (hasByDirectionData) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("By Break Direction", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    listOf("← Left break" to leftSplit, "→ Right break" to rightSplit).forEach { (label, split) ->
+                        if (split?.highSidePct != null) {
+                            val h = split.highSidePct
+                            val l = split.lowSidePct ?: 0f
+                            Text(label, style = MaterialTheme.typography.bodySmall)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            DistributionBar(
+                                segments = listOf(
+                                    DistributionSegment("High", h.toDouble() * 100, Color(0xFF42A5F5)),
+                                    DistributionSegment("Low", l.toDouble() * 100, Color(0xFFEF5350))
+                                ).filter { it.value > 0.0 }
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("High: ${String.format(Locale.US, "%.0f%%", h * 100)}", style = MaterialTheme.typography.bodySmall)
+                                Text("Low: ${String.format(Locale.US, "%.0f%%", l * 100)}", style = MaterialTheme.typography.bodySmall)
+                                Text("n=${split.n}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Pace by slope cross-tab
+    val slopeOrder = listOf(
+        PuttSlopeDirection.STEEP_UPHILL, PuttSlopeDirection.UPHILL, PuttSlopeDirection.FLAT,
+        PuttSlopeDirection.DOWNHILL, PuttSlopeDirection.STEEP_DOWNHILL
+    )
+    val hasPaceBySlope = slopeOrder.any { (adv.paceBySlope[it]?.size ?: 0) > 0 }
+    if (hasPaceBySlope) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Pace Miss by Slope", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                slopeOrder.forEach { slope ->
+                    val dist = adv.paceBySlope[slope] ?: emptyMap()
+                    if (dist.isNotEmpty()) {
+                        Text(slopeLabel(slope), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        val paceOrder = listOf(PaceMiss.BIG_LONG, PaceMiss.LONG, PaceMiss.GOOD, PaceMiss.SHORT, PaceMiss.BIG_SHORT)
+                        val paceColors = listOf(Color(0xFF5C6BC0), Color(0xFF42A5F5), Color(0xFF81C784), Color(0xFFFFB74D), Color(0xFFEF5350))
+                        DistributionBar(
+                            segments = paceOrder.mapIndexedNotNull { i, p ->
+                                val pct = dist[p] ?: 0f
+                                if (pct > 0f) DistributionSegment(paceLabel(p), pct.toDouble() * 100, paceColors[i]) else null
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+                Text(
+                    "Shown for buckets with ≥ 5 missed putts",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

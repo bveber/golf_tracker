@@ -1,6 +1,10 @@
 package com.golftracker.data.db
 
 import androidx.room.TypeConverter
+import com.golftracker.data.entity.DirectionMiss
+import com.golftracker.data.entity.PaceMiss
+import com.golftracker.data.entity.PuttBreak
+import com.golftracker.data.entity.PuttSlopeDirection
 import com.golftracker.data.model.ApproachLie
 import com.golftracker.data.model.PenaltyType
 import com.golftracker.data.model.ShotOutcome
@@ -98,4 +102,32 @@ class Converters {
     fun lieStanceToString(stance: LieStance?): String? {
         return stance?.name
     }
+
+    @TypeConverter
+    fun toPuttBreak(value: String?): PuttBreak? = value?.let {
+        try { PuttBreak.valueOf(it) } catch (e: IllegalArgumentException) { null }
+    }
+    @TypeConverter
+    fun fromPuttBreak(value: PuttBreak?): String? = value?.name
+
+    @TypeConverter
+    fun toPuttSlopeDirection(value: String?): PuttSlopeDirection? = value?.let {
+        try { PuttSlopeDirection.valueOf(it) } catch (e: IllegalArgumentException) { null }
+    }
+    @TypeConverter
+    fun fromPuttSlopeDirection(value: PuttSlopeDirection?): String? = value?.name
+
+    @TypeConverter
+    fun toPaceMiss(value: String?): PaceMiss? = value?.let {
+        try { PaceMiss.valueOf(it) } catch (e: IllegalArgumentException) { null }
+    }
+    @TypeConverter
+    fun fromPaceMiss(value: PaceMiss?): String? = value?.name
+
+    @TypeConverter
+    fun toDirectionMiss(value: String?): DirectionMiss? = value?.let {
+        try { DirectionMiss.valueOf(it) } catch (e: IllegalArgumentException) { null }
+    }
+    @TypeConverter
+    fun fromDirectionMiss(value: DirectionMiss?): String? = value?.name
 }
