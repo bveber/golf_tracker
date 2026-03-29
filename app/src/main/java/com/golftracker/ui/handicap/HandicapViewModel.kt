@@ -35,10 +35,11 @@ class HandicapViewModel @Inject constructor(
         userPreferencesRepository.estimatedHandicapFlow
     ) { rounds, estimatedHandicap ->
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
-        val index = HandicapCalculator.calculateHandicapIndex(rounds)
-        val diffs = HandicapCalculator.calculateDifferentials(rounds, currentYear)
-        val series = HandicapCalculator.buildHandicapTimeSeries(rounds)
-        val years = rounds
+        val competitiveRounds = rounds.filter { !it.round.isPractice }
+        val index = HandicapCalculator.calculateHandicapIndex(competitiveRounds)
+        val diffs = HandicapCalculator.calculateDifferentials(competitiveRounds, currentYear)
+        val series = HandicapCalculator.buildHandicapTimeSeries(competitiveRounds)
+        val years = competitiveRounds
             .map { Calendar.getInstance().also { c -> c.time = it.round.date }.get(Calendar.YEAR) }
             .distinct()
             .sortedDescending()

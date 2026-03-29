@@ -37,5 +37,7 @@ data class Round(
     @ColumnInfo(name = "total_holes")
     val totalHoles: Int = 18, // 9 or 18
     @ColumnInfo(name = "start_hole")
-    val startHole: Int = 1
+    val startHole: Int = 1,
+    @ColumnInfo(name = "is_practice")
+    val isPractice: Boolean = false
 )

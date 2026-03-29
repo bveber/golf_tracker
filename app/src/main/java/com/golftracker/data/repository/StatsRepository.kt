@@ -31,7 +31,8 @@ data class StatsFilter(
     val drivingClubId: Int? = null,
     val approachClubId: Int? = null,
     val excludedRoundIds: Set<Int> = emptySet(),
-    val includeMishits: Boolean = true
+    val includeMishits: Boolean = true,
+    val excludePractice: Boolean = true
 )
 
 // ── Repository ──────────────────────────────────────────────────────────
@@ -77,7 +78,12 @@ class StatsRepository @Inject constructor(
     private fun applyFilter(rounds: List<RoundWithDetails>, filter: StatsFilter): List<RoundWithDetails> {
         var result = rounds
 
-        // 1. Exclude specific rounds
+        // 1. Exclude practice rounds (default on)
+        if (filter.excludePractice) {
+            result = result.filter { !it.round.isPractice }
+        }
+
+        // 2. Exclude specific rounds
         if (filter.excludedRoundIds.isNotEmpty()) {
             result = result.filter { it.round.id !in filter.excludedRoundIds }
         }
@@ -962,6 +968,25 @@ class StatsRepository @Inject constructor(
             "small" to slideForMagnitude(false)
         )
 
+        // Slide % by break direction (left-breaking vs right-breaking putts)
+        fun slideSplitFor(isLeft: Boolean): SlideByDirection {
+            val matching = missedPutts.filter { p ->
+                val b = p.breakDirection ?: return@filter false
+                if (isLeft) b == PuttBreak.BIG_LEFT || b == PuttBreak.SMALL_LEFT
+                else b == PuttBreak.BIG_RIGHT || b == PuttBreak.SMALL_RIGHT
+            }
+            val slides = matching.mapNotNull { inferSlideMiss(it.breakDirection, it.directionMiss) }
+            return SlideByDirection(
+                highSidePct = if (slides.size >= 5) slides.count { it == com.golftracker.data.entity.SlideMiss.HIGH }.toFloat() / slides.size else null,
+                lowSidePct = if (slides.size >= 5) slides.count { it == com.golftracker.data.entity.SlideMiss.LOW }.toFloat() / slides.size else null,
+                n = slides.size
+            )
+        }
+        val slideByBreakDirection = mapOf(
+            "left" to slideSplitFor(true),
+            "right" to slideSplitFor(false)
+        )
+
         // Distance-stratified splits
         fun rangeSplit(minFt: Float, maxFt: Float): PuttRangeSplit? {
             val inRange = missedPutts.filter { (it.distance ?: 0f) in minFt..maxFt }
@@ -991,6 +1016,7 @@ class StatsRepository @Inject constructor(
             lowSidePct = lowSidePct,
             paceBySlope = paceBySlope,
             slideByBreakMagnitude = slideByBreakMagnitude,
+            slideByBreakDirection = slideByBreakDirection,
             shortRange = rangeSplit(0f, 6f),
             midRange = rangeSplit(6f, 15f),
             longRange = rangeSplit(15f, Float.MAX_VALUE)
@@ -1385,10 +1411,19 @@ data class PuttAdvancedStats(
     // Low-side % by break magnitude ("big" / "small" → null if < 5 putts)
     val slideByBreakMagnitude: Map<String, Float?> = emptyMap(),
 
+    // High/low split by break direction ("left" / "right" → null if < 5 qualifying putts)
+    val slideByBreakDirection: Map<String, SlideByDirection> = emptyMap(),
+
     // Distance-stratified breakdowns
     val shortRange: PuttRangeSplit? = null,   // < 6 ft
     val midRange: PuttRangeSplit? = null,     // 6–15 ft
     val longRange: PuttRangeSplit? = null,    // > 15 ft
+)
+
+data class SlideByDirection(
+    val highSidePct: Float? = null,
+    val lowSidePct: Float? = null,
+    val n: Int = 0
 )
 
 data class PuttRangeSplit(

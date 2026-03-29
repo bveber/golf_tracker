@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
@@ -87,6 +88,8 @@ fun HoleTrackingScreen(
     var showGps by remember { mutableStateOf(false) }
     var showFinishConfirmation by remember { mutableStateOf(false) }
     var showClearShotsConfirmation by remember { mutableStateOf(false) }
+    var showRoundMenu by remember { mutableStateOf(false) }
+    val isPractice = uiState.activeRound?.isPractice == true
 
     Scaffold(
         topBar = {
@@ -117,6 +120,20 @@ fun HoleTrackingScreen(
                             contentDescription = if (showGps) "Back to Stats" else "Show GPS",
                             tint = if (showGps) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                         )
+                    }
+                    Box {
+                        IconButton(onClick = { showRoundMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                        }
+                        DropdownMenu(expanded = showRoundMenu, onDismissRequest = { showRoundMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text(if (isPractice) "Remove Practice Flag" else "Mark as Practice Round") },
+                                onClick = {
+                                    viewModel.togglePracticeRound()
+                                    showRoundMenu = false
+                                }
+                            )
+                        }
                     }
                 }
             )

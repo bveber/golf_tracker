@@ -140,4 +140,13 @@ class RoundHistoryViewModel @Inject constructor(
             }
         }
     }
+
+    fun togglePracticeRound(roundId: Int) {
+        viewModelScope.launch {
+            val round = roundRepository.getRound(roundId)
+            if (round != null) {
+                roundRepository.updateRound(round.copy(isPractice = !round.isPractice))
+            }
+        }
+    }
 }

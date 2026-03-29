@@ -35,6 +35,7 @@ import com.golftracker.data.entity.PaceMiss
 import com.golftracker.data.entity.PuttBreak
 import com.golftracker.data.entity.PuttSlopeDirection
 import com.golftracker.data.repository.PuttAdvancedStats
+import com.golftracker.data.repository.SlideByDirection
 import com.golftracker.data.repository.PuttingStats
 import com.golftracker.data.repository.ScoringStats
 import com.golftracker.data.repository.StatsData
@@ -86,12 +87,14 @@ fun StatsDashboardScreen(
                 startDate = filter.startDate,
                 endDate = filter.endDate,
                 excludedCount = filter.excludedRoundIds.size,
+                excludePractice = filter.excludePractice,
                 onCourseSelected = { viewModel.updateCourseFilter(it) },
                 onYearSelected = { viewModel.updateYearFilter(it) },
                 onLastNChanged = { viewModel.updateLastNRounds(it) },
                 onShowDateRange = { showDateRangePicker = true },
                 onShowManageRounds = { showManageRounds = true },
-                onClearFilters = { viewModel.clearFilters() }
+                onClearFilters = { viewModel.clearFilters() },
+                onTogglePractice = { viewModel.updatePracticeFilter(!filter.excludePractice) }
             )
 
             // ── Tabs ────────────────────────────────────────────────
@@ -198,12 +201,14 @@ fun FilterBar(
     startDate: Date?,
     endDate: Date?,
     excludedCount: Int,
+    excludePractice: Boolean,
     onCourseSelected: (Int?) -> Unit,
     onYearSelected: (Int?) -> Unit,
     onLastNChanged: (Int) -> Unit,
     onShowDateRange: () -> Unit,
     onShowManageRounds: () -> Unit,
-    onClearFilters: () -> Unit
+    onClearFilters: () -> Unit,
+    onTogglePractice: () -> Unit
 ) {
     var courseExpanded by remember { mutableStateOf(false) }
     var yearExpanded by remember { mutableStateOf(false) }
@@ -238,6 +243,13 @@ fun FilterBar(
                     )
                 }
             }
+        )
+
+        // Practice round filter
+        FilterChip(
+            selected = excludePractice,
+            onClick = onTogglePractice,
+            label = { Text("No Practice", style = MaterialTheme.typography.labelSmall) }
         )
 
         // Course filter
@@ -1135,11 +1147,11 @@ fun PuttingTab(p: PuttingStats, adv: PuttAdvancedStats, sg: com.golftracker.data
 // ── Putt Details Section ─────────────────────────────────────────────────
 
 private fun paceLabel(p: PaceMiss) = when (p) {
-    PaceMiss.BIG_SHORT -> "↑↑ Short"
-    PaceMiss.SHORT -> "↑ Short"
+    PaceMiss.BIG_SHORT -> "↓↓ Short"
+    PaceMiss.SHORT -> "↓ Short"
     PaceMiss.GOOD -> "Good"
-    PaceMiss.LONG -> "↓ Long"
-    PaceMiss.BIG_LONG -> "↓↓ Long"
+    PaceMiss.LONG -> "↑ Long"
+    PaceMiss.BIG_LONG -> "↑↑ Long"
 }
 
 private fun dirLabel(d: DirectionMiss) = when (d) {
@@ -1255,7 +1267,7 @@ private fun PuttDetailsSection(adv: PuttAdvancedStats) {
 
     // Miss heatmap
     if (hasMissData && adv.missedPuttCount >= 10) {
-        val paceOrder = listOf(PaceMiss.BIG_SHORT, PaceMiss.SHORT, PaceMiss.GOOD, PaceMiss.LONG, PaceMiss.BIG_LONG)
+        val paceOrder = listOf(PaceMiss.BIG_LONG, PaceMiss.LONG, PaceMiss.GOOD, PaceMiss.SHORT, PaceMiss.BIG_SHORT)
         val dirOrder = listOf(DirectionMiss.BIG_LEFT, DirectionMiss.LEFT, DirectionMiss.STRAIGHT, DirectionMiss.RIGHT, DirectionMiss.BIG_RIGHT)
         val maxCount = adv.missGridCounts.values.maxOrNull() ?: 1
 
@@ -1329,7 +1341,7 @@ private fun PuttDetailsSection(adv: PuttAdvancedStats) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Pace Miss Distribution", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
-                val paceOrder = listOf(PaceMiss.BIG_SHORT, PaceMiss.SHORT, PaceMiss.GOOD, PaceMiss.LONG, PaceMiss.BIG_LONG)
+                val paceOrder = listOf(PaceMiss.BIG_LONG, PaceMiss.LONG, PaceMiss.GOOD, PaceMiss.SHORT, PaceMiss.BIG_SHORT)
                 val paceColors = listOf(Color(0xFF5C6BC0), Color(0xFF42A5F5), Color(0xFF81C784), Color(0xFFFFB74D), Color(0xFFEF5350))
                 DistributionBar(
                     segments = paceOrder.mapIndexedNotNull { i, p ->
@@ -1360,7 +1372,10 @@ private fun PuttDetailsSection(adv: PuttAdvancedStats) {
     }
 
     // High / low side bar
-    if (hasSlideData) {
+    val leftSplit = adv.slideByBreakDirection["left"]
+    val rightSplit = adv.slideByBreakDirection["right"]
+    val hasByDirectionData = (leftSplit?.highSidePct != null) || (rightSplit?.highSidePct != null)
+    if (hasSlideData || hasByDirectionData) {
         val high = adv.highSidePct ?: 0f
         val low = adv.lowSidePct ?: 0f
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -1372,20 +1387,53 @@ private fun PuttDetailsSection(adv: PuttAdvancedStats) {
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                DistributionBar(
-                    segments = listOf(
-                        DistributionSegment("High Side", high.toDouble() * 100, Color(0xFF42A5F5)),
-                        DistributionSegment("Low Side", low.toDouble() * 100, Color(0xFFEF5350))
-                    ).filter { it.value > 0.0 }
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("High (pro side): ${String.format(Locale.US, "%.0f%%", high * 100)}", style = MaterialTheme.typography.bodySmall)
-                    Text("Low (amateur): ${String.format(Locale.US, "%.0f%%", low * 100)}", style = MaterialTheme.typography.bodySmall)
+                if (hasSlideData) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Overall", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    DistributionBar(
+                        segments = listOf(
+                            DistributionSegment("High Side", high.toDouble() * 100, Color(0xFF42A5F5)),
+                            DistributionSegment("Low Side", low.toDouble() * 100, Color(0xFFEF5350))
+                        ).filter { it.value > 0.0 }
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("High (pro side): ${String.format(Locale.US, "%.0f%%", high * 100)}", style = MaterialTheme.typography.bodySmall)
+                        Text("Low (amateur): ${String.format(Locale.US, "%.0f%%", low * 100)}", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                if (hasByDirectionData) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("By Break Direction", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    listOf("← Left break" to leftSplit, "→ Right break" to rightSplit).forEach { (label, split) ->
+                        if (split?.highSidePct != null) {
+                            val h = split.highSidePct
+                            val l = split.lowSidePct ?: 0f
+                            Text(label, style = MaterialTheme.typography.bodySmall)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            DistributionBar(
+                                segments = listOf(
+                                    DistributionSegment("High", h.toDouble() * 100, Color(0xFF42A5F5)),
+                                    DistributionSegment("Low", l.toDouble() * 100, Color(0xFFEF5350))
+                                ).filter { it.value > 0.0 }
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("High: ${String.format(Locale.US, "%.0f%%", h * 100)}", style = MaterialTheme.typography.bodySmall)
+                                Text("Low: ${String.format(Locale.US, "%.0f%%", l * 100)}", style = MaterialTheme.typography.bodySmall)
+                                Text("n=${split.n}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
                 }
             }
         }
@@ -1406,7 +1454,7 @@ private fun PuttDetailsSection(adv: PuttAdvancedStats) {
                     val dist = adv.paceBySlope[slope] ?: emptyMap()
                     if (dist.isNotEmpty()) {
                         Text(slopeLabel(slope), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        val paceOrder = listOf(PaceMiss.BIG_SHORT, PaceMiss.SHORT, PaceMiss.GOOD, PaceMiss.LONG, PaceMiss.BIG_LONG)
+                        val paceOrder = listOf(PaceMiss.BIG_LONG, PaceMiss.LONG, PaceMiss.GOOD, PaceMiss.SHORT, PaceMiss.BIG_SHORT)
                         val paceColors = listOf(Color(0xFF5C6BC0), Color(0xFF42A5F5), Color(0xFF81C784), Color(0xFFFFB74D), Color(0xFFEF5350))
                         DistributionBar(
                             segments = paceOrder.mapIndexedNotNull { i, p ->

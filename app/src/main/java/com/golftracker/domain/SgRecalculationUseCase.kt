@@ -154,8 +154,8 @@ class SgRecalculationUseCase @Inject constructor(
         courseDiff: Double? = null
     ): HoleCalculationResult {
         // 1. Shot Number Correction (De-duplication & Offset)
-        val driveIsTracked = shots.any { it.shotNumber == 1 || it.lie == ApproachLie.TEE }
-        val teeShotInStat = par > 3 && (stat.teeOutcome != null || stat.teeShotDistance != null || stat.teeClubId != null)
+        val driveIsTracked = shots.any { it.lie == ApproachLie.TEE }
+        val teeShotInStat = par > 3 && (stat.teeOutcome != null || stat.teeShotDistance != null || stat.teeClubId != null || stat.teeLat != null)
         val shotNumberOffset = if (teeShotInStat && !driveIsTracked) 2 else 1
         
         val sortedShots = shots.sortedBy { it.shotNumber }

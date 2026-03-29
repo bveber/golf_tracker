@@ -26,7 +26,8 @@ data class RoundSetupUiState(
     val notes: String = "",
     val teeYardages: Map<Int, Int> = emptyMap(), // teeSetId to totalYardage
     val holesToPlay: Int = 18, // 9 or 18
-    val nineSelection: String = "Front", // "Front" or "Back"
+    val startingHole: Int = 1, // 1 or 10
+    val isPractice: Boolean = false,
     val isLoading: Boolean = false,
     val createdRoundId: Int? = null
 )
@@ -90,31 +91,34 @@ class RoundSetupViewModel @Inject constructor(
         _uiState.update { it.copy(holesToPlay = holes) }
     }
 
-    fun updateNineSelection(selection: String) {
-        _uiState.update { it.copy(nineSelection = selection) }
+    fun updateStartingHole(hole: Int) {
+        _uiState.update { it.copy(startingHole = hole) }
+    }
+
+    fun togglePracticeRound() {
+        _uiState.update { it.copy(isPractice = !it.isPractice) }
     }
 
     fun startRound() {
         val state = uiState.value
         if (state.selectedCourse != null && state.selectedTeeSet != null) {
             viewModelScope.launch {
-                val startHole = if (state.holesToPlay == 18) 1 else if (state.nineSelection == "Front") 1 else 10
-                
                 val newRound = Round(
                     courseId = state.selectedCourse.id,
                     teeSetId = state.selectedTeeSet.id,
                     date = state.date,
                     notes = state.notes,
                     totalHoles = state.holesToPlay,
-                    startHole = startHole
+                    startHole = state.startingHole,
+                    isPractice = state.isPractice
                 )
                 val roundId = roundRepository.insertRound(newRound).toInt()
-                
+
                 // Initialize hole stats
                 val allHoles = courseRepository.getHoles(state.selectedCourse.id).first()
                 val holesToInitialize = if (state.holesToPlay == 18) {
                     allHoles
-                } else if (state.nineSelection == "Front") {
+                } else if (state.startingHole == 1) {
                     allHoles.filter { it.holeNumber in 1..9 }
                 } else {
                     allHoles.filter { it.holeNumber in 10..18 }

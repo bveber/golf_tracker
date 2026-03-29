@@ -34,7 +34,7 @@ import com.golftracker.data.entity.TeeSet
         Penalty::class,
         Shot::class
     ],
-    version = 26,
+    version = 29,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -201,6 +201,37 @@ abstract class GolfDatabase : RoomDatabase() {
                 database.execSQL("ALTER TABLE putts ADD COLUMN slope_direction TEXT")
                 database.execSQL("ALTER TABLE putts ADD COLUMN pace_miss TEXT")
                 database.execSQL("ALTER TABLE putts ADD COLUMN direction_miss TEXT")
+            }
+        }
+        val MIGRATION_26_27 = object : androidx.room.migration.Migration(26, 27) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE rounds ADD COLUMN is_practice INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+        val MIGRATION_27_28 = object : androidx.room.migration.Migration(27, 28) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                val cursor = database.query("PRAGMA table_info(shots)")
+                val columns = mutableListOf<String>()
+                while (cursor.moveToNext()) {
+                    columns.add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+                }
+                cursor.close()
+                if (!columns.contains("start_lat")) database.execSQL("ALTER TABLE shots ADD COLUMN start_lat REAL")
+                if (!columns.contains("start_lng")) database.execSQL("ALTER TABLE shots ADD COLUMN start_lng REAL")
+                if (!columns.contains("end_lat")) database.execSQL("ALTER TABLE shots ADD COLUMN end_lat REAL")
+                if (!columns.contains("end_lng")) database.execSQL("ALTER TABLE shots ADD COLUMN end_lng REAL")
+            }
+        }
+        val MIGRATION_28_29 = object : androidx.room.migration.Migration(28, 29) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                val cursor = database.query("PRAGMA table_info(hole_stats)")
+                val columns = mutableListOf<String>()
+                while (cursor.moveToNext()) {
+                    columns.add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+                }
+                cursor.close()
+                if (!columns.contains("gir_override")) database.execSQL("ALTER TABLE hole_stats ADD COLUMN gir_override INTEGER NOT NULL DEFAULT 0")
+                if (!columns.contains("near_gir")) database.execSQL("ALTER TABLE hole_stats ADD COLUMN near_gir INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

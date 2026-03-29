@@ -14,6 +14,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -149,7 +151,8 @@ fun RoundHistoryScreen(
                             slope = roundScore.slope,
                             onClick = { onRoundClick(roundDetail.round.id) },
                             onExportClick = { viewModel.exportRound(roundDetail.round.id) },
-                            onDeleteClick = { roundToDelete = roundDetail.round }
+                            onDeleteClick = { roundToDelete = roundDetail.round },
+                            onPracticeToggleClick = { viewModel.togglePracticeRound(roundDetail.round.id) }
                         )
                     }
                 }
@@ -171,7 +174,8 @@ fun RoundItem(
     slope: Int,
     onClick: () -> Unit,
     onExportClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onDeleteClick: () -> Unit,
+    onPracticeToggleClick: () -> Unit
 ) {
     Card(modifier = Modifier.padding(8.dp).fillMaxWidth().clickable(onClick = onClick)) {
         ListItem(
@@ -192,17 +196,34 @@ fun RoundItem(
                             Text(sgDisplay, fontWeight = FontWeight.Bold, color = sgColor)
                         }
                     }
-                    val status = if (round.isFinalized) "Finalized" else "In Progress"
-                    Text(status, color = if (round.isFinalized) Color.Green else Color.Gray, style = MaterialTheme.typography.labelSmall)
+                    Row {
+                        val status = if (round.isFinalized) "Finalized" else "In Progress"
+                        Text(status, color = if (round.isFinalized) Color.Green else Color.Gray, style = MaterialTheme.typography.labelSmall)
+                        if (round.isPractice) {
+                            Text(" • Practice", color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                 }
             },
             trailingContent = {
-                Row {
-                    IconButton(onClick = onExportClick) {
-                        Icon(Icons.Default.Share, contentDescription = "Export JSON")
+                var showMenu by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Default.Share, contentDescription = "Options")
                     }
-                    IconButton(onClick = onDeleteClick) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete Round", tint = Color.Red.copy(alpha = 0.7f))
+                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Export JSON") },
+                            onClick = { onExportClick(); showMenu = false }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (round.isPractice) "Remove Practice Flag" else "Mark as Practice") },
+                            onClick = { onPracticeToggleClick(); showMenu = false }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Delete", color = Color.Red) },
+                            onClick = { onDeleteClick(); showMenu = false }
+                        )
                     }
                 }
             }

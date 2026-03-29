@@ -133,7 +133,7 @@ class SeedDataCallback(private val context: Context) : RoomDatabase.Callback() {
         val roundId = 1
         val date = System.currentTimeMillis() - 86400000 // Yesterday
         
-        db.execSQL("INSERT INTO rounds (id, course_id, tee_set_id, date, is_finalized, notes, total_holes, start_hole) VALUES ($roundId, 1, 1, $date, 1, '', 18, 1)")
+        db.execSQL("INSERT INTO rounds (id, course_id, tee_set_id, date, is_finalized, notes, total_holes, start_hole, is_practice) VALUES ($roundId, 1, 1, $date, 1, '', 18, 1, 0)")
 
         val random = java.util.Random()
         var holeStatId = 1

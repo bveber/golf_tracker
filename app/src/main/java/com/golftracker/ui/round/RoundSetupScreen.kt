@@ -17,11 +17,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -159,20 +161,18 @@ fun RoundSetupScreen(
                 )
             }
 
-            if (uiState.holesToPlay == 9) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("Select Nine", style = MaterialTheme.typography.labelMedium)
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    com.golftracker.ui.components.ChipSelector(
-                        options = listOf("Front", "Back"),
-                        selectedOption = uiState.nineSelection,
-                        onOptionSelected = { viewModel.updateNineSelection(it) },
-                        labelMapper = { "$it 9" }
-                    )
-                }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Starting Hole", style = MaterialTheme.typography.labelMedium)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                com.golftracker.ui.components.ChipSelector(
+                    options = listOf(1, 10),
+                    selectedOption = uiState.startingHole,
+                    onOptionSelected = { viewModel.updateStartingHole(it) },
+                    labelMapper = { "Hole $it" }
+                )
             }
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -194,6 +194,28 @@ fun RoundSetupScreen(
                 label = { Text("Notes (Optional)") },
                 modifier = Modifier.fillMaxWidth()
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text("Practice Round", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "Won't count toward handicap or stats",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = uiState.isPractice,
+                    onCheckedChange = { viewModel.togglePracticeRound() }
+                )
+            }
 
             Spacer(modifier = Modifier.weight(1f))
 

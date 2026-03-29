@@ -387,12 +387,15 @@ class RoundViewModel @Inject constructor(
                 }
             }
 
+            val hole = uiState.value.currentHole
             roundRepository.insertShot(
                 com.golftracker.data.entity.Shot(
                     holeStatId = currentStat.id,
                     shotNumber = nextShotNumber,
                     distanceToPin = defaultDistance,
-                    lie = defaultLie
+                    lie = defaultLie,
+                    targetLat = hole?.greenLat,
+                    targetLng = hole?.greenLng
                 )
             )
             recalculateSgForCurrentHole()
@@ -751,6 +754,15 @@ class RoundViewModel @Inject constructor(
             }
             roundRepository.updateRound(round.copy(isFinalized = true))
              _uiState.update { it.copy(isRoundFinalized = true) }
+        }
+    }
+
+    fun togglePracticeRound() {
+        val round = uiState.value.activeRound ?: return
+        viewModelScope.launch {
+            val updated = round.copy(isPractice = !round.isPractice)
+            roundRepository.updateRound(updated)
+            _uiState.update { it.copy(activeRound = updated) }
         }
     }
 

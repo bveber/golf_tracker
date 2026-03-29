@@ -39,15 +39,15 @@ import com.golftracker.data.entity.PuttBreak
 import com.golftracker.data.entity.PuttSlopeDirection
 import com.golftracker.ui.components.ChipSelector
 
-private val PACE_ROWS = listOf(PaceMiss.BIG_SHORT, PaceMiss.SHORT, PaceMiss.GOOD, PaceMiss.LONG, PaceMiss.BIG_LONG)
+private val PACE_ROWS = listOf(PaceMiss.BIG_LONG, PaceMiss.LONG, PaceMiss.GOOD, PaceMiss.SHORT, PaceMiss.BIG_SHORT)
 private val DIR_COLS = listOf(DirectionMiss.BIG_LEFT, DirectionMiss.LEFT, DirectionMiss.STRAIGHT, DirectionMiss.RIGHT, DirectionMiss.BIG_RIGHT)
 
 private fun paceLabel(p: PaceMiss) = when (p) {
-    PaceMiss.BIG_SHORT -> "↑↑"
-    PaceMiss.SHORT -> "↑"
+    PaceMiss.BIG_SHORT -> "↓↓"
+    PaceMiss.SHORT -> "↓"
     PaceMiss.GOOD -> "✓"
-    PaceMiss.LONG -> "↓"
-    PaceMiss.BIG_LONG -> "↓↓"
+    PaceMiss.LONG -> "↑"
+    PaceMiss.BIG_LONG -> "↑↑"
 }
 
 private fun dirLabel(d: DirectionMiss) = when (d) {
