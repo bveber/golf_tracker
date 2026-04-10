@@ -359,14 +359,25 @@ fun HoleTrackingScreen(
                                         }
                                     }
                                     
+
+                                    // Show the heuristic SG for Shot 1 only.
+                                    // When re-tees exist, deduce Shot 1's SG by subtracting
+                                    // re-tee SGs from the aggregate (which is the closest
+                                    // we have for an untracked heuristic shot).
                                     val sg = holeStat.sgOffTee
                                     if (sg != null) {
-                                        val sgColor = if (sg > 0) MaterialTheme.colorScheme.primary else if (sg < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-                                        val sign = if (sg > 0) "+" else ""
-                                        val hasPenalty = uiState.penalties.any { it.shotNumber == 1 }
-                                        val penaltyNote = if (hasPenalty) " (penalty)" else ""
-                                        Text("Shot 1 SG: $sign${String.format(java.util.Locale.US, "%.2f", sg)}$penaltyNote", color = sgColor, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                        val hasReTees = uiState.shots.any { it.lie == ApproachLie.TEE && it.shotNumber > 1 }
+                                        val reTeeSgSum = uiState.shots
+                                            .filter { it.lie == ApproachLie.TEE && it.shotNumber > 1 }
+                                            .sumOf { it.strokesGained ?: 0.0 }
+                                        val shot1Sg = if (hasReTees) sg - reTeeSgSum else sg
+                                        val shot1Color = if (shot1Sg > 0) MaterialTheme.colorScheme.primary else if (shot1Sg < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                                        val shot1Sign = if (shot1Sg > 0) "+" else ""
+                                        val hasPenaltyOnShot1 = uiState.penalties.any { it.shotNumber == 1 || it.shotNumber == null }
+                                        val penaltyNote = if (hasPenaltyOnShot1) " (penalty)" else ""
+                                        Text("Off Tee SG: $shot1Sign${String.format(java.util.Locale.US, "%.2f", shot1Sg)}$penaltyNote", color = shot1Color, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                                     }
+
 
                                     var showTeeDispersion by remember(holeStat.id) { mutableStateOf(false) }
                                     OutlinedButton(onClick = { showTeeDispersion = true }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
@@ -394,6 +405,23 @@ fun HoleTrackingScreen(
                                 HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
                                 Spacer(modifier = Modifier.height(16.dp))
                                 TeeShotItem(shot, viewModel, teeClubs, uiState.penalties)
+                            }
+
+                            // 3. Aggregate Off-Tee SG summary (shown whenever re-tees exist)
+                            val hasAnyReTees = trackedTeeShots.any { it.shotNumber > 1 }
+                            if (hasAnyReTees && holeStat.sgOffTee != null) {
+                                val totalSg = holeStat.sgOffTee!!
+                                Spacer(modifier = Modifier.height(8.dp))
+                                HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                val totalColor = if (totalSg > 0) MaterialTheme.colorScheme.primary else if (totalSg < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                                val totalSign = if (totalSg > 0) "+" else ""
+                                Text(
+                                    "Total Off Tee SG: $totalSign${String.format(java.util.Locale.US, "%.2f", totalSg)}",
+                                    color = totalColor,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
 
                             Spacer(modifier = Modifier.height(16.dp))
@@ -427,18 +455,36 @@ fun HoleTrackingScreen(
                         }
                         
                         // Suggest Tee Distance logic
-                        val firstApproach = uiState.shots.firstOrNull()
-                        val currentTeeDist = holeStat.teeShotDistance
+                        // Find the first non-tee approach shot to compute suggested tee distance.
+                        // When a re-tee exists, apply to the last tracked tee shot (no OB penalty --
+                        // that penalty is already recorded; this just sets its distance).
+                        val firstApproach = uiState.shots.firstOrNull { it.lie != ApproachLie.TEE }
+                        val lastTrackedTeeShot = uiState.shots.filter { it.lie == ApproachLie.TEE }.maxByOrNull { it.shotNumber }
                         val holeYardage = uiState.currentHoleYardage
                         if (hole.par > 3 && firstApproach != null && firstApproach.distanceToPin != null && holeYardage != null) {
                             val potentialTeeDist = holeYardage - firstApproach.distanceToPin!!
-                            if (currentTeeDist == null || currentTeeDist != potentialTeeDist) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Button(
-                                    onClick = { viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, holeStat.teeClubId, potentialTeeDist, holeStat.teeMishit, holeStat.teeSlope, holeStat.teeStance) },
-                                    colors = ButtonDefaults.filledTonalButtonColors()
-                                ) {
-                                    Text("Set Tee Distance to $potentialTeeDist (Calculated)")
+                            if (lastTrackedTeeShot != null) {
+                                // Re-tee present: suggest distance for the last tracked tee shot
+                                if (lastTrackedTeeShot.distanceTraveled == null || lastTrackedTeeShot.distanceTraveled != potentialTeeDist) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(
+                                        onClick = { viewModel.updateShotDetails(lastTrackedTeeShot, lastTrackedTeeShot.outcome, lastTrackedTeeShot.lie, lastTrackedTeeShot.clubId, lastTrackedTeeShot.distanceToPin, lastTrackedTeeShot.isRecovery, potentialTeeDist) },
+                                        colors = ButtonDefaults.filledTonalButtonColors()
+                                    ) {
+                                        Text("Set Tee Distance to $potentialTeeDist (Calculated)")
+                                    }
+                                }
+                            } else {
+                                // No re-tee: apply to the heuristic holeStat tee shot
+                                val currentTeeDist = holeStat.teeShotDistance
+                                if (currentTeeDist == null || currentTeeDist != potentialTeeDist) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(
+                                        onClick = { viewModel.updateTeeShot(holeStat.teeOutcome, holeStat.teeInTrouble, holeStat.teeClubId, potentialTeeDist, holeStat.teeMishit, holeStat.teeSlope, holeStat.teeStance) },
+                                        colors = ButtonDefaults.filledTonalButtonColors()
+                                    ) {
+                                        Text("Set Tee Distance to $potentialTeeDist (Calculated)")
+                                    }
                                 }
                             }
                         }
@@ -591,7 +637,7 @@ fun HoleTrackingScreen(
                                         // Lie
                                         Text("Lie", style = MaterialTheme.typography.labelSmall)
                                         ChipSelector(
-                                            options = ApproachLie.values().toList(),
+                                            options = ApproachLie.values().filter { it != com.golftracker.data.model.ApproachLie.TEE },
                                             selectedOption = shot.lie,
                                             onOptionSelected = { viewModel.updateShotDetails(shot, shot.outcome, it, suggestedClubId, shot.distanceToPin, shot.isRecovery, shot.distanceTraveled) }
                                         )
@@ -1251,8 +1297,8 @@ private fun TeeShotItem(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Distance (yds)", modifier = Modifier.weight(1f))
             IntegerInput(
-                value = shot.distanceToPin,
-                onValueChange = { viewModel.updateShotDetails(shot, shot.outcome, shot.lie, shot.clubId, it, shot.isRecovery, shot.distanceTraveled) },
+                value = shot.distanceTraveled,
+                onValueChange = { viewModel.updateShotDetails(shot, shot.outcome, shot.lie, shot.clubId, shot.distanceToPin, shot.isRecovery, it) },
                 label = "Distance",
                 modifier = Modifier.width(100.dp),
                 resetKey = shot.id

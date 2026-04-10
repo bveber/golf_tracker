@@ -375,8 +375,14 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
             // CHANGE: Include all shots from the TEE on par 4/5 in Off-Tee (handles re-tees).
             val isTeeShotOfPar45 = (par > 3 && (shot.shotNumber == 1 || shot.lie == ApproachLie.TEE))
             val isTeeShot = isFirstShotOfPar3 || isTeeShotOfPar45
-            
-            val startDist = shot.distanceToPin ?: if (isTeeShot) holeYardage else continue
+
+            // All tee shots (including OB re-tee hits) flow through the normal SG computation.
+            // For OB shots with a subsequent re-tee, the end distance is clamped back to the tee
+            // (see finalEndDist logic below), which naturally produces a base SG of -1.0.
+            // This ensures each shot's strokesGained receives the categorical difficulty adjustment
+            // in step 7, making the individual display accurate while keeping the aggregate correct.
+
+            val startDist = if (isTeeShot) holeYardage else (shot.distanceToPin ?: continue)
             val startLie = if (isTeeShot) ApproachLie.TEE else if (shot.isRecovery) ApproachLie.OTHER else shot.lie ?: ApproachLie.FAIRWAY
 
             var endDist = 0
@@ -432,9 +438,8 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
 
                 val sg = calculateShotSG(startDist, startLie, isTeeShot, finalEndDist, finalEndLie, effectiveGreenFeet, 0)
                 
-                // CRITICAL: Only the very first recorded shot on a Par 4/5 is "Off Tee".
-                // All other full swings/shots (including re-tees) are "Approach".
-                if (isTeeShotOfPar45 && shot.shotNumber == 1) {
+                // All tee shots on a Par 4/5 (original drive and re-tees) are "Off Tee".
+                if (isTeeShotOfPar45) {
                     offTee += sg
                 } else {
                     approach += sg
@@ -454,9 +459,10 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
                     val currentSg = shotSgs[shotIndex].second
                     shotSgs[shotIndex] = penalty.shotNumber to (currentSg - penaltyValue)
                     
-                    // Update components
-                    // CHANGE: On Par 4/5, only attribute to Off-Tee if it's the 1st shot.
-                    val isTeePenalty = par > 3 && penalty.shotNumber == 1
+                    // Update components: route penalty to Off-Tee if it was on any tee shot
+                    // (original Shot 1 or a re-tee with lie == TEE).
+                    val penalizedShot = sortedShots.firstOrNull { it.shotNumber == penalty.shotNumber }
+                    val isTeePenalty = par > 3 && (penalty.shotNumber == 1 || penalizedShot?.lie == ApproachLie.TEE)
                     if (isTeePenalty) {
                         offTee -= penaltyValue
                     } else {
@@ -565,14 +571,19 @@ class StrokesGainedCalculator @Inject constructor(@ApplicationContext private va
 
                 val originalShot = shots.find { it.shotNumber == shotNumber }
                 val isTee = par > 3 && (shotNumber == 1 || originalShot?.lie == ApproachLie.TEE)
+                val hasObPenalty = penalties.any { it.shotNumber == shotNumber && (it.type == PenaltyType.OB || it.type == PenaltyType.LOST_BALL) }
 
                 if (isTee) {
-                    val teeShotCountOnHole = adjustedShotSgs.count { s -> 
+                    // Split the total tee-category adjustment equally among ALL tee shots,
+                    // including OB shots. This keeps the aggregate adjustedOffTee correct
+                    // while giving each individual shot (OB or in-play) its proportional share.
+                    val totalTeeShotCount = adjustedShotSgs.count { s ->
                         val os = shots.find { it.shotNumber == s.first }
                         par > 3 && (s.first == 1 || os?.lie == ApproachLie.TEE)
-                    }
-                    val courseAdj = (courseHoleAdj * (finalTeeGap / TOTAL_GAP)) / teeShotCountOnHole
-                    val scratchAdj = (scratchHoleAdj * (finalTeeGap / TOTAL_GAP)) / teeShotCountOnHole
+                    }.coerceAtLeast(1)
+
+                    val courseAdj = (courseHoleAdj * (finalTeeGap / TOTAL_GAP)) / totalTeeShotCount
+                    val scratchAdj = (scratchHoleAdj * (finalTeeGap / TOTAL_GAP)) / totalTeeShotCount
                     
                     adjustedShotSgs[i] = shotNumber to (sg + courseAdj + scratchAdj)
                     adjustedOffTee += (courseAdj + scratchAdj)
