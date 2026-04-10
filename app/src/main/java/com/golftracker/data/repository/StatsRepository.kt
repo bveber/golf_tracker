@@ -691,14 +691,14 @@ class StatsRepository @Inject constructor(
         val missedGirHoles = holes.filter { !isGir(it) }
         val missedCount = missedGirHoles.size.coerceAtLeast(1)
 
-        // Up & Down: any hole where the player chipped, regardless of GIR status.
+        // Up & Down: any hole where the player chipped or hit a sand shot, regardless of GIR status.
         // This covers missed-GIR situations as well as cases where a player drives close to
         // the green on a par 4 or reaches the par-5 green area in 2 and still chips on.
-        // Success = exactly 1 chip AND at most 1 putt (covers chip-ins and standard up-and-downs).
-        // Failure = 2+ chips, or 1 chip + 2+ putts.
-        val upAndDownHoles = holes.filter { it.holeStat.chips >= 1 }
+        // Success = exactly 1 short-game shot (chip or sand) AND at most 1 putt (covers chip-ins and standard up-and-downs).
+        // Failure = 2+ short-game shots, or 1 short-game shot + 2+ putts.
+        val upAndDownHoles = holes.filter { it.holeStat.chips + it.holeStat.sandShots >= 1 }
         val upAndDownOpportunities = upAndDownHoles.size.coerceAtLeast(1)
-        val upAndDownSuccesses = upAndDownHoles.count { it.holeStat.chips == 1 && it.holeStat.putts <= 1 }
+        val upAndDownSuccesses = upAndDownHoles.count { it.holeStat.chips + it.holeStat.sandShots == 1 && it.holeStat.putts <= 1 }
         val upAndDownPct = (upAndDownSuccesses.toDouble() / upAndDownOpportunities) * 100
 
         // Par Save: missed GIR but still made par or better (score-based, unchanged)

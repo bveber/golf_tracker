@@ -287,15 +287,34 @@ class RoundViewModel @Inject constructor(
 
         viewModelScope.launch {
             val existingShots = roundRepository.getShotsForHoleStat(currentStat.id).first()
-            
-            // Determine source shot for penalty.
-            // Par 4/5 with summary drive = Shot 1.
-            // Par 3 or tracked Par 4/5 = max existing shot number.
+
+            // Determine which tee shot went OB — always the most recent tee shot,
+            // not the most recent shot overall (which could be an approach).
             val hasSummaryDrive = currentHole.par > 3 && (currentStat.teeOutcome != null || currentStat.teeShotDistance != null)
-            val lastShotNumber = if (existingShots.isEmpty() && hasSummaryDrive) 1 
-                                 else (existingShots.maxOfOrNull { it.shotNumber } ?: 0)
-            
-            val sourceShotNumber = if (lastShotNumber == 0) 1 else lastShotNumber
+            val lastTrackedTeeShotNumber = existingShots
+                .filter { it.lie == ApproachLie.TEE }
+                .maxOfOrNull { it.shotNumber }
+
+            val sourceShotNumber = when {
+                lastTrackedTeeShotNumber != null -> lastTrackedTeeShotNumber  // Most recent re-tee went OB
+                hasSummaryDrive -> 1                                           // Original summary drive went OB
+                else -> 1                                                      // Par 3 or no shots yet
+            }
+
+            val nextShotNumber = sourceShotNumber + 2
+
+            // Shift ALL shots that come after the OB tee shot upward by 2 to make room for the
+            // re-tee. This includes shots numbered between sourceShotNumber+1 and nextShotNumber-1
+            // (e.g., approach shots logged at Shot 2 before the OB was recorded).
+            val shotsToShift = existingShots.filter { it.shotNumber > sourceShotNumber }
+            for (shot in shotsToShift.sortedByDescending { it.shotNumber }) {
+                roundRepository.updateShot(shot.copy(shotNumber = shot.shotNumber + 2))
+            }
+            // Also shift penalties attributed to those shot numbers.
+            val existingPenalties = roundRepository.getPenaltiesForHoleStat(currentStat.id).first()
+            for (pen in existingPenalties.filter { it.shotNumber != null && it.shotNumber!! > sourceShotNumber }) {
+                roundRepository.updatePenalty(pen.copy(shotNumber = pen.shotNumber!! + 2))
+            }
 
             // 1. Add OB Penalty attributed to the source shot
             val penalty = Penalty(
@@ -307,7 +326,7 @@ class RoundViewModel @Inject constructor(
             roundRepository.insertPenalty(penalty)
 
             // 2. Add New Shot from Tee
-            val nextShotNumber = sourceShotNumber + 2
+
             
             val newShot = com.golftracker.data.entity.Shot(
                 holeStatId = currentStat.id,

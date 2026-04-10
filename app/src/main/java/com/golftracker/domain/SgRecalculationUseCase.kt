@@ -154,14 +154,21 @@ class SgRecalculationUseCase @Inject constructor(
         courseDiff: Double? = null
     ): HoleCalculationResult {
         // 1. Shot Number Correction (De-duplication & Offset)
-        val driveIsTracked = shots.any { it.lie == ApproachLie.TEE }
+        val anyTeeTracked = shots.any { it.lie == ApproachLie.TEE }
         val teeShotInStat = par > 3 && (stat.teeOutcome != null || stat.teeShotDistance != null || stat.teeClubId != null || stat.teeLat != null)
-        val shotNumberOffset = if (teeShotInStat && !driveIsTracked) 2 else 1
-        
+
         val sortedShots = shots.sortedBy { it.shotNumber }
-        val correctedShots = sortedShots.mapIndexed { index, shot ->
-            val expectedNumber = index + shotNumberOffset
-            shot.copy(shotNumber = expectedNumber)
+        // When any tee shot is tracked (drive or re-tee), shot numbers are explicitly
+        // assigned and encode stroke position — preserve them as-is.
+        // Only apply sequential renumbering for approach-only sequences where
+        // numbers may be ambiguous or off-by-one from legacy data.
+        val correctedShots = if (anyTeeTracked) {
+            sortedShots
+        } else {
+            val shotNumberOffset = if (teeShotInStat) 2 else 1
+            sortedShots.mapIndexed { index, shot ->
+                shot.copy(shotNumber = index + shotNumberOffset)
+            }
         }
 
         // 2. Strokes Gained Calculation
