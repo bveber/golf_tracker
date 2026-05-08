@@ -34,7 +34,7 @@ import com.golftracker.data.entity.TeeSet
         Penalty::class,
         Shot::class
     ],
-    version = 29,
+    version = 32,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -232,6 +232,55 @@ abstract class GolfDatabase : RoomDatabase() {
                 cursor.close()
                 if (!columns.contains("gir_override")) database.execSQL("ALTER TABLE hole_stats ADD COLUMN gir_override INTEGER NOT NULL DEFAULT 0")
                 if (!columns.contains("near_gir")) database.execSQL("ALTER TABLE hole_stats ADD COLUMN near_gir INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+        val MIGRATION_29_30 = object : androidx.room.migration.Migration(29, 30) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Weather fields on rounds
+                database.execSQL("ALTER TABLE rounds ADD COLUMN weather_condition TEXT")
+                database.execSQL("ALTER TABLE rounds ADD COLUMN temperature_fahrenheit INTEGER")
+                database.execSQL("ALTER TABLE rounds ADD COLUMN wind_speed_mph INTEGER")
+                database.execSQL("ALTER TABLE rounds ADD COLUMN wind_direction TEXT")
+                database.execSQL("ALTER TABLE rounds ADD COLUMN humidity_percent INTEGER")
+                database.execSQL("ALTER TABLE rounds ADD COLUMN pressure_in_hg REAL")
+                // Chip outcome on hole_stats
+                database.execSQL("ALTER TABLE hole_stats ADD COLUMN chip_outcome TEXT")
+            }
+        }
+        val MIGRATION_30_31 = object : androidx.room.migration.Migration(30, 31) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Backfill GPS tee coordinates for seeded Pebble Beach holes
+                val coords = listOf(
+                    Pair(1,  Pair(36.5682, -121.9472)),
+                    Pair(2,  Pair(36.5673, -121.9430)),
+                    Pair(3,  Pair(36.5659, -121.9395)),
+                    Pair(4,  Pair(36.5650, -121.9413)),
+                    Pair(5,  Pair(36.5635, -121.9435)),
+                    Pair(6,  Pair(36.5621, -121.9460)),
+                    Pair(7,  Pair(36.5618, -121.9497)),
+                    Pair(8,  Pair(36.5628, -121.9515)),
+                    Pair(9,  Pair(36.5645, -121.9543)),
+                    Pair(10, Pair(36.5663, -121.9557)),
+                    Pair(11, Pair(36.5682, -121.9541)),
+                    Pair(12, Pair(36.5694, -121.9520)),
+                    Pair(13, Pair(36.5710, -121.9502)),
+                    Pair(14, Pair(36.5723, -121.9485)),
+                    Pair(15, Pair(36.5715, -121.9462)),
+                    Pair(16, Pair(36.5700, -121.9448)),
+                    Pair(17, Pair(36.5690, -121.9467)),
+                    Pair(18, Pair(36.5680, -121.9479))
+                )
+                for ((holeId, latLng) in coords) {
+                    database.execSQL(
+                        "UPDATE holes SET tee_lat = ${latLng.first}, tee_lng = ${latLng.second} WHERE id = $holeId AND course_id = 1"
+                    )
+                }
+            }
+        }
+        val MIGRATION_31_32 = object : androidx.room.migration.Migration(31, 32) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE courses ADD COLUMN latitude REAL")
+                database.execSQL("ALTER TABLE courses ADD COLUMN longitude REAL")
             }
         }
     }

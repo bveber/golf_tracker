@@ -7,6 +7,8 @@ import com.golftracker.data.entity.Round
 import com.golftracker.data.entity.TeeSet
 import com.golftracker.data.repository.CourseRepository
 import com.golftracker.data.repository.RoundRepository
+import com.golftracker.data.repository.WeatherData
+import com.golftracker.data.repository.WeatherRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,13 +31,17 @@ data class RoundSetupUiState(
     val startingHole: Int = 1, // 1 or 10
     val isPractice: Boolean = false,
     val isLoading: Boolean = false,
-    val createdRoundId: Int? = null
+    val createdRoundId: Int? = null,
+    val weather: WeatherData? = null,
+    val weatherLoading: Boolean = false,
+    val weatherError: String? = null
 )
 
 @HiltViewModel
 class RoundSetupViewModel @Inject constructor(
     private val courseRepository: CourseRepository,
-    private val roundRepository: RoundRepository
+    private val roundRepository: RoundRepository,
+    private val weatherRepository: WeatherRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(RoundSetupUiState())
@@ -57,20 +63,43 @@ class RoundSetupViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, selectedCourse = course, teeSets = emptyList(), selectedTeeSet = null, teeYardages = emptyMap()) }
             val teeSets = courseRepository.getTeeSets(course.id).first()
-            
+
             val yardagesMap = mutableMapOf<Int, Int>()
             for (teeSet in teeSets) {
                 val yardages = courseRepository.getYardagesForTeeSet(teeSet.id).first()
                 yardagesMap[teeSet.id] = yardages.sumOf { it.yardage }
             }
 
-            _uiState.update { 
+            _uiState.update {
                 it.copy(
-                    teeSets = teeSets, 
+                    teeSets = teeSets,
                     selectedTeeSet = teeSets.firstOrNull(), // Default to first
                     teeYardages = yardagesMap,
                     isLoading = false
-                ) 
+                )
+            }
+
+            // Auto-fetch weather: prefer hole 1 tee coords, then course-level coords, then geocode city/state
+            val holes = courseRepository.getHoles(course.id).first()
+            val hole1 = holes.firstOrNull { it.holeNumber == 1 }
+            val lat = hole1?.teeLat ?: course.latitude
+            val lon = hole1?.teeLng ?: course.longitude
+            if (lat != null && lon != null) {
+                fetchWeather(lat, lon)
+            } else if (course.city.isNotBlank()) {
+                fetchWeatherByCity(course.city, course.state)
+            }
+        }
+    }
+
+    fun fetchWeather(lat: Double, lon: Double) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(weatherLoading = true, weatherError = null) }
+            try {
+                val weather = weatherRepository.fetchWeather(lat, lon)
+                _uiState.update { it.copy(weather = weather, weatherLoading = false) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(weatherLoading = false, weatherError = "Unable to fetch weather") }
             }
         }
     }
@@ -110,7 +139,13 @@ class RoundSetupViewModel @Inject constructor(
                     notes = state.notes,
                     totalHoles = state.holesToPlay,
                     startHole = state.startingHole,
-                    isPractice = state.isPractice
+                    isPractice = state.isPractice,
+                    weatherCondition = state.weather?.condition,
+                    temperatureFahrenheit = state.weather?.temperatureFahrenheit,
+                    windSpeedMph = state.weather?.windSpeedMph,
+                    windDirection = state.weather?.windDirection,
+                    humidityPercent = state.weather?.humidityPercent,
+                    pressureInHg = state.weather?.pressureInHg
                 )
                 val roundId = roundRepository.insertRound(newRound).toInt()
 
@@ -139,6 +174,35 @@ class RoundSetupViewModel @Inject constructor(
         }
     }
     
+    fun retryWeatherFetch() {
+        viewModelScope.launch {
+            val course = uiState.value.selectedCourse ?: return@launch
+            val holes = courseRepository.getHoles(course.id).first()
+            val hole1 = holes.firstOrNull { it.holeNumber == 1 }
+            val lat = hole1?.teeLat ?: course.latitude
+            val lon = hole1?.teeLng ?: course.longitude
+            if (lat != null && lon != null) {
+                fetchWeather(lat, lon)
+            } else if (course.city.isNotBlank()) {
+                fetchWeatherByCity(course.city, course.state)
+            } else {
+                _uiState.update { it.copy(weatherError = "No GPS coordinates available for this course") }
+            }
+        }
+    }
+
+    private fun fetchWeatherByCity(city: String, state: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(weatherLoading = true, weatherError = null) }
+            try {
+                val weather = weatherRepository.fetchWeatherForCity(city, state)
+                _uiState.update { it.copy(weather = weather, weatherLoading = false) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(weatherLoading = false, weatherError = "Unable to fetch weather") }
+            }
+        }
+    }
+
     fun resetCreatedRoundId() {
         _uiState.update { it.copy(createdRoundId = null) }
     }

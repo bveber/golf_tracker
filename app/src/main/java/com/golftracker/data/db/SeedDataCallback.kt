@@ -45,9 +45,10 @@ class SeedDataCallback(private val context: Context) : RoomDatabase.Callback() {
 
         // ── Holes ───────────────────────────────────────────────────
         for (h in PEBBLE_HOLES) {
+            val (lat, lng) = PEBBLE_HOLE_COORDS[h[0] - 1]
             db.execSQL(
-                """INSERT INTO holes (id, course_id, hole_number, par, handicap_index) 
-                   VALUES (${h[0]}, 1, ${h[0]}, ${h[1]}, ${h[2]})"""
+                """INSERT INTO holes (id, course_id, hole_number, par, handicap_index, tee_lat, tee_lng)
+                   VALUES (${h[0]}, 1, ${h[0]}, ${h[1]}, ${h[2]}, $lat, $lng)"""
             )
         }
 
@@ -424,6 +425,28 @@ class SeedDataCallback(private val context: Context) : RoomDatabase.Callback() {
             intArrayOf(16, 4, 11),
             intArrayOf(17, 3, 15),
             intArrayOf(18, 5, 3)
+        )
+
+        // Approximate tee GPS coordinates for each Pebble Beach hole (lat, lng)
+        val PEBBLE_HOLE_COORDS = listOf(
+            Pair(36.5682, -121.9472),  // 1
+            Pair(36.5673, -121.9430),  // 2
+            Pair(36.5659, -121.9395),  // 3
+            Pair(36.5650, -121.9413),  // 4
+            Pair(36.5635, -121.9435),  // 5
+            Pair(36.5621, -121.9460),  // 6
+            Pair(36.5618, -121.9497),  // 7
+            Pair(36.5628, -121.9515),  // 8
+            Pair(36.5645, -121.9543),  // 9
+            Pair(36.5663, -121.9557),  // 10
+            Pair(36.5682, -121.9541),  // 11
+            Pair(36.5694, -121.9520),  // 12
+            Pair(36.5710, -121.9502),  // 13
+            Pair(36.5723, -121.9485),  // 14
+            Pair(36.5715, -121.9462),  // 15
+            Pair(36.5700, -121.9448),  // 16
+            Pair(36.5690, -121.9467),  // 17
+            Pair(36.5680, -121.9479)   // 18
         )
     }
 }

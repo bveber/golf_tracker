@@ -39,5 +39,17 @@ data class Round(
     @ColumnInfo(name = "start_hole")
     val startHole: Int = 1,
     @ColumnInfo(name = "is_practice")
-    val isPractice: Boolean = false
+    val isPractice: Boolean = false,
+    @ColumnInfo(name = "weather_condition")
+    val weatherCondition: String? = null,
+    @ColumnInfo(name = "temperature_fahrenheit")
+    val temperatureFahrenheit: Int? = null,
+    @ColumnInfo(name = "wind_speed_mph")
+    val windSpeedMph: Int? = null,
+    @ColumnInfo(name = "wind_direction")
+    val windDirection: String? = null,
+    @ColumnInfo(name = "humidity_percent")
+    val humidityPercent: Int? = null,
+    @ColumnInfo(name = "pressure_in_hg")
+    val pressureInHg: Double? = null
 )

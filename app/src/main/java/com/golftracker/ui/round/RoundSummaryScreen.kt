@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.golftracker.data.entity.Hole
 import com.golftracker.data.entity.HoleStat
+import com.golftracker.data.entity.Round
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,6 +138,13 @@ fun RoundSummaryScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 SgBreakdownCard(stats = stats)
                 Spacer(modifier = Modifier.height(16.dp))
+                uiState.activeRound?.let { round ->
+                    if (listOfNotNull(round.weatherCondition, round.temperatureFahrenheit,
+                            round.windSpeedMph, round.humidityPercent, round.pressureInHg).isNotEmpty()) {
+                        WeatherSummaryCard(round = round)
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                }
             } else {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("Loading scorecard...")
@@ -331,5 +339,41 @@ private fun SgBreakdownItem(label: String, value: Double, colorFn: (Double) -> C
         Text(label, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
         Spacer(modifier = Modifier.height(4.dp))
         Text(fmtFn(value), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = colorFn(value))
+    }
+}
+
+@Composable
+fun WeatherSummaryCard(round: Round) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Weather", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            if (round.weatherCondition != null) {
+                Text(round.weatherCondition, style = MaterialTheme.typography.bodyMedium)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                if (round.temperatureFahrenheit != null) {
+                    Text("${round.temperatureFahrenheit}°F", style = MaterialTheme.typography.bodySmall)
+                }
+                if (round.humidityPercent != null) {
+                    Text("Humidity: ${round.humidityPercent}%", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                if (round.windSpeedMph != null) {
+                    val windStr = if (round.windDirection != null)
+                        "Wind: ${round.windSpeedMph} mph ${round.windDirection}"
+                    else
+                        "Wind: ${round.windSpeedMph} mph"
+                    Text(windStr, style = MaterialTheme.typography.bodySmall)
+                }
+                if (round.pressureInHg != null) {
+                    Text("Pressure: ${"%.2f".format(round.pressureInHg)} inHg", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
     }
 }

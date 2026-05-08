@@ -130,4 +130,5 @@ class Converters {
     }
     @TypeConverter
     fun fromDirectionMiss(value: DirectionMiss?): String? = value?.name
+
 }

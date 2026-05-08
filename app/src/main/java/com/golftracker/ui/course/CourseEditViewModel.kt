@@ -22,6 +22,8 @@ data class CourseEditUiState(
     val city: String = "",
     val state: String = "",
     val holeCount: Int = 18,
+    val latitude: String = "",
+    val longitude: String = "",
     val teeSets: List<TeeSet> = emptyList(), // ID=0 means new
     val holes: List<Hole> = emptyList(), // ID=0 means new
     // Yardages mapped by (holeIndex, teeSetIndex/Id) -> Yardage
@@ -97,18 +99,20 @@ class CourseEditViewModel @Inject constructor(
                     }
                 }
                 
-                _uiState.update { 
+                _uiState.update {
                     it.copy(
                         name = course.name,
                         city = course.city,
                         state = course.state,
                         holeCount = course.holeCount,
+                        latitude = course.latitude?.toString() ?: "",
+                        longitude = course.longitude?.toString() ?: "",
                         holes = if (holes.isNotEmpty()) holes else it.holes,
                         teeSets = if (teeSets.isNotEmpty()) teeSets else it.teeSets,
                         yardages = yardageMap,
                         yardageIds = yardageIdMap,
                         isLoading = false
-                    ) 
+                    )
                 }
             }
         }
@@ -117,6 +121,8 @@ class CourseEditViewModel @Inject constructor(
     fun updateName(name: String) { _uiState.update { it.copy(name = name) } }
     fun updateCity(city: String) { _uiState.update { it.copy(city = city) } }
     fun updateState(state: String) { _uiState.update { it.copy(state = state) } }
+    fun updateLatitude(lat: String) { _uiState.update { it.copy(latitude = lat) } }
+    fun updateLongitude(lng: String) { _uiState.update { it.copy(longitude = lng) } }
     
     fun toggleHoleCount() {
         _uiState.update { 
@@ -171,7 +177,9 @@ class CourseEditViewModel @Inject constructor(
                 name = state.name,
                 city = state.city,
                 state = state.state,
-                holeCount = state.holeCount
+                holeCount = state.holeCount,
+                latitude = state.latitude.toDoubleOrNull(),
+                longitude = state.longitude.toDoubleOrNull()
             )
             
             val savedId = if (newCourse.id == 0) {

@@ -203,6 +203,24 @@ fun RoundItem(
                             Text(" • Practice", color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
                         }
                     }
+                    val weatherParts = buildList {
+                        round.weatherCondition?.let { add(it) }
+                        round.temperatureFahrenheit?.let { add("${it}°F") }
+                        if (round.windSpeedMph != null) {
+                            val windStr = if (round.windDirection != null)
+                                "${round.windSpeedMph} mph ${round.windDirection}"
+                            else
+                                "${round.windSpeedMph} mph"
+                            add(windStr)
+                        }
+                    }
+                    if (weatherParts.isNotEmpty()) {
+                        Text(
+                            weatherParts.joinToString(" • "),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             },
             trailingContent = {
