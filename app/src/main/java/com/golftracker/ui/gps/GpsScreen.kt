@@ -9,6 +9,7 @@
  */
 package com.golftracker.ui.gps
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,12 +55,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.golftracker.data.entity.Club
+import com.golftracker.data.repository.WeatherData
 import com.golftracker.data.model.ShotType
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
@@ -394,6 +400,39 @@ fun GpsScreen(
             }
         }
 
+        // Wind Compass Overlay — top-left
+        if (uiState.weatherLoading || uiState.weatherData != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(12.dp)
+            ) {
+                if (uiState.weatherLoading && uiState.weatherData == null) {
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.Black.copy(alpha = 0.7f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        androidx.compose.material3.CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    }
+                } else {
+                    uiState.weatherData?.let { weather ->
+                        WindCompassCard(
+                            windDirection = weather.windDirection,
+                            windSpeedMph = weather.windSpeedMph,
+                            temperatureFahrenheit = weather.temperatureFahrenheit
+                        )
+                    }
+                }
+            }
+        }
+
         // Snap to Me — icon-only FAB in top-right
         FloatingActionButton(
             onClick = {
@@ -580,6 +619,117 @@ private fun MapOverlays(
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold
             )
+        }
+    }
+}
+
+private fun cardinalToDegrees(cardinal: String): Float = when (cardinal.uppercase()) {
+    "N" -> 0f; "NNE" -> 22.5f; "NE" -> 45f; "ENE" -> 67.5f
+    "E" -> 90f; "ESE" -> 112.5f; "SE" -> 135f; "SSE" -> 157.5f
+    "S" -> 180f; "SSW" -> 202.5f; "SW" -> 225f; "WSW" -> 247.5f
+    "W" -> 270f; "WNW" -> 292.5f; "NW" -> 315f; "NNW" -> 337.5f
+    else -> 0f
+}
+
+@Composable
+private fun WindCompassCard(
+    windDirection: String?,
+    windSpeedMph: Int?,
+    temperatureFahrenheit: Int?
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.Black.copy(alpha = 0.72f))
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Compass rose with wind arrow
+            Box(modifier = Modifier.size(52.dp)) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val cx = size.width / 2
+                    val cy = size.height / 2
+                    val r = size.minDimension / 2 - 1.dp.toPx()
+
+                    drawCircle(Color.Black.copy(alpha = 0.55f))
+                    drawCircle(Color.White.copy(alpha = 0.25f), radius = r, style = Stroke(1.dp.toPx()))
+
+                    // Cardinal tick marks
+                    val tickOuter = r - 1.dp.toPx()
+                    val tickInner = r - 7.dp.toPx()
+                    // N — brighter
+                    drawLine(Color.White, Offset(cx, cy - tickOuter), Offset(cx, cy - tickInner), 2.dp.toPx())
+                    // S / E / W — dimmer
+                    drawLine(Color.White.copy(0.35f), Offset(cx, cy + tickInner), Offset(cx, cy + tickOuter), 1.5.dp.toPx())
+                    drawLine(Color.White.copy(0.35f), Offset(cx + tickInner, cy), Offset(cx + tickOuter, cy), 1.5.dp.toPx())
+                    drawLine(Color.White.copy(0.35f), Offset(cx - tickOuter, cy), Offset(cx - tickInner, cy), 1.5.dp.toPx())
+
+                    // Wind arrow — points in the direction wind is blowing TO
+                    if (windDirection != null) {
+                        val toDeg = (cardinalToDegrees(windDirection) + 180f) % 360f
+                        rotate(toDeg, pivot = Offset(cx, cy)) {
+                            val arrowLen = r * 0.62f
+                            val headLen = r * 0.24f
+                            val headWidth = r * 0.17f
+                            // shaft
+                            drawLine(
+                                Color(0xFFFFAA00),
+                                Offset(cx, cy + arrowLen * 0.28f),
+                                Offset(cx, cy - arrowLen + headLen),
+                                2.dp.toPx()
+                            )
+                            // arrowhead
+                            val path = Path().apply {
+                                moveTo(cx, cy - arrowLen)
+                                lineTo(cx - headWidth, cy - arrowLen + headLen)
+                                lineTo(cx + headWidth, cy - arrowLen + headLen)
+                                close()
+                            }
+                            drawPath(path, Color(0xFFFFAA00))
+                        }
+                    }
+                }
+                // "N" label pinned to top of compass circle
+                Text(
+                    "N",
+                    color = Color.White,
+                    fontSize = 7.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 1.dp)
+                )
+            }
+
+            // Temperature + wind info column
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                if (temperatureFahrenheit != null) {
+                    Text(
+                        "$temperatureFahrenheit°F",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                if (windDirection != null) {
+                    Text(
+                        windDirection,
+                        color = Color(0xFFFFAA00),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                if (windSpeedMph != null) {
+                    Text(
+                        "$windSpeedMph mph",
+                        color = Color.White.copy(alpha = 0.75f),
+                        fontSize = 11.sp
+                    )
+                }
+            }
         }
     }
 }

@@ -2,6 +2,8 @@ package com.golftracker.di
 
 import com.golftracker.BuildConfig
 import com.golftracker.data.api.CourseApiService
+import com.golftracker.data.api.GeocodingApiService
+import com.golftracker.data.api.WeatherApiService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -11,6 +13,7 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import javax.inject.Named
 import javax.inject.Singleton
 
 @Module
@@ -54,5 +57,75 @@ object NetworkModule {
     @Singleton
     fun provideCourseApiService(retrofit: Retrofit): CourseApiService {
         return retrofit.create(CourseApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    @Named("nws")
+    fun provideNwsOkHttpClient(): OkHttpClient {
+        val loggingInterceptor = HttpLoggingInterceptor().apply {
+            level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY else HttpLoggingInterceptor.Level.NONE
+        }
+        val userAgentInterceptor = Interceptor { chain ->
+            chain.proceed(
+                chain.request().newBuilder()
+                    .header("User-Agent", "GolfTrackerApp/1.0")
+                    .header("Accept", "application/geo+json")
+                    .build()
+            )
+        }
+        return OkHttpClient.Builder()
+            .addInterceptor(loggingInterceptor)
+            .addInterceptor(userAgentInterceptor)
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    @Named("nws")
+    fun provideNwsRetrofit(@Named("nws") okHttpClient: OkHttpClient): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl("https://api.weather.gov/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideWeatherApiService(@Named("nws") retrofit: Retrofit): WeatherApiService {
+        return retrofit.create(WeatherApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    @Named("nominatim")
+    fun provideNominatimOkHttpClient(): OkHttpClient {
+        return OkHttpClient.Builder()
+            .addInterceptor(Interceptor { chain ->
+                chain.proceed(
+                    chain.request().newBuilder()
+                        .header("User-Agent", "GolfTrackerApp/1.0")
+                        .build()
+                )
+            })
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    @Named("nominatim")
+    fun provideNominatimRetrofit(@Named("nominatim") okHttpClient: OkHttpClient): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl("https://nominatim.openstreetmap.org/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideGeocodingApiService(@Named("nominatim") retrofit: Retrofit): GeocodingApiService {
+        return retrofit.create(GeocodingApiService::class.java)
     }
 }

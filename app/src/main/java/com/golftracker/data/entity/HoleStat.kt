@@ -178,5 +178,7 @@ data class HoleStat(
     val approachMishit: Boolean = false,
 
     @ColumnInfo(name = "score_manual", defaultValue = "0")
-    val scoreManual: Boolean = false
+    val scoreManual: Boolean = false,
+    @ColumnInfo(name = "chip_outcome")
+    val chipOutcome: ShotOutcome? = null
 )

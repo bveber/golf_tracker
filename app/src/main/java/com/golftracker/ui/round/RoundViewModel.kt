@@ -568,7 +568,8 @@ class RoundViewModel @Inject constructor(
         chipDistance: Int?,
         sandShotDistance: Int? = null,
         chipLie: com.golftracker.data.model.ApproachLie? = null,
-        recoveryChip: Boolean = false
+        recoveryChip: Boolean = false,
+        chipOutcome: com.golftracker.data.model.ShotOutcome? = null
     ) {
         val stat = uiState.value.currentHoleStat ?: return
         updateStat(stat.copy(
@@ -577,7 +578,8 @@ class RoundViewModel @Inject constructor(
             chipDistance = chipDistance,
             sandShotDistance = sandShotDistance,
             chipLie = chipLie,
-            recoveryChip = recoveryChip
+            recoveryChip = recoveryChip,
+            chipOutcome = if (chips == 0) null else chipOutcome
         ))
         viewModelScope.launch { recalculateApproachDistances() }
     }

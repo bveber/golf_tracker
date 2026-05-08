@@ -15,6 +15,8 @@ import com.golftracker.data.repository.RoundRepository
 import com.golftracker.data.repository.StatsFilter
 import com.golftracker.data.repository.StatsRepository
 import com.golftracker.data.repository.UserPreferencesRepository
+import com.golftracker.data.repository.WeatherData
+import com.golftracker.data.repository.WeatherRepository
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
@@ -129,7 +131,9 @@ data class GpsUiState(
     val currentHole: com.golftracker.data.entity.Hole? = null,
     val pendingLocationUpdate: LocationUpdate? = null,
     val knownHoleFrame: Pair<LatLng, LatLng>? = null,
-    val pendingMishit: Boolean = false
+    val pendingMishit: Boolean = false,
+    val weatherData: WeatherData? = null,
+    val weatherLoading: Boolean = false
 )
 
 /**
@@ -145,13 +149,15 @@ class GpsViewModel @Inject constructor(
     private val roundRepository: RoundRepository,
     private val courseRepository: CourseRepository,
     private val statsRepository: StatsRepository,
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val weatherRepository: WeatherRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(GpsUiState())
     val uiState: StateFlow<GpsUiState> = _uiState.asStateFlow()
 
     private val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+    private var hasWeatherFetched = false
 
     init {
         viewModelScope.launch {
@@ -182,6 +188,22 @@ class GpsViewModel @Inject constructor(
             )
         }
         checkProximityAndAutoSuggest(latLng)
+        if (!hasWeatherFetched) {
+            hasWeatherFetched = true
+            fetchWeather(latLng.latitude, latLng.longitude)
+        }
+    }
+
+    private fun fetchWeather(lat: Double, lon: Double) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(weatherLoading = true) }
+            try {
+                val weather = weatherRepository.fetchWeather(lat, lon)
+                _uiState.update { it.copy(weatherData = weather, weatherLoading = false) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(weatherLoading = false) }
+            }
+        }
     }
 
     /**

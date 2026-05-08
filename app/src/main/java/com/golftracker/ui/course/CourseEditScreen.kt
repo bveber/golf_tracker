@@ -111,6 +111,31 @@ fun CourseEditScreen(
                         modifier = Modifier.weight(0.6f)
                     )
                 }
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text("GPS Coordinates (for weather)", style = MaterialTheme.typography.labelMedium)
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = uiState.latitude,
+                        onValueChange = { viewModel.updateLatitude(it) },
+                        label = { Text("Latitude") },
+                        placeholder = { Text("e.g. 36.568") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.padding(4.dp))
+                    OutlinedTextField(
+                        value = uiState.longitude,
+                        onValueChange = { viewModel.updateLongitude(it) },
+                        label = { Text("Longitude") },
+                        placeholder = { Text("e.g. -121.947") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true
+                    )
+                }
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text("Holes", style = MaterialTheme.typography.titleMedium)

@@ -721,14 +721,15 @@ fun HoleTrackingScreen(
                             Text("Sand Shots", modifier = Modifier.weight(1f))
                             NumberStepper(
                                 value = holeStat.sandShots,
-                                onValueChange = { 
+                                onValueChange = {
                                     viewModel.updateGreen(
-                                        chips = holeStat.chips, 
-                                        sandShots = it, 
+                                        chips = holeStat.chips,
+                                        sandShots = it,
                                         chipDistance = holeStat.chipDistance,
                                         sandShotDistance = holeStat.sandShotDistance,
-                                        chipLie = holeStat.chipLie
-                                    ) 
+                                        chipLie = holeStat.chipLie,
+                                        chipOutcome = holeStat.chipOutcome
+                                    )
                                 },
                                 range = 0..5
                             )
@@ -740,13 +741,14 @@ fun HoleTrackingScreen(
                                 Text("Sand Dist (yds)", modifier = Modifier.weight(1f))
                                 IntegerInput(
                                     value = holeStat.sandShotDistance,
-                                    onValueChange = { 
+                                    onValueChange = {
                                         viewModel.updateGreen(
                                             chips = holeStat.chips,
                                             sandShots = holeStat.sandShots,
                                             chipDistance = holeStat.chipDistance,
                                             sandShotDistance = it,
-                                            chipLie = holeStat.chipLie
+                                            chipLie = holeStat.chipLie,
+                                            chipOutcome = holeStat.chipOutcome
                                         )
                                     },
                                     label = "Distance",
@@ -789,14 +791,15 @@ fun HoleTrackingScreen(
                             Text("Chips", modifier = Modifier.weight(1f))
                             NumberStepper(
                                 value = holeStat.chips,
-                                onValueChange = { 
+                                onValueChange = {
                                     viewModel.updateGreen(
-                                        chips = it, 
-                                        sandShots = holeStat.sandShots, 
+                                        chips = it,
+                                        sandShots = holeStat.sandShots,
                                         chipDistance = holeStat.chipDistance,
                                         sandShotDistance = holeStat.sandShotDistance,
-                                        chipLie = holeStat.chipLie
-                                    ) 
+                                        chipLie = holeStat.chipLie,
+                                        chipOutcome = holeStat.chipOutcome
+                                    )
                                 },
                                 range = 0..10
                             )
@@ -810,28 +813,30 @@ fun HoleTrackingScreen(
                                     val isFairway = holeStat.chipLie == com.golftracker.data.model.ApproachLie.FAIRWAY
                                     androidx.compose.material3.FilterChip(
                                         selected = isFairway,
-                                        onClick = { 
+                                        onClick = {
                                             viewModel.updateGreen(
-                                                chips = holeStat.chips, 
-                                                sandShots = holeStat.sandShots, 
+                                                chips = holeStat.chips,
+                                                sandShots = holeStat.sandShots,
                                                 chipDistance = holeStat.chipDistance,
                                                 sandShotDistance = holeStat.sandShotDistance,
-                                                chipLie = com.golftracker.data.model.ApproachLie.FAIRWAY
-                                            ) 
+                                                chipLie = com.golftracker.data.model.ApproachLie.FAIRWAY,
+                                                chipOutcome = holeStat.chipOutcome
+                                            )
                                         },
                                         label = { Text("Fwy/Fringe") }
                                     )
                                     val isRough = holeStat.chipLie == com.golftracker.data.model.ApproachLie.ROUGH
                                     androidx.compose.material3.FilterChip(
                                         selected = isRough,
-                                        onClick = { 
+                                        onClick = {
                                             viewModel.updateGreen(
-                                                chips = holeStat.chips, 
-                                                sandShots = holeStat.sandShots, 
+                                                chips = holeStat.chips,
+                                                sandShots = holeStat.sandShots,
                                                 chipDistance = holeStat.chipDistance,
                                                 sandShotDistance = holeStat.sandShotDistance,
-                                                chipLie = com.golftracker.data.model.ApproachLie.ROUGH
-                                            ) 
+                                                chipLie = com.golftracker.data.model.ApproachLie.ROUGH,
+                                                chipOutcome = holeStat.chipOutcome
+                                            )
                                         },
                                         label = { Text("Rough") }
                                     )
@@ -842,13 +847,14 @@ fun HoleTrackingScreen(
                                 Text("Chip Distance (yds)", modifier = Modifier.weight(1f))
                                     IntegerInput(
                                         value = holeStat.chipDistance,
-                                        onValueChange = { 
+                                        onValueChange = {
                                             viewModel.updateGreen(
-                                                chips = holeStat.chips, 
-                                                sandShots = holeStat.sandShots, 
+                                                chips = holeStat.chips,
+                                                sandShots = holeStat.sandShots,
                                                 chipDistance = it,
                                                 sandShotDistance = holeStat.sandShotDistance,
-                                                chipLie = holeStat.chipLie
+                                                chipLie = holeStat.chipLie,
+                                                chipOutcome = holeStat.chipOutcome
                                             )
                                         },
                                         label = "Distance",
@@ -857,6 +863,23 @@ fun HoleTrackingScreen(
                                     )
                             }
 
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Chip Outcome", style = MaterialTheme.typography.labelSmall)
+                            ChipSelector(
+                                options = ShotOutcome.entries.filter { it != ShotOutcome.HOLED_OUT },
+                                selectedOption = holeStat.chipOutcome,
+                                onOptionSelected = { selected ->
+                                    val newOutcome = if (holeStat.chipOutcome == selected) null else selected
+                                    viewModel.updateGreen(
+                                        chips = holeStat.chips,
+                                        sandShots = holeStat.sandShots,
+                                        chipDistance = holeStat.chipDistance,
+                                        sandShotDistance = holeStat.sandShotDistance,
+                                        chipLie = holeStat.chipLie,
+                                        chipOutcome = newOutcome
+                                    )
+                                }
+                            )
                             Spacer(modifier = Modifier.height(8.dp))
                             var showChipAdvancedLie by remember(holeStat.id) { mutableStateOf(false) }
                             OutlinedButton(onClick = { showChipAdvancedLie = true }, modifier = Modifier.fillMaxWidth()) {
