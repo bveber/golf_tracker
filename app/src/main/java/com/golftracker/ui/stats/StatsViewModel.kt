@@ -10,6 +10,7 @@ import com.golftracker.data.repository.StatsData
 import com.golftracker.data.repository.StatsFilter
 import com.golftracker.data.repository.StatsRepository
 import com.golftracker.data.repository.CourseRepository
+import com.golftracker.ui.courseanalysis.CourseWithRoundCount
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -42,6 +43,10 @@ class StatsViewModel @Inject constructor(
     // Tee sets for the selected course
     private val _teeSetsForCourse = MutableStateFlow<List<TeeSet>>(emptyList())
     val teeSetsForCourse: StateFlow<List<TeeSet>> = _teeSetsForCourse
+
+    val coursesWithRoundCounts: StateFlow<List<CourseWithRoundCount>> =
+        statsRepository.getCourseWithRoundCounts()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Available years extracted from rounds (consider all history)
     val availableYears: StateFlow<List<Int>> = statsRepository.getFilteredStatsData(StatsFilter(lastNRounds = 0))

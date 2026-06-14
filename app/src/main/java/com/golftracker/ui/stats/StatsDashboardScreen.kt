@@ -22,9 +22,13 @@ import androidx.compose.material.icons.filled.FilterList
 import java.util.Date
 import java.util.Locale
 import java.text.SimpleDateFormat
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.golftracker.data.entity.Club
 import com.golftracker.data.model.ApproachLie
+import com.golftracker.ui.courseanalysis.CourseWithRoundCount
 import com.golftracker.data.repository.ApproachStats
 import com.golftracker.data.repository.ChippingStats
 import com.golftracker.data.repository.DrivingStats
@@ -50,6 +54,7 @@ import com.golftracker.ui.components.DispersionCard
 @Composable
 fun StatsDashboardScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToCourseAnalysis: (Int) -> Unit = {},
     viewModel: StatsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.statsUiState.collectAsState()
@@ -57,12 +62,13 @@ fun StatsDashboardScreen(
     val courses by viewModel.courses.collectAsState()
     val clubs by viewModel.clubs.collectAsState()
     val availableYears by viewModel.availableYears.collectAsState()
+    val coursesWithRoundCounts by viewModel.coursesWithRoundCounts.collectAsState()
 
     var showDateRangePicker by remember { mutableStateOf(false) }
     var showManageRounds by remember { mutableStateOf(false) }
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Scoring", "Driving", "Approach", "Chipping", "Putting", "Strokes Gained")
+    val tabs = listOf("Scoring", "Driving", "Approach", "Chipping", "Putting", "Strokes Gained", "Courses")
 
     Scaffold(
         topBar = {
@@ -117,7 +123,19 @@ fun StatsDashboardScreen(
                 }
                 is StatsUiState.Success -> {
                     val data = state.data
-                    if (data.rounds.isEmpty()) {
+                    // Courses tab is always available regardless of filter state
+                    if (selectedTabIndex == 6) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            CoursesTab(coursesWithRoundCounts, onNavigateToCourseAnalysis)
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+                    } else if (data.rounds.isEmpty()) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text("No finalized rounds found.")
                         }
@@ -1671,6 +1689,78 @@ private fun LieFilterRow(
                 onClick = { onToggleLie(lie) },
                 label = { Text(lie.name, style = MaterialTheme.typography.labelSmall) }
             )
+        }
+    }
+}
+
+// ── Courses Tab ──────────────────────────────────────────────────────────
+
+@Composable
+private fun CoursesTab(
+    courses: List<CourseWithRoundCount>,
+    onNavigateToCourseAnalysis: (Int) -> Unit
+) {
+    if (courses.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                "No finalized rounds found.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        return
+    }
+
+    Text(
+        "Tap a course to see scoring analysis, hole-by-hole breakdowns, and strokes gained.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+
+    val dateFormat = remember { java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault()) }
+    courses.forEach { cwr ->
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onNavigateToCourseAnalysis(cwr.course.id) }
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        cwr.course.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    )
+                    Text(
+                        "${cwr.course.city}, ${cwr.course.state}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "Last played: ${dateFormat.format(cwr.lastPlayed)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        "${cwr.roundCount}",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        "round${if (cwr.roundCount != 1) "s" else ""}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     }
 }

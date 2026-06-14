@@ -1,6 +1,7 @@
 package com.golftracker.data.repository
 
 import com.golftracker.data.db.dao.RoundDao
+import com.golftracker.data.entity.Club
 import com.golftracker.data.entity.DirectionMiss
 import com.golftracker.data.entity.PaceMiss
 import com.golftracker.data.entity.PuttBreak
@@ -10,9 +11,23 @@ import com.golftracker.util.inferSlideMiss
 import com.golftracker.data.model.HoleStatWithHole
 import com.golftracker.data.model.RoundWithDetails
 import com.golftracker.data.model.ShotOutcome
+import com.golftracker.ui.courseanalysis.ClubTeeStats
+import com.golftracker.ui.courseanalysis.CourseAnalysisData
+import com.golftracker.ui.courseanalysis.CourseAnalysisFilter
+import com.golftracker.ui.courseanalysis.CourseMissStats
+import com.golftracker.ui.courseanalysis.CoursePuttingStats
+import com.golftracker.ui.courseanalysis.CourseWithRoundCount
+import com.golftracker.ui.courseanalysis.HoleAnalysis
+import com.golftracker.ui.courseanalysis.HoleClubBreakdown
+import com.golftracker.ui.courseanalysis.HoleSgBreakdown
+import com.golftracker.ui.courseanalysis.MissBreakdown
+import com.golftracker.ui.courseanalysis.OverallScoringStats
+import com.golftracker.ui.courseanalysis.PuttBreakStats
+import com.golftracker.ui.courseanalysis.PuttSlopeStats
 import com.golftracker.util.GirCalculator
 import com.golftracker.util.HandicapCalculator
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import java.util.Calendar
 import java.util.Date
@@ -43,6 +58,403 @@ class StatsRepository @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val sgCalculator: com.golftracker.util.StrokesGainedCalculator
 ) {
+    fun getFinalizedRoundsFlow(): Flow<List<RoundWithDetails>> = roundDao.getFinalizedRoundsWithDetails()
+
+    fun getCourseWithRoundCounts(): Flow<List<CourseWithRoundCount>> =
+        roundDao.getFinalizedRoundsWithDetails().map { rounds ->
+            val cal = Calendar.getInstance()
+            rounds
+                .filter { !it.round.isPractice }
+                .groupBy { it.round.courseId }
+                .map { (_, courseRounds) ->
+                    CourseWithRoundCount(
+                        course = courseRounds.first().course,
+                        roundCount = courseRounds.size,
+                        lastPlayed = courseRounds.maxOf { it.round.date }
+                    )
+                }
+                .sortedByDescending { it.lastPlayed }
+        }
+
+    fun getCourseAnalysisData(courseId: Int, filter: CourseAnalysisFilter, clubs: List<Club> = emptyList()): Flow<CourseAnalysisData> {
+        return combine(
+            roundDao.getFinalizedRoundsWithDetails(),
+            courseRepository.getTeeSets(courseId)
+        ) { allRounds, teeSets ->
+            val cal = Calendar.getInstance()
+            var rounds = allRounds.filter { it.round.courseId == courseId && !it.round.isPractice }
+            filter.teeSetId?.let { tid -> rounds = rounds.filter { it.round.teeSetId == tid } }
+            filter.year?.let { y ->
+                rounds = rounds.filter { cal.time = it.round.date; cal.get(Calendar.YEAR) == y }
+            }
+            filter.startDate?.let { s -> rounds = rounds.filter { it.round.date >= s } }
+            filter.endDate?.let { e -> rounds = rounds.filter { it.round.date <= e } }
+
+            val availableYears = allRounds
+                .filter { it.round.courseId == courseId && !it.round.isPractice }
+                .map { cal.time = it.round.date; cal.get(Calendar.YEAR) }
+                .distinct().sorted().reversed()
+
+            val course = rounds.firstOrNull()?.course
+                ?: allRounds.firstOrNull { it.round.courseId == courseId }?.course
+                ?: return@combine CourseAnalysisData(
+                    course = com.golftracker.data.entity.Course(id = courseId, name = "Unknown", city = "", state = "", holeCount = 18),
+                    teeSets = teeSets,
+                    availableYears = availableYears
+                )
+
+            CourseAnalysisData(
+                course = course,
+                teeSets = teeSets,
+                availableYears = availableYears,
+                overall = buildOverallScoringStats(rounds),
+                byHole = buildByHole(rounds),
+                holeSgBreakdowns = buildHoleSgBreakdowns(rounds),
+                missStats = buildCourseMissStats(rounds),
+                putting = buildCoursePuttingStats(rounds),
+                clubTeeStats = buildClubTeeStats(rounds, clubs),
+                holeClubBreakdowns = buildHoleClubBreakdowns(rounds, clubs)
+            )
+        }
+    }
+
+    private fun buildOverallScoringStats(rounds: List<RoundWithDetails>): OverallScoringStats {
+        if (rounds.isEmpty()) return OverallScoringStats()
+        val allHoles = rounds.flatMap { it.holeStats }.filter { it.holeStat.score > 0 }
+        val totalHolesPlayed = allHoles.size.coerceAtLeast(1)
+
+        val roundToPars = rounds.map { r ->
+            val scored = r.holeStats.filter { it.holeStat.score > 0 }
+            val score = scored.sumOf { it.holeStat.score }
+            val par = scored.sumOf { it.hole.par }
+            score - par
+        }
+
+        val avgScore = allHoles.sumOf { it.holeStat.score }.toDouble() / totalHolesPlayed * 18
+        val avgToPar = allHoles.sumOf { it.holeStat.score - it.hole.par }.toDouble() / totalHolesPlayed * 18
+
+        val diffs = HandicapCalculator.calculateDifferentials(rounds)
+        val diffMap = diffs.associateBy { it.roundId }
+        val trend = rounds.map { r ->
+            val scored = r.holeStats.filter { it.holeStat.score > 0 }
+            val toPar = scored.sumOf { it.holeStat.score - it.hole.par }
+            val holesPlayed = scored.size.coerceAtLeast(1)
+            val normToPar = (toPar.toDouble() / holesPlayed) * 18
+            RoundScoreSummary(
+                roundId = r.round.id,
+                date = r.round.date,
+                toPar = normToPar.toInt(),
+                differential = diffMap[r.round.id]?.value,
+                courseName = r.course.name,
+                totalHoles = r.round.totalHoles
+            )
+        }.sortedBy { it.date }
+
+        return OverallScoringStats(
+            roundsPlayed = rounds.size,
+            avgScore = avgScore,
+            avgToPar = avgToPar,
+            bestRoundToPar = roundToPars.minOrNull() ?: 0,
+            worstRoundToPar = roundToPars.maxOrNull() ?: 0,
+            eagles = allHoles.count { it.holeStat.score <= it.hole.par - 2 },
+            birdies = allHoles.count { it.holeStat.score == it.hole.par - 1 },
+            pars = allHoles.count { it.holeStat.score == it.hole.par },
+            bogeys = allHoles.count { it.holeStat.score == it.hole.par + 1 },
+            doubles = allHoles.count { it.holeStat.score == it.hole.par + 2 },
+            worseCount = allHoles.count { it.holeStat.score > it.hole.par + 2 },
+            trend = trend
+        )
+    }
+
+    private fun buildByHole(rounds: List<RoundWithDetails>): List<HoleAnalysis> {
+        val allHoles = rounds.flatMap { it.holeStats }.filter { it.holeStat.score > 0 }
+        return allHoles
+            .groupBy { it.hole.holeNumber }
+            .map { (holeNumber, stats) ->
+                val scores = stats.map { it.holeStat.score }.sorted()
+                val median = if (scores.size % 2 == 0) {
+                    (scores[scores.size / 2 - 1] + scores[scores.size / 2]) / 2.0
+                } else {
+                    scores[scores.size / 2].toDouble()
+                }
+                val par = stats.first().hole.par
+                HoleAnalysis(
+                    holeNumber = holeNumber,
+                    par = par,
+                    roundsPlayed = stats.size,
+                    avgScore = scores.average(),
+                    medianScore = median,
+                    eagles = stats.count { it.holeStat.score <= par - 2 },
+                    birdies = stats.count { it.holeStat.score == par - 1 },
+                    pars = stats.count { it.holeStat.score == par },
+                    bogeys = stats.count { it.holeStat.score == par + 1 },
+                    doubles = stats.count { it.holeStat.score == par + 2 },
+                    worseCount = stats.count { it.holeStat.score > par + 2 }
+                )
+            }
+            .sortedBy { it.holeNumber }
+    }
+
+    private fun buildHoleSgBreakdowns(rounds: List<RoundWithDetails>): List<HoleSgBreakdown> {
+        val allHoles = rounds.flatMap { it.holeStats }
+            .filter { it.holeStat.isScored && it.holeStat.strokesGained != null }
+        return allHoles
+            .groupBy { it.hole.holeNumber }
+            .map { (holeNumber, stats) ->
+                val par = stats.first().hole.par
+                val offTeeValues = stats.mapNotNull { it.holeStat.sgOffTee }
+                val sgValues = stats.mapNotNull { it.holeStat.strokesGained }
+                HoleSgBreakdown(
+                    holeNumber = holeNumber,
+                    par = par,
+                    roundsPlayed = stats.size,
+                    avgSgTotal = sgValues.average(),
+                    avgSgOffTee = if (par > 3 && offTeeValues.isNotEmpty()) offTeeValues.average() else null,
+                    avgSgApproach = stats.mapNotNull { it.holeStat.sgApproach }.let { if (it.isNotEmpty()) it.average() else 0.0 },
+                    avgSgAroundGreen = stats.mapNotNull { it.holeStat.sgAroundGreen }.let { if (it.isNotEmpty()) it.average() else 0.0 },
+                    avgSgPutting = stats.mapNotNull { it.holeStat.sgPutting }.let { if (it.isNotEmpty()) it.average() else 0.0 },
+                    avgExpectedStrokes = stats.map { it.holeStat.score + it.holeStat.strokesGained!! }.average()
+                )
+            }
+            .sortedBy { it.holeNumber }
+    }
+
+    private fun buildCourseMissStats(rounds: List<RoundWithDetails>): CourseMissStats {
+        val allHoles = rounds.flatMap { it.holeStats }
+
+        // Tee shots (par 4 and 5 only)
+        val teeHoles = allHoles.filter { it.hole.par > 3 && it.holeStat.teeOutcome != null }
+        val teeOutcomes = teeHoles.mapNotNull { it.holeStat.teeOutcome }
+        val teeTotal = teeOutcomes.size.coerceAtLeast(1)
+        val teeDispPoints = teeHoles.mapNotNull { h ->
+            val s = h.holeStat
+            if (s.teeDispersionLeft != null || s.teeDispersionRight != null ||
+                s.teeDispersionShort != null || s.teeDispersionLong != null) {
+                DispersionPoint(s.teeDispersionLeft, s.teeDispersionRight, s.teeDispersionShort, s.teeDispersionLong, s.teeMishit)
+            } else null
+        }
+        val teeLateral = if (teeDispPoints.isNotEmpty())
+            teeDispPoints.sumOf { (it.right?.toDouble() ?: 0.0) - (it.left?.toDouble() ?: 0.0) } / teeDispPoints.size
+        else 0.0
+        val teeDistMiss = if (teeDispPoints.isNotEmpty())
+            teeDispPoints.sumOf { (it.long?.toDouble() ?: 0.0) - (it.short?.toDouble() ?: 0.0) } / teeDispPoints.size
+        else 0.0
+
+        // Approach shots (from Shot table)
+        val approachShots = allHoles.flatMap { h ->
+            h.shots.filter { it.outcome != null }
+        }
+        val approachTotal = approachShots.size.coerceAtLeast(1)
+        val approachDispPoints = h@allHoles.flatMap { h ->
+            h.shots.filter { shot ->
+                shot.outcome != null &&
+                    (shot.dispersionLeft != null || shot.dispersionRight != null ||
+                        shot.dispersionShort != null || shot.dispersionLong != null)
+            }.map { shot ->
+                DispersionPoint(shot.dispersionLeft, shot.dispersionRight, shot.dispersionShort, shot.dispersionLong, shot.isMishit)
+            }
+        }
+        val fallbackApproach = if (approachShots.isEmpty()) allHoles.mapNotNull { h ->
+            h.holeStat.approachOutcome?.let { h }
+        } else emptyList()
+        val effectiveApproachOutcomes = approachShots.mapNotNull { it.outcome }.ifEmpty {
+            fallbackApproach.mapNotNull { it.holeStat.approachOutcome }
+        }
+        val effApprTotal = effectiveApproachOutcomes.size.coerceAtLeast(1)
+        val approachLateral = if (approachDispPoints.isNotEmpty())
+            approachDispPoints.sumOf { (it.right?.toDouble() ?: 0.0) - (it.left?.toDouble() ?: 0.0) } / approachDispPoints.size
+        else 0.0
+        val approachDistMiss = if (approachDispPoints.isNotEmpty())
+            approachDispPoints.sumOf { (it.long?.toDouble() ?: 0.0) - (it.short?.toDouble() ?: 0.0) } / approachDispPoints.size
+        else 0.0
+
+        // Chip shots
+        val chipHoles = allHoles.filter { it.holeStat.chips > 0 && it.holeStat.chipOutcome != null }
+        val chipOutcomes = chipHoles.mapNotNull { it.holeStat.chipOutcome }
+        val chipTotal = chipOutcomes.size.coerceAtLeast(1)
+
+        return CourseMissStats(
+            tee = MissBreakdown(
+                totalShots = teeOutcomes.size,
+                onTargetPct = (teeOutcomes.count { it == ShotOutcome.ON_TARGET }.toFloat() / teeTotal) * 100f,
+                leftPct = (teeOutcomes.count { it == ShotOutcome.MISS_LEFT }.toFloat() / teeTotal) * 100f,
+                rightPct = (teeOutcomes.count { it == ShotOutcome.MISS_RIGHT }.toFloat() / teeTotal) * 100f,
+                shortPct = (teeOutcomes.count { it == ShotOutcome.SHORT }.toFloat() / teeTotal) * 100f,
+                longPct = (teeOutcomes.count { it == ShotOutcome.LONG }.toFloat() / teeTotal) * 100f,
+                avgLateral = teeLateral,
+                avgDistance = teeDistMiss,
+                dispersionPoints = teeDispPoints
+            ),
+            approach = MissBreakdown(
+                totalShots = effectiveApproachOutcomes.size,
+                onTargetPct = (effectiveApproachOutcomes.count { it == ShotOutcome.ON_TARGET }.toFloat() / effApprTotal) * 100f,
+                leftPct = (effectiveApproachOutcomes.count { it == ShotOutcome.MISS_LEFT }.toFloat() / effApprTotal) * 100f,
+                rightPct = (effectiveApproachOutcomes.count { it == ShotOutcome.MISS_RIGHT }.toFloat() / effApprTotal) * 100f,
+                shortPct = (effectiveApproachOutcomes.count { it == ShotOutcome.SHORT }.toFloat() / effApprTotal) * 100f,
+                longPct = (effectiveApproachOutcomes.count { it == ShotOutcome.LONG }.toFloat() / effApprTotal) * 100f,
+                avgLateral = approachLateral,
+                avgDistance = approachDistMiss,
+                dispersionPoints = approachDispPoints
+            ),
+            chip = MissBreakdown(
+                totalShots = chipOutcomes.size,
+                onTargetPct = (chipOutcomes.count { it == ShotOutcome.ON_TARGET }.toFloat() / chipTotal) * 100f,
+                leftPct = (chipOutcomes.count { it == ShotOutcome.MISS_LEFT }.toFloat() / chipTotal) * 100f,
+                rightPct = (chipOutcomes.count { it == ShotOutcome.MISS_RIGHT }.toFloat() / chipTotal) * 100f,
+                shortPct = (chipOutcomes.count { it == ShotOutcome.SHORT }.toFloat() / chipTotal) * 100f,
+                longPct = (chipOutcomes.count { it == ShotOutcome.LONG }.toFloat() / chipTotal) * 100f,
+                dispersionPoints = emptyList()
+            )
+        )
+    }
+
+    private fun buildCoursePuttingStats(rounds: List<RoundWithDetails>): CoursePuttingStats {
+        val holes = rounds.flatMap { it.holeStats }.filter { it.holeStat.score > 0 }
+        if (holes.isEmpty()) return CoursePuttingStats()
+
+        val totalHolesPlayed = holes.size.coerceAtLeast(1)
+        val totalPutts = holes.sumOf { it.holeStat.putts }
+        val onePutts = holes.count { it.holeStat.putts == 1 }
+        val twoPutts = holes.count { it.holeStat.putts == 2 }
+        val threePlus = holes.count { it.holeStat.putts >= 3 }
+
+        val firstPutts = holes.mapNotNull { h ->
+            h.putts.filter { (it.distance ?: 0f) > 0f }.minByOrNull { it.puttNumber }
+        }
+        val avgFirstPuttDist = if (firstPutts.isNotEmpty())
+            firstPutts.mapNotNull { it.distance?.toDouble() }.average() else 0.0
+
+        // Make % by distance
+        val puttsWithDist = holes.flatMap { h ->
+            val maxPuttNum = h.putts.maxOfOrNull { it.puttNumber } ?: 0
+            h.putts.filter { (it.distance ?: 0f) > 0f }
+                .map { putt -> putt.copy(made = putt.puttNumber == maxPuttNum) }
+        }
+        data class BucketDef(val label: String, val min: Float, val max: Float)
+        val bucketDefs = listOf(
+            BucketDef("0-5 ft", 0f, 5f), BucketDef("5-10 ft", 5f, 10f),
+            BucketDef("10-15 ft", 10f, 15f), BucketDef("15-20 ft", 15f, 20f),
+            BucketDef("20-25 ft", 20f, 25f), BucketDef("25+ ft", 25f, Float.MAX_VALUE)
+        )
+        val makePctByDistance = bucketDefs.mapNotNull { (label, min, max) ->
+            val inRange = puttsWithDist.filter { it.distance!! >= min && it.distance < max }
+            if (inRange.isEmpty()) return@mapNotNull null
+            val made = inRange.count { it.made }
+            DistanceBucket(label, (made.toDouble() / inRange.size) * 100, inRange.size)
+        }
+
+        // All putts with correct made flag (last putt on each hole = made)
+        val allPuttsWithMade = holes.flatMap { h ->
+            val maxNum = h.putts.maxOfOrNull { it.puttNumber } ?: 0
+            h.putts.map { p -> p.copy(made = p.puttNumber == maxNum) }
+        }
+        val missedPutts = allPuttsWithMade.filter { !it.made }
+        val paceTotal = missedPutts.count { it.paceMiss != null }.coerceAtLeast(1)
+        val dirTotal = missedPutts.count { it.directionMiss != null }.coerceAtLeast(1)
+
+        // Break stats (break applies to all putts including made)
+        val breakStatsList = PuttBreak.values().mapNotNull { breakDir ->
+            val matching = allPuttsWithMade.filter { it.breakDirection == breakDir }
+            if (matching.isEmpty()) return@mapNotNull null
+            PuttBreakStats(
+                breakDir = breakDir,
+                count = matching.size,
+                makePct = matching.count { it.made }.toFloat() / matching.size * 100f
+            )
+        }
+
+        // Slope stats
+        val slopeStatsList = PuttSlopeDirection.values().mapNotNull { slopeDir ->
+            val matching = allPuttsWithMade.filter { it.slopeDirection == slopeDir }
+            if (matching.isEmpty()) return@mapNotNull null
+            PuttSlopeStats(
+                slope = slopeDir,
+                count = matching.size,
+                makePct = matching.count { it.made }.toFloat() / matching.size * 100f
+            )
+        }
+
+        return CoursePuttingStats(
+            avgPuttsPerRound = (totalPutts.toDouble() / totalHolesPlayed) * 18,
+            onePuttPct = (onePutts.toFloat() / totalHolesPlayed) * 100f,
+            twoPuttPct = (twoPutts.toFloat() / totalHolesPlayed) * 100f,
+            threePlusPct = (threePlus.toFloat() / totalHolesPlayed) * 100f,
+            makePctByDistance = makePctByDistance,
+            avgFirstPuttDistance = avgFirstPuttDist,
+            missShortPct = missedPutts.count { it.paceMiss == PaceMiss.SHORT || it.paceMiss == PaceMiss.BIG_SHORT }
+                .toFloat() / paceTotal * 100f,
+            missLongPct = missedPutts.count { it.paceMiss == PaceMiss.LONG || it.paceMiss == PaceMiss.BIG_LONG }
+                .toFloat() / paceTotal * 100f,
+            missLeftPct = missedPutts.count { it.directionMiss == DirectionMiss.LEFT || it.directionMiss == DirectionMiss.BIG_LEFT }
+                .toFloat() / dirTotal * 100f,
+            missRightPct = missedPutts.count { it.directionMiss == DirectionMiss.RIGHT || it.directionMiss == DirectionMiss.BIG_RIGHT }
+                .toFloat() / dirTotal * 100f,
+            totalMissedPutts = missedPutts.size,
+            breakStats = breakStatsList,
+            slopeStats = slopeStatsList
+        )
+    }
+
+    private fun buildClubTeeStats(rounds: List<RoundWithDetails>, clubs: List<Club>): List<ClubTeeStats> {
+        if (clubs.isEmpty()) return emptyList()
+        val clubMap = clubs.associateBy { it.id }
+        val teeHoles = rounds.flatMap { it.holeStats }
+            .filter { it.hole.par > 3 && it.holeStat.teeClubId != null }
+
+        return teeHoles
+            .groupBy { it.holeStat.teeClubId!! }
+            .mapNotNull { (clubId, stats) ->
+                val club = clubMap[clubId] ?: return@mapNotNull null
+                clubTeeStatsFrom(club, stats)
+            }
+            .sortedByDescending { it.holesPlayed }
+    }
+
+    private fun buildHoleClubBreakdowns(rounds: List<RoundWithDetails>, clubs: List<Club>): List<HoleClubBreakdown> {
+        if (clubs.isEmpty()) return emptyList()
+        val clubMap = clubs.associateBy { it.id }
+        val teeHoles = rounds.flatMap { it.holeStats }
+            .filter { it.hole.par > 3 && it.holeStat.teeClubId != null }
+
+        return teeHoles
+            .groupBy { it.hole.holeNumber }
+            .map { (holeNumber, holeStats) ->
+                val par = holeStats.first().hole.par
+                val byClub = holeStats
+                    .groupBy { it.holeStat.teeClubId!! }
+                    .mapNotNull { (clubId, stats) ->
+                        val club = clubMap[clubId] ?: return@mapNotNull null
+                        clubTeeStatsFrom(club, stats)
+                    }
+                    .sortedByDescending { it.holesPlayed }
+                HoleClubBreakdown(holeNumber = holeNumber, par = par, byClub = byClub)
+            }
+            .filter { it.byClub.isNotEmpty() }
+            .sortedBy { it.holeNumber }
+    }
+
+    private fun clubTeeStatsFrom(club: Club, stats: List<com.golftracker.data.model.HoleStatWithHole>): ClubTeeStats {
+        val outcomes = stats.mapNotNull { it.holeStat.teeOutcome }
+        val outcomesTotal = outcomes.size.coerceAtLeast(1)
+        val sgOffTeeValues = stats.mapNotNull { it.holeStat.sgOffTee }
+        val sgTotalValues = stats.mapNotNull { it.holeStat.strokesGained }
+        return ClubTeeStats(
+            clubId = club.id,
+            clubName = club.name,
+            clubType = club.type,
+            holesPlayed = stats.size,
+            avgSgOffTee = if (sgOffTeeValues.isNotEmpty()) sgOffTeeValues.average() else null,
+            avgSgTotal = if (sgTotalValues.isNotEmpty()) sgTotalValues.average() else 0.0,
+            avgToPar = stats.map { it.holeStat.score - it.hole.par }.average(),
+            onTargetPct = outcomes.count { it == ShotOutcome.ON_TARGET }.toFloat() / outcomesTotal * 100f,
+            mishitPct = stats.count { it.holeStat.teeMishit }.toFloat() / stats.size * 100f,
+            missLeftPct = outcomes.count { it == ShotOutcome.MISS_LEFT }.toFloat() / outcomesTotal * 100f,
+            missRightPct = outcomes.count { it == ShotOutcome.MISS_RIGHT }.toFloat() / outcomesTotal * 100f,
+            missShortPct = outcomes.count { it == ShotOutcome.SHORT }.toFloat() / outcomesTotal * 100f,
+            missLongPct = outcomes.count { it == ShotOutcome.LONG }.toFloat() / outcomesTotal * 100f
+        )
+    }
+
     fun getStatsData(): Flow<StatsData> = getFilteredStatsData(StatsFilter())
 
     fun getFilteredStatsData(filter: StatsFilter): Flow<StatsData> {

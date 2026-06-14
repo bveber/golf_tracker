@@ -55,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -426,7 +427,8 @@ fun GpsScreen(
                         WindCompassCard(
                             windDirection = weather.windDirection,
                             windSpeedMph = weather.windSpeedMph,
-                            temperatureFahrenheit = weather.temperatureFahrenheit
+                            temperatureFahrenheit = weather.temperatureFahrenheit,
+                            mapBearing = cameraPositionState.position.bearing
                         )
                     }
                 }
@@ -635,7 +637,8 @@ private fun cardinalToDegrees(cardinal: String): Float = when (cardinal.uppercas
 private fun WindCompassCard(
     windDirection: String?,
     windSpeedMph: Int?,
-    temperatureFahrenheit: Int?
+    temperatureFahrenheit: Int?,
+    mapBearing: Float = 0f
 ) {
     Box(
         modifier = Modifier
@@ -647,8 +650,8 @@ private fun WindCompassCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Compass rose with wind arrow
-            Box(modifier = Modifier.size(52.dp)) {
+            // Compass rose with wind arrow — rotated so N tracks map North
+            Box(modifier = Modifier.size(52.dp).rotate(-mapBearing)) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val cx = size.width / 2
                     val cy = size.height / 2
