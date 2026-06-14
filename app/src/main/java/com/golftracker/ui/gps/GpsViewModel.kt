@@ -262,8 +262,28 @@ class GpsViewModel @Inject constructor(
                 val holes = round?.courseId?.let { courseRepository.getHoles(it).first() }
                 val stat = roundRepository.getHoleStatFlow(holeStatId).first()
                 val hole = holes?.find { it.id == stat?.holeId }
-                
-                _uiState.update { it.copy(currentHole = hole) }
+
+                // Seed weather from the saved round data so wind shows immediately,
+                // before (or instead of) the live GPS-triggered fetch.
+                val savedWeather = round?.let {
+                    if (it.windSpeedMph != null || it.windDirection != null || it.temperatureFahrenheit != null) {
+                        WeatherData(
+                            condition = it.weatherCondition,
+                            temperatureFahrenheit = it.temperatureFahrenheit,
+                            windSpeedMph = it.windSpeedMph,
+                            windDirection = it.windDirection,
+                            humidityPercent = it.humidityPercent,
+                            pressureInHg = it.pressureInHg
+                        )
+                    } else null
+                }
+
+                _uiState.update { state ->
+                    state.copy(
+                        currentHole = hole,
+                        weatherData = savedWeather ?: state.weatherData
+                    )
+                }
 
                 // Seed markers from persistent hole data if available
                 val knownTee = hole?.teeLat?.let { lat -> hole.teeLng?.let { lng -> LatLng(lat, lng) } }

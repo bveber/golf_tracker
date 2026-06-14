@@ -8,10 +8,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +43,7 @@ fun CourseListScreen(
     onImportCourse: () -> Unit,
     onCourseClick: (Int) -> Unit,
     onNavigateBack: () -> Unit,
+    onNavigateToCourseAnalysis: (Int) -> Unit = {},
     viewModel: CourseViewModel = hiltViewModel()
 ) {
     val coursesWithStats by viewModel.allCoursesWithStats.collectAsState()
@@ -98,7 +101,11 @@ fun CourseListScreen(
                                 }
                             },
                             content = {
-                                CourseItem(courseWithStats = courseWithStats, onClick = { onCourseClick(course.id) })
+                                CourseItem(
+                                    courseWithStats = courseWithStats,
+                                    onClick = { onCourseClick(course.id) },
+                                    onAnalysisClick = { onNavigateToCourseAnalysis(course.id) }
+                                )
                             }
                         )
                     }
@@ -132,12 +139,12 @@ fun CourseListScreen(
 }
 
 @Composable
-fun CourseItem(courseWithStats: CourseWithLongestTee, onClick: () -> Unit) {
+fun CourseItem(courseWithStats: CourseWithLongestTee, onClick: () -> Unit, onAnalysisClick: () -> Unit = {}) {
     val course = courseWithStats.course
     Card(modifier = Modifier.padding(8.dp).clickable(onClick = onClick)) {
         ListItem(
             headlineContent = { Text(course.name) },
-            supportingContent = { 
+            supportingContent = {
                 var text = "${course.city}, ${course.state} • ${course.holeCount} holes"
                 if (courseWithStats.distance != null) {
                     text += "\nLongest Tee: ${courseWithStats.distance} yds"
@@ -145,7 +152,12 @@ fun CourseItem(courseWithStats: CourseWithLongestTee, onClick: () -> Unit) {
                         text += " • ${courseWithStats.rating}/${courseWithStats.slope}"
                     }
                 }
-                Text(text) 
+                Text(text)
+            },
+            trailingContent = {
+                IconButton(onClick = onAnalysisClick) {
+                    Icon(Icons.Default.BarChart, contentDescription = "Course Analysis")
+                }
             }
         )
     }

@@ -67,7 +67,8 @@ fun GolfTrackerNavGraph(
                 onAddCourse = { navController.navigate("courseEdit") },
                 onImportCourse = { navController.navigate("courseImport") },
                 onCourseClick = { courseId -> navController.navigate("courseEdit?courseId=$courseId") },
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToCourseAnalysis = { courseId -> navController.navigate("courseAnalysis/$courseId") }
             )
         }
         composable("courseImport") {
@@ -153,6 +154,17 @@ fun GolfTrackerNavGraph(
         }
         composable("stats") {
             com.golftracker.ui.stats.StatsDashboardScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToCourseAnalysis = { courseId -> navController.navigate("courseAnalysis/$courseId") }
+            )
+        }
+        composable(
+            route = "courseAnalysis/{courseId}",
+            arguments = listOf(
+                androidx.navigation.navArgument("courseId") { type = androidx.navigation.NavType.IntType }
+            )
+        ) {
+            com.golftracker.ui.courseanalysis.CourseAnalysisScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }

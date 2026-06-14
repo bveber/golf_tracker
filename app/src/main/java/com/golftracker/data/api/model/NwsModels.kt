@@ -8,7 +8,38 @@ data class NwsPointsResponse(
 
 data class NwsPointsProperties(
     @SerializedName("observationStations")
-    val observationStationsUrl: String
+    val observationStationsUrl: String,
+    @SerializedName("gridId")
+    val gridId: String? = null,
+    @SerializedName("gridX")
+    val gridX: Int? = null,
+    @SerializedName("gridY")
+    val gridY: Int? = null
+)
+
+data class NwsForecastResponse(
+    val properties: NwsForecastProperties
+)
+
+data class NwsForecastProperties(
+    val periods: List<NwsForecastPeriod>
+)
+
+data class NwsForecastPeriod(
+    @SerializedName("startTime")
+    val startTime: String?,
+    @SerializedName("temperature")
+    val temperature: Int?,
+    @SerializedName("temperatureUnit")
+    val temperatureUnit: String?,
+    @SerializedName("windSpeed")
+    val windSpeed: String?,
+    @SerializedName("windDirection")
+    val windDirection: String?,
+    @SerializedName("shortForecast")
+    val shortForecast: String?,
+    @SerializedName("relativeHumidity")
+    val relativeHumidity: NwsQuantitativeValue?
 )
 
 data class NwsStationsResponse(
