@@ -194,27 +194,25 @@ class RoundViewModel @Inject constructor(
                 ) { stat, _, _, _ -> stat ?: holeStat }
                 
                 rawFlow.debounce(500).collect { updatedStat: HoleStat ->
-                    viewModelScope.launch {
-                        val statId = holeStat.id
-                        val currentShots = roundRepository.getShotsForHoleStat(statId).first()
-                        val currentPutts = roundRepository.getPuttsForHoleStat(statId).first()
-                        val currentPenalties = roundRepository.getPenaltiesForHoleStat(statId).first()
-                        
-                        _uiState.update { currentState ->
-                            currentState.copy(
-                                currentHoleStat = updatedStat,
-                                putts = currentPutts,
-                                penalties = currentPenalties,
-                                shots = currentShots
-                            )
-                        }
-                        recalculateSgForCurrentHole(
-                            stat = updatedStat,
-                            shots = currentShots,
+                    val statId = holeStat.id
+                    val currentShots = roundRepository.getShotsForHoleStat(statId).first()
+                    val currentPutts = roundRepository.getPuttsForHoleStat(statId).first()
+                    val currentPenalties = roundRepository.getPenaltiesForHoleStat(statId).first()
+
+                    _uiState.update { currentState ->
+                        currentState.copy(
+                            currentHoleStat = updatedStat,
                             putts = currentPutts,
-                            penalties = currentPenalties
+                            penalties = currentPenalties,
+                            shots = currentShots
                         )
                     }
+                    recalculateSgForCurrentHole(
+                        stat = updatedStat,
+                        shots = currentShots,
+                        putts = currentPutts,
+                        penalties = currentPenalties
+                    )
                 }
             }
         }
@@ -446,7 +444,10 @@ class RoundViewModel @Inject constructor(
         isMishit: Boolean = false
     ) {
         viewModelScope.launch {
-            if (outcome == null && lie == null && distanceToPin == null && providedDistanceTraveled == null) {
+            val allNewValuesEmpty = outcome == null && lie == null && distanceToPin == null && providedDistanceTraveled == null && !isRecovery
+            val shotHadPreviousData = shot.distanceToPin != null || shot.distanceTraveled != null ||
+                shot.outcome != null || shot.lie != null || shot.isRecovery
+            if (allNewValuesEmpty && !shotHadPreviousData) {
                 roundRepository.deleteShot(shot)
             } else {
                 roundRepository.updateShot(

@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.MoreVert
@@ -62,6 +63,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -79,6 +82,7 @@ import com.golftracker.ui.gps.GpsScreen
 fun HoleTrackingScreen(
     onNavigateBack: () -> Unit,
     onFinishRound: () -> Unit,
+    onNavigateToRetroGps: (holeStatId: Int) -> Unit = {},
     viewModel: RoundViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -132,6 +136,14 @@ fun HoleTrackingScreen(
                                     viewModel.togglePracticeRound()
                                     showRoundMenu = false
                                 }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Pin GPS Shots for This Hole") },
+                                onClick = {
+                                    holeStat?.id?.let { onNavigateToRetroGps(it) }
+                                    showRoundMenu = false
+                                },
+                                enabled = holeStat != null
                             )
                         }
                     }
@@ -255,7 +267,7 @@ fun HoleTrackingScreen(
                             resetKey = hole.id
                         )
                     }
-                    
+
                     val cumulative = uiState.cumulativeOverPar
                     if (uiState.holeStats.any { it.score > 0 }) {
                         val scoreStr = if (cumulative > 0) "+$cumulative" else if (cumulative < 0) "$cumulative" else "E"
@@ -271,6 +283,59 @@ fun HoleTrackingScreen(
                         )
                     }
                 }
+            }
+
+            // Strategy Notes (only shown when notes exist for this hole)
+            val strategyNotes = hole.strategyNotes
+            if (strategyNotes.isNotBlank()) {
+                var strategyExpanded by remember(hole.id) { mutableStateOf(true) }
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 0.dp)
+                        .clickable { strategyExpanded = !strategyExpanded },
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    modifier = Modifier.size(16.dp).padding(end = 0.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    "Strategy",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                            }
+                            Icon(
+                                Icons.Default.ArrowDropDown,
+                                contentDescription = if (strategyExpanded) "Collapse" else "Expand",
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.rotate(if (strategyExpanded) 180f else 0f)
+                            )
+                        }
+                        if (strategyExpanded) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = strategyNotes,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
             }
 
             Box(modifier = Modifier.weight(1f)) {

@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
@@ -55,7 +56,8 @@ import com.golftracker.data.entity.Round
 @Composable
 fun RoundSummaryScreen(
     onNavigateBack: () -> Unit,
-    onNavigateToHole: (Int) -> Unit, // Navigate to specific hole index
+    onNavigateToHole: (Int) -> Unit,
+    onNavigateToRetroGps: (holeStatId: Int) -> Unit = {},
     onFinishRound: () -> Unit,
     viewModel: RoundViewModel = hiltViewModel()
 ) {
@@ -133,7 +135,8 @@ fun RoundSummaryScreen(
                     holes = holes,
                     stats = stats,
                     yardages = uiState.yardages,
-                    onHoleClick = onNavigateToHole
+                    onHoleClick = onNavigateToHole,
+                    onGpsClick = onNavigateToRetroGps
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 SgBreakdownCard(stats = stats)
@@ -159,7 +162,8 @@ fun ScorecardTable(
     holes: List<Hole>,
     stats: List<HoleStat>,
     yardages: Map<Int, Int>,
-    onHoleClick: (Int) -> Unit
+    onHoleClick: (Int) -> Unit,
+    onGpsClick: (holeStatId: Int) -> Unit = {}
 ) {
     // Header
     Row(
@@ -175,6 +179,8 @@ fun ScorecardTable(
         Text("Putts", modifier = Modifier.width(40.dp), fontWeight = FontWeight.Bold, fontSize = 12.sp)
         Text("SG", modifier = Modifier.width(40.dp), fontWeight = FontWeight.Bold, fontSize = 12.sp)
         Text("GIR", modifier = Modifier.width(36.dp), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.Center)
+        // GPS column header
+        androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(32.dp))
     }
 
     // Rows
@@ -209,7 +215,7 @@ fun ScorecardTable(
             Text(hole.holeNumber.toString(), modifier = Modifier.width(36.dp), fontSize = 14.sp)
             Text(if (yardage > 0) yardage.toString() else "-", modifier = Modifier.width(40.dp), fontSize = 14.sp)
             Text(hole.par.toString(), modifier = Modifier.width(30.dp), fontSize = 14.sp)
-            
+
             // Score with color logic
             val scoreColor = when {
                 score == 0 -> Color.Gray // Not played
@@ -226,7 +232,7 @@ fun ScorecardTable(
             )
 
             Text(if (putts > 0) putts.toString() else "-", modifier = Modifier.width(40.dp), fontSize = 14.sp)
-            
+
             val sg = stat?.strokesGained ?: 0.0
             val sgColor = when {
                 sg > 0.1 -> MaterialTheme.colorScheme.primary
@@ -240,18 +246,35 @@ fun ScorecardTable(
                 fontWeight = FontWeight.Medium,
                 fontSize = 13.sp
             )
-            
+
             Box(modifier = Modifier.width(36.dp), contentAlignment = Alignment.Center) {
                 if (isGir) {
                     Icon(
-                        imageVector = Icons.Default.Check, 
-                        contentDescription = "GIR", 
-                        tint = Color(0xFF4CAF50), 
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "GIR",
+                        tint = Color(0xFF4CAF50),
                         modifier = Modifier.size(18.dp)
                     )
                 } else if (score > 0) {
                     Text("-", color = Color.Gray, fontSize = 14.sp)
                 }
+            }
+
+            // GPS pin button — visible for any hole with a recorded score
+            if (stat != null && score > 0) {
+                IconButton(
+                    onClick = { onGpsClick(stat.id) },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOn,
+                        contentDescription = "Add GPS pins for hole ${hole.holeNumber}",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            } else {
+                androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(32.dp))
             }
         }
         HorizontalDivider()

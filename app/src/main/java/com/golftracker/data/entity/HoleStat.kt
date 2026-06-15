@@ -180,5 +180,10 @@ data class HoleStat(
     @ColumnInfo(name = "score_manual", defaultValue = "0")
     val scoreManual: Boolean = false,
     @ColumnInfo(name = "chip_outcome")
-    val chipOutcome: ShotOutcome? = null
+    val chipOutcome: ShotOutcome? = null,
+
+    @ColumnInfo(name = "tee_outcome_lat")
+    val teeOutcomeLat: Double? = null,
+    @ColumnInfo(name = "tee_outcome_lng")
+    val teeOutcomeLng: Double? = null,
 )

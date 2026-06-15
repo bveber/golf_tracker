@@ -34,5 +34,7 @@ data class Hole(
     @ColumnInfo(name = "green_lat")
     val greenLat: Double? = null,
     @ColumnInfo(name = "green_lng")
-    val greenLng: Double? = null
+    val greenLng: Double? = null,
+    @ColumnInfo(name = "strategy_notes")
+    val strategyNotes: String = ""
 )

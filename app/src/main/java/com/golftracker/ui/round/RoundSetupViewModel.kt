@@ -3,6 +3,7 @@ package com.golftracker.ui.round
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.golftracker.data.entity.Course
+import com.golftracker.data.entity.Hole
 import com.golftracker.data.entity.Round
 import com.golftracker.data.entity.TeeSet
 import com.golftracker.data.repository.CourseRepository
@@ -24,6 +25,7 @@ data class RoundSetupUiState(
     val selectedCourse: Course? = null,
     val teeSets: List<TeeSet> = emptyList(),
     val selectedTeeSet: TeeSet? = null,
+    val holes: List<Hole> = emptyList(),
     val date: Date = Date(),
     val notes: String = "",
     val teeYardages: Map<Int, Int> = emptyMap(), // teeSetId to totalYardage
@@ -80,7 +82,8 @@ class RoundSetupViewModel @Inject constructor(
             }
 
             // Auto-fetch weather: prefer hole 1 tee coords, then course-level coords, then geocode city/state
-            val holes = courseRepository.getHoles(course.id).first()
+            val holes = courseRepository.getHoles(course.id).first().sortedBy { it.holeNumber }
+            _uiState.update { it.copy(holes = holes) }
             val hole1 = holes.firstOrNull { it.holeNumber == 1 }
             val lat = hole1?.teeLat ?: course.latitude
             val lon = hole1?.teeLng ?: course.longitude
@@ -199,6 +202,16 @@ class RoundSetupViewModel @Inject constructor(
                 _uiState.update { it.copy(weather = weather, weatherLoading = false) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(weatherLoading = false, weatherError = "Unable to fetch weather") }
+            }
+        }
+    }
+
+    fun updateHoleStrategyNotes(hole: Hole, notes: String) {
+        viewModelScope.launch {
+            val updated = hole.copy(strategyNotes = notes)
+            courseRepository.updateHole(updated)
+            _uiState.update { state ->
+                state.copy(holes = state.holes.map { if (it.id == hole.id) updated else it })
             }
         }
     }

@@ -377,6 +377,18 @@ fun HoleEditor(
                 )
             }
             
+            // Strategy notes
+            Spacer(modifier = Modifier.height(4.dp))
+            OutlinedTextField(
+                value = hole.strategyNotes,
+                onValueChange = { onUpdateHole(hole.copy(strategyNotes = it)) },
+                label = { Text("Strategy Notes") },
+                placeholder = { Text("Strategy, hazards, targets…", style = MaterialTheme.typography.bodySmall) },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 1,
+                maxLines = 3
+            )
+
             // Yardages per tee set
             teeSets.forEachIndexed { teeSetIndex, teeSet ->
                 val yardageKey = "${holeIndex}_${teeSetIndex}"

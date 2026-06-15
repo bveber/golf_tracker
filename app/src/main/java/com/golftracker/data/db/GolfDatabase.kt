@@ -34,7 +34,7 @@ import com.golftracker.data.entity.TeeSet
         Penalty::class,
         Shot::class
     ],
-    version = 32,
+    version = 34,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -281,6 +281,17 @@ abstract class GolfDatabase : RoomDatabase() {
             override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE courses ADD COLUMN latitude REAL")
                 database.execSQL("ALTER TABLE courses ADD COLUMN longitude REAL")
+            }
+        }
+        val MIGRATION_32_33 = object : androidx.room.migration.Migration(32, 33) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE holes ADD COLUMN strategy_notes TEXT NOT NULL DEFAULT ''")
+            }
+        }
+        val MIGRATION_33_34 = object : androidx.room.migration.Migration(33, 34) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE hole_stats ADD COLUMN tee_outcome_lat REAL")
+                database.execSQL("ALTER TABLE hole_stats ADD COLUMN tee_outcome_lng REAL")
             }
         }
     }

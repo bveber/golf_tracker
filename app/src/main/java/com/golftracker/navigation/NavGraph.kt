@@ -117,14 +117,12 @@ fun GolfTrackerNavGraph(
         ) {
             com.golftracker.ui.round.HoleTrackingScreen(
                 onNavigateBack = { navController.popBackStack() },
-                onFinishRound = { 
-                    // When finishing, we can go to summary. 
-                    // Ideally we pass roundId, but VM already has it. 
-                    // However, we need to extract roundId from current backstack entry to pass to next if distinct VM,
-                    // but since we rely on Hilt VM scoping (which is per generic navigation entry usually),
-                    // passing ID ensures correct VM init.
+                onFinishRound = {
                     val roundId = it.arguments?.getString("roundId") ?: "0"
                     navController.navigate("roundSummary/$roundId")
+                },
+                onNavigateToRetroGps = { holeStatId ->
+                    navController.navigate("retroGps/$holeStatId")
                 }
             )
         }
@@ -135,9 +133,11 @@ fun GolfTrackerNavGraph(
              val roundId = backStackEntry.arguments?.getString("roundId") ?: "0"
             com.golftracker.ui.round.RoundSummaryScreen(
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateToHole = { holeIndex -> 
-                    // Navigate to hole tracking with specific hole index
+                onNavigateToHole = { holeIndex ->
                     navController.navigate("holeTracking/$roundId?initialHole=$holeIndex")
+                },
+                onNavigateToRetroGps = { holeStatId ->
+                    navController.navigate("retroGps/$holeStatId")
                 },
                 onFinishRound = {
                     navController.navigate("home") {
@@ -175,6 +175,16 @@ fun GolfTrackerNavGraph(
         }
         composable("settings") {
             com.golftracker.ui.settings.SettingsScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+        composable(
+            route = "retroGps/{holeStatId}",
+            arguments = listOf(
+                androidx.navigation.navArgument("holeStatId") { type = androidx.navigation.NavType.IntType }
+            )
+        ) {
+            com.golftracker.ui.gps.RetroGpsScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }

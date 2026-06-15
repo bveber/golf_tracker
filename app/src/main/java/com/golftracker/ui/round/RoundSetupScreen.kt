@@ -15,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -42,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.golftracker.data.entity.Course
@@ -298,6 +300,54 @@ fun RoundSetupScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+
+            // Hole Strategy Notes
+            if (uiState.holes.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(8.dp))
+
+                var strategyExpanded by remember { mutableStateOf(false) }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { strategyExpanded = !strategyExpanded }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text("Hole Strategy Notes", style = MaterialTheme.typography.labelMedium)
+                        Text(
+                            "Optional notes visible during play",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Icon(
+                        Icons.Default.ArrowDropDown,
+                        contentDescription = if (strategyExpanded) "Collapse" else "Expand",
+                        modifier = Modifier.rotate(if (strategyExpanded) 180f else 0f)
+                    )
+                }
+
+                if (strategyExpanded) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    uiState.holes.forEach { hole ->
+                        OutlinedTextField(
+                            value = hole.strategyNotes,
+                            onValueChange = { viewModel.updateHoleStrategyNotes(hole, it) },
+                            label = { Text("Hole ${hole.holeNumber} (Par ${hole.par})") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp),
+                            minLines = 1,
+                            maxLines = 4,
+                            placeholder = { Text("Strategy, hazards, targets…", style = MaterialTheme.typography.bodySmall) }
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
