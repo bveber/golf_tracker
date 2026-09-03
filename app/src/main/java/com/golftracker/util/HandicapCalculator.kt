@@ -1,5 +1,7 @@
 package com.golftracker.util
 
+import com.golftracker.data.entity.Round
+import com.golftracker.data.entity.TeeSet
 import com.golftracker.data.model.RoundWithDetails
 import java.util.Calendar
 import java.util.Date
@@ -8,6 +10,10 @@ import kotlin.math.roundToInt
 
 object HandicapCalculator {
 
+    /** Minimum holes that must actually be scored for a round to produce a differential. */
+    private const val MIN_HOLES_FOR_DIFFERENTIAL = 9
+    private const val FULL_ROUND_HOLES = 18
+
     /**
      * A single scored differential, including metadata for display.
      */
@@ -15,10 +21,11 @@ object HandicapCalculator {
         val roundId: Int,
         val date: Date,
         val value: Double,
+        /** Number of holes actually scored and used to build this differential. */
         val totalHoles: Int = 18,
-        /** True if this is a 9-hole differential that was completed with an expected-score
-         *  component derived from a trailing handicap.  False when the naive doubling
-         *  fallback was used (no prior handicap available). */
+        /** True if the un-played remainder of the round was estimated with an expected-score
+         *  component derived from a trailing handicap. False when the naive scaling
+         *  fallback was used (no prior handicap available), or when the round was fully played. */
         val usedExpectedScore: Boolean = false
     )
 
@@ -54,10 +61,13 @@ object HandicapCalculator {
 
     /**
      * Calculates WHS differentials for rounds in [targetYear].
-     * 9-hole rounds are normalised to 18 holes using a *trailing handicap*
-     * (the WHS index calculated from all rounds played **before** that 9-hole
-     * round in the same year).  When no trailing handicap is available (first
-     * few rounds of the year) the naive doubling fallback is used instead.
+     * Rounds where fewer than 18 (but at least [MIN_HOLES_FOR_DIFFERENTIAL]) holes were
+     * scored — whether a genuine 9-hole round or a partial round abandoned partway through —
+     * are normalised to 18 holes using a *trailing handicap* (the WHS index calculated from
+     * all rounds played **before** that round in the same year) to estimate the un-played
+     * remainder. When no trailing handicap is available (first few rounds of the year) a
+     * naive proportional-scaling fallback is used instead. Rounds with fewer than
+     * [MIN_HOLES_FOR_DIFFERENTIAL] holes scored do not produce a differential at all.
      *
      * At most 20 differentials are returned (WHS rule).
      */
@@ -83,34 +93,13 @@ object HandicapCalculator {
             val teeSet = roundDetails.teeSet
 
             if (teeSet.slope == 0 || teeSet.rating == 0.0) continue
+            val holesPlayedCount = holesPlayed(roundDetails)
+            if (holesPlayedCount < MIN_HOLES_FOR_DIFFERENTIAL) continue
 
             val grossScore = cappedGrossScore(roundDetails)
             if (grossScore <= 0) continue
 
-            val diff: Differential = when (round.totalHoles) {
-                18 -> {
-                    val rawDiff = (113.0 / teeSet.slope) * (grossScore - teeSet.rating)
-                    val rounded = roundTenths(rawDiff)
-                    Differential(round.id, round.date, rounded, 18)
-                }
-                9 -> {
-                    val halfRating = teeSet.rating / 2.0
-                    val rawDiff9 = (113.0 / teeSet.slope) * (grossScore - halfRating)
-
-                    // Expected score for the "other 9" based on trailing handicap
-                    val (fullDiff, usedExpected) = if (trailingHandicap != null) {
-                        // Expected differential contribution for remaining 9 holes
-                        // = trailing handicap / 2
-                        val expectedHalf = trailingHandicap!! / 2.0
-                        Pair(roundTenths(rawDiff9 + expectedHalf), true)
-                    } else {
-                        // Fallback: double the 9-hole differential (original approach)
-                        Pair(roundTenths(rawDiff9 * 2.0), false)
-                    }
-                    Differential(round.id, round.date, fullDiff, 9, usedExpected)
-                }
-                else -> continue
-            }
+            val diff = buildDifferential(round, teeSet, grossScore, holesPlayedCount, trailingHandicap)
 
             diffs.add(diff)
 
@@ -148,26 +137,12 @@ object HandicapCalculator {
                 val teeSet = roundDetails.teeSet
 
                 if (teeSet.slope == 0 || teeSet.rating == 0.0) continue
+                val holesPlayedCount = holesPlayed(roundDetails)
+                if (holesPlayedCount < MIN_HOLES_FOR_DIFFERENTIAL) continue
                 val grossScore = cappedGrossScore(roundDetails)
                 if (grossScore <= 0) continue
 
-                val diff: Differential = when (round.totalHoles) {
-                    18 -> {
-                        val rawDiff = (113.0 / teeSet.slope) * (grossScore - teeSet.rating)
-                        Differential(round.id, round.date, roundTenths(rawDiff), 18)
-                    }
-                    9 -> {
-                        val halfRating = teeSet.rating / 2.0
-                        val rawDiff9 = (113.0 / teeSet.slope) * (grossScore - halfRating)
-                        val fullDiff = if (trailingHandicap != null) {
-                            roundTenths(rawDiff9 + trailingHandicap!! / 2.0)
-                        } else {
-                            roundTenths(rawDiff9 * 2.0)
-                        }
-                        Differential(round.id, round.date, fullDiff, 9)
-                    }
-                    else -> continue
-                }
+                val diff = buildDifferential(round, teeSet, grossScore, holesPlayedCount, trailingHandicap)
 
                 runningDiffs.add(diff)
                 val hcp = applyWHSFormula(runningDiffs)
@@ -225,19 +200,14 @@ object HandicapCalculator {
             val round = rd.round
             val teeSet = rd.teeSet
             if (teeSet.slope == 0 || teeSet.rating == 0.0) continue
+            val holesPlayedCount = holesPlayed(rd)
+            if (holesPlayedCount < MIN_HOLES_FOR_DIFFERENTIAL) continue
             val grossScore = cappedGrossScore(rd)
             if (grossScore <= 0) continue
-            val diff = when (round.totalHoles) {
-                18 -> {
-                    val rawDiff = (113.0 / teeSet.slope) * (grossScore - teeSet.rating)
-                    Differential(round.id, round.date, roundTenths(rawDiff), 18)
-                }
-                9 -> {
-                    val rawDiff9 = (113.0 / teeSet.slope) * (grossScore - teeSet.rating / 2.0)
-                    Differential(round.id, round.date, roundTenths(rawDiff9 * 2.0), 9)
-                }
-                else -> continue
-            }
+            // No trailing handicap is tracked here — this is only used to seed the
+            // trailing handicap for a later, ordered pass — so partial rounds always
+            // use the naive proportional-scaling fallback.
+            val diff = buildDifferential(round, teeSet, grossScore, holesPlayedCount, trailingHandicap = null)
             diffs.add(diff)
         }
         return diffs
@@ -247,9 +217,54 @@ object HandicapCalculator {
     private fun cappedGrossScore(rd: RoundWithDetails): Int {
         var total = 0
         rd.holeStats.forEach { stat ->
-            total += stat.holeStat.score.coerceAtMost(stat.hole.par + 5)
+            if (stat.holeStat.score > 0) {
+                total += stat.holeStat.score.coerceAtMost(stat.hole.par + 5)
+            }
         }
         return total
+    }
+
+    /** Number of holes with a recorded score (i.e. actually played). */
+    private fun holesPlayed(rd: RoundWithDetails): Int =
+        rd.holeStats.count { it.holeStat.score > 0 }
+
+    /**
+     * Builds an 18-hole-equivalent [Differential] from [holesPlayedCount] actually-scored
+     * holes. When fewer than 18 holes were played (a genuine 9-hole round, or a round
+     * abandoned partway through with at least [MIN_HOLES_FOR_DIFFERENTIAL] holes scored),
+     * the un-played remainder is estimated from [trailingHandicap] — the golfer's WHS index
+     * going into the round — scaled to the fraction of the round left to play. With no
+     * trailing handicap available, the scored portion's differential is scaled up
+     * proportionally instead (equivalent to the classic "double the 9-hole score" rule).
+     */
+    private fun buildDifferential(
+        round: Round,
+        teeSet: TeeSet,
+        grossScore: Int,
+        holesPlayedCount: Int,
+        trailingHandicap: Double?
+    ): Differential {
+        if (holesPlayedCount >= FULL_ROUND_HOLES) {
+            val rawDiff = (113.0 / teeSet.slope) * (grossScore - teeSet.rating)
+            return Differential(round.id, round.date, roundTenths(rawDiff), FULL_ROUND_HOLES)
+        }
+
+        val playedFraction = holesPlayedCount / FULL_ROUND_HOLES.toDouble()
+        val ratingForHolesPlayed = teeSet.rating * playedFraction
+        val rawDiffPlayed = (113.0 / teeSet.slope) * (grossScore - ratingForHolesPlayed)
+
+        val (fullDiff, usedExpected) = if (trailingHandicap != null) {
+            // Expected differential contribution for the un-played holes, proportional
+            // to how much of the round remains.
+            val remainingFraction = 1.0 - playedFraction
+            val expectedRemaining = trailingHandicap * remainingFraction
+            Pair(roundTenths(rawDiffPlayed + expectedRemaining), true)
+        } else {
+            // Fallback: scale the played portion's differential up to a full round
+            // (equivalent to doubling for an exact 9-hole round).
+            Pair(roundTenths(rawDiffPlayed / playedFraction), false)
+        }
+        return Differential(round.id, round.date, fullDiff, holesPlayedCount, usedExpected)
     }
 
     private fun roundTenths(value: Double): Double =

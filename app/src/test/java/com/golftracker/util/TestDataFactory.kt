@@ -109,13 +109,23 @@ object TestDataFactory {
         totalHoles: Int = 18,
         parPerHole: Int = 4,
         scorePerHole: Int = 4,
-        puttsPerHole: Int = 2
+        puttsPerHole: Int = 2,
+        /** Number of leading holes that actually have a score recorded; the rest are
+         *  left unscored (score = 0, putts = 0) to simulate an abandoned/partial round. */
+        holesPlayed: Int = totalHoles
     ): RoundWithDetails {
         val r = round(id = roundId, courseId = courseId, teeSetId = teeSet.id, date = date, totalHoles = totalHoles)
         val c = course(id = courseId, holeCount = totalHoles)
         val holes = (1..totalHoles).map { i ->
+            val played = i <= holesPlayed
             holeStatWithHole(
-                holeStat = holeStat(id = i + (roundId * 100), roundId = roundId, holeId = i, score = scorePerHole, putts = puttsPerHole),
+                holeStat = holeStat(
+                    id = i + (roundId * 100),
+                    roundId = roundId,
+                    holeId = i,
+                    score = if (played) scorePerHole else 0,
+                    putts = if (played) puttsPerHole else 0
+                ),
                 hole = hole(id = i, courseId = courseId, holeNumber = i, par = parPerHole)
             )
         }

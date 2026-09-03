@@ -149,6 +149,8 @@ fun RoundHistoryScreen(
                             distance = roundScore.totalDistance,
                             rating = roundScore.rating,
                             slope = roundScore.slope,
+                            isPartial = roundScore.isPartial,
+                            holesPlayed = roundScore.holesPlayed,
                             onClick = { onRoundClick(roundDetail.round.id) },
                             onExportClick = { viewModel.exportRound(roundDetail.round.id) },
                             onDeleteClick = { roundToDelete = roundDetail.round },
@@ -172,6 +174,8 @@ fun RoundItem(
     distance: Int,
     rating: Double,
     slope: Int,
+    isPartial: Boolean,
+    holesPlayed: Int,
     onClick: () -> Unit,
     onExportClick: () -> Unit,
     onDeleteClick: () -> Unit,
@@ -201,6 +205,14 @@ fun RoundItem(
                         Text(status, color = if (round.isFinalized) Color.Green else Color.Gray, style = MaterialTheme.typography.labelSmall)
                         if (round.isPractice) {
                             Text(" • Practice", color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+                        }
+                        if (round.isFinalized && isPartial) {
+                            Text(
+                                " • Partial ($holesPlayed/${round.totalHoles})",
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
                     }
                     val weatherParts = buildList {

@@ -79,14 +79,18 @@ class RoundHistoryViewModel @Inject constructor(
     val exportFileEvent: SharedFlow<File?> = _exportFileEvent.asSharedFlow()
 
     data class RoundScoreData(
-        val score: Int, 
-        val toPar: Int, 
+        val score: Int,
+        val toPar: Int,
         val totalSg: Double,
         val teeName: String,
         val rating: Double,
         val slope: Int,
-        val totalDistance: Int
-    )
+        val totalDistance: Int,
+        val holesPlayed: Int,
+        val totalHoles: Int
+    ) {
+        val isPartial: Boolean get() = holesPlayed < totalHoles
+    }
 
     private fun calculateRoundScore(
         roundWithDetails: com.golftracker.data.model.RoundWithDetails,
@@ -98,18 +102,20 @@ class RoundHistoryViewModel @Inject constructor(
         var totalScore = 0
         var totalPar = 0
         var totalSg = 0.0
-        
+        var holesPlayed = 0
+
         val teeSetId = roundWithDetails.round.teeSetId
-            
+
         stats.forEach { hole ->
             val stat = hole.holeStat
             if (stat.score > 0) {
                 totalScore += stat.score
                 totalPar += hole.hole.par
+                totalSg += stat.strokesGained ?: 0.0
+                holesPlayed++
             }
-            totalSg += stat.strokesGained ?: 0.0
         }
-        
+
         return RoundScoreData(
             score = totalScore,
             toPar = if (totalScore > 0) totalScore - totalPar else 0,
@@ -117,7 +123,9 @@ class RoundHistoryViewModel @Inject constructor(
             teeName = roundWithDetails.teeSet.name,
             rating = roundWithDetails.teeSet.rating.toDouble(),
             slope = roundWithDetails.teeSet.slope,
-            totalDistance = distSumMap[teeSetId] ?: 0
+            totalDistance = distSumMap[teeSetId] ?: 0,
+            holesPlayed = holesPlayed,
+            totalHoles = roundWithDetails.round.totalHoles
         )
     }
 
