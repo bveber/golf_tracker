@@ -1,0 +1,13 @@
+{
+  "name": "CHIP auto-suggestion boundary test",
+  "par": 4,
+  "notes": "REGRESSION TEST for bug 2. After a tee shot, club selection moves the flag target to ~270y (stock distance). Player walks to ball. App must use the GREEN ANCHOR (far end of hole) for CHIP detection, not the moved flag. So at the ball position ~230y from green, CHIP must NOT trigger. Then at 35y from green it should. Pause at 50y to verify APPROACH is still selected before continuing.",
+  "waypoints": [
+    { "label": "tee box",            "lat": 36.56810, "lng": -121.94410, "pause_s": 10 },
+    { "label": "drive lands 270y",   "lat": 36.56975, "lng": -121.94410, "pause_s": 8  },
+    { "label": "layup / fairway",    "lat": 36.57050, "lng": -121.94410, "pause_s": 5  },
+    { "label": "50y from green",     "lat": 36.57220, "lng": -121.94410, "pause_s": 10 },
+    { "label": "35y from green",     "lat": 36.57245, "lng": -121.94410, "pause_s": 10 },
+    { "label": "on green",           "lat": 36.57280, "lng": -121.94410, "pause_s": 0  }
+  ]
+}

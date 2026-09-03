@@ -14,6 +14,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.golftracker.data.api.model.NetworkCourseSummary
 import com.golftracker.data.api.model.NetworkScorecard
 import com.golftracker.data.api.model.NetworkCourseDetails
+import com.golftracker.ui.course.SearchState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,6 +25,7 @@ fun CourseImportScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val searchState by viewModel.searchState.collectAsState()
     val importStatus by viewModel.importStatus.collectAsState()
 
     LaunchedEffect(importStatus) {
@@ -74,19 +76,43 @@ fun CourseImportScreen(
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
-            } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(searchResults) { course ->
-                        CourseResultItem(
-                            course = course,
-                            isImporting = importStatus is ImportStatus.Importing,
-                            onImportClick = { viewModel.fetchCourseTees(course.id) }
+            } else when (searchState) {
+                is SearchState.NoResults -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "No courses found for \"${searchQuery}\"",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        HorizontalDivider()
+                    }
+                }
+                else -> {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        items(searchResults) { course ->
+                            CourseResultItem(
+                                course = course,
+                                isImporting = importStatus is ImportStatus.Importing,
+                                onImportClick = { viewModel.fetchCourseTees(course.id) }
+                            )
+                            HorizontalDivider()
+                        }
                     }
                 }
             }
         }
+    }
+
+    if (searchState is SearchState.Error) {
+        AlertDialog(
+            onDismissRequest = { viewModel.resetSearchError() },
+            title = { Text("Search Failed") },
+            text = { Text((searchState as SearchState.Error).message) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.resetSearchError() }) {
+                    Text("OK")
+                }
+            }
+        )
     }
 
     if (importStatus is ImportStatus.Error) {

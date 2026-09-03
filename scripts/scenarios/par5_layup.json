@@ -1,0 +1,14 @@
+{
+  "name": "Par 5 with layup — two approach shots",
+  "par": 5,
+  "notes": "Tests that a second approach shot's distanceToPin is correct after a layup. With the green anchor fix, even though the flag moved to stock-distance after the first shot, the distanceToPin on the second approach should reflect the true distance to the pin.",
+  "waypoints": [
+    { "label": "tee box",              "lat": 36.56650, "lng": -121.94410, "pause_s": 10 },
+    { "label": "drive lands 280y",     "lat": 36.56820, "lng": -121.94410, "pause_s": 8  },
+    { "label": "layup from 250y",      "lat": 36.56990, "lng": -121.94410, "pause_s": 8  },
+    { "label": "layup lands 200y",     "lat": 36.57115, "lng": -121.94410, "pause_s": 8  },
+    { "label": "approach from 120y",   "lat": 36.57190, "lng": -121.94410, "pause_s": 6  },
+    { "label": "approach result",      "lat": 36.57265, "lng": -121.94410, "pause_s": 5  },
+    { "label": "on green",             "lat": 36.57280, "lng": -121.94410, "pause_s": 0  }
+  ]
+}

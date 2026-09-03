@@ -1,7 +1,5 @@
 package com.golftracker.ui.gps
 
-import android.annotation.SuppressLint
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.golftracker.data.entity.Club
@@ -17,14 +15,8 @@ import com.golftracker.data.repository.StatsRepository
 import com.golftracker.data.repository.UserPreferencesRepository
 import com.golftracker.data.repository.WeatherData
 import com.golftracker.data.repository.WeatherRepository
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
 import com.google.android.gms.maps.model.LatLng
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -113,6 +105,12 @@ data class GpsUiState(
     val liveUserLocation: LatLng? = null,
     val playerLocation: LatLng? = null,
     val flagLocation: LatLng? = null,
+    // Persistent pin position; set from stored hole data, never moved by shot targeting or club selection
+    val greenAnchor: LatLng? = null,
+    // When true, playerLocation auto-follows GPS on every tick; set to false on manual drag
+    val playerFollowsGps: Boolean = true,
+    // Tracks whether the user explicitly chose the current shot type; blocks auto-CHIP override
+    val userChoseCurrentShotType: Boolean = false,
     val isLocationPermissionGranted: Boolean = false,
 
     // Shot Tracking
@@ -144,7 +142,7 @@ data class GpsUiState(
  */
 @HiltViewModel
 class GpsViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
+    private val locationSource: LocationSource,
     private val clubRepository: ClubRepository,
     private val roundRepository: RoundRepository,
     private val courseRepository: CourseRepository,
@@ -156,7 +154,6 @@ class GpsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(GpsUiState())
     val uiState: StateFlow<GpsUiState> = _uiState.asStateFlow()
 
-    private val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
     private var hasWeatherFetched = false
 
     init {
@@ -167,24 +164,19 @@ class GpsViewModel @Inject constructor(
         }
     }
 
-    private val locationCallback = object : LocationCallback() {
-        override fun onLocationResult(result: LocationResult) {
-            val location = result.lastLocation ?: return
-            updateLocations(LatLng(location.latitude, location.longitude))
-        }
-    }
-
     /**
      * Updates the UI state with a new GPS [latLng].
-     * Specifically updates liveUserLocation and seeds player/flag markers on the first fix.
+     * Auto-moves the player marker when [GpsUiState.playerFollowsGps] is true.
+     * Seeds greenAnchor and flagLocation on the first fix if not yet set from hole data.
      */
     private fun updateLocations(latLng: LatLng) {
         _uiState.update { state ->
+            val seedAnchor = state.greenAnchor ?: resetFlagLocation(latLng)
             state.copy(
                 liveUserLocation = latLng,
-                // Set player marker and flag only on the very first GPS fix
-                playerLocation = state.playerLocation ?: latLng,
-                flagLocation = state.flagLocation ?: resetFlagLocation(latLng)
+                playerLocation = if (state.playerFollowsGps) latLng else state.playerLocation ?: latLng,
+                flagLocation = state.flagLocation ?: seedAnchor,
+                greenAnchor = state.greenAnchor ?: seedAnchor
             )
         }
         checkProximityAndAutoSuggest(latLng)
@@ -207,16 +199,17 @@ class GpsViewModel @Inject constructor(
     }
 
     /**
-     * Checks how close [currentLocation] is to the flag and automatically
+     * Checks how close [currentLocation] is to the green anchor and automatically
      * switches the pending shot type to CHIP when within 40 yards.
+     * No-ops when the user has explicitly chosen a shot type for the current shot.
      */
     private fun checkProximityAndAutoSuggest(currentLocation: LatLng) {
         val state = _uiState.value
-        val flag = state.flagLocation ?: return
+        if (state.userChoseCurrentShotType) return
+        val anchor = state.greenAnchor ?: return
 
-        val dist = GpsUtils.calculateDistanceYards(currentLocation, flag)
+        val dist = GpsUtils.calculateDistanceYards(currentLocation, anchor)
 
-        // Auto-select CHIP if < 40 yards and currently on APPROACH
         if (dist < 40 && state.pendingShotType == ShotType.APPROACH) {
             _uiState.update { it.copy(pendingShotType = ShotType.CHIP) }
         }
@@ -295,22 +288,18 @@ class GpsViewModel @Inject constructor(
                         state.copy(
                             playerLocation = knownTee,
                             flagLocation = knownGreen,
+                            greenAnchor = knownGreen,
                             knownHoleFrame = Pair(knownTee, knownGreen)
                         )
                     }
                 } else {
-                    // Fallback: seed from partial data or leave for GPS to fill in
+                    // Force a clean reset — GPS seeding in updateLocations will fill nulls on next fix
                     _uiState.update { state ->
                         state.copy(
-                            playerLocation = state.playerLocation ?: knownTee,
-                            flagLocation = state.flagLocation ?: knownGreen
+                            playerLocation = knownTee,
+                            flagLocation = null,
+                            greenAnchor = knownGreen
                         )
-                    }
-                    // If flag is still null, reset it relative to player
-                    if (_uiState.value.flagLocation == null) {
-                        _uiState.value.playerLocation?.let { playerLoc ->
-                            _uiState.update { it.copy(flagLocation = resetFlagLocation(playerLoc)) }
-                        }
                     }
                 }
             }
@@ -386,36 +375,23 @@ class GpsViewModel @Inject constructor(
         }
     }
 
-    @SuppressLint("MissingPermission")
     fun startLocationUpdates() {
-        // Seed immediately from last known location
-        fusedLocationClient.lastLocation.addOnSuccessListener { loc: android.location.Location? ->
-            loc?.let {
-                updateLocations(LatLng(it.latitude, it.longitude))
+        viewModelScope.launch {
+            locationSource.startUpdates().collect { latLng ->
+                updateLocations(latLng)
             }
         }
-
-        // Background updates keep the live-location dot current (every 5 seconds)
-        val locationRequest = LocationRequest.Builder(
-            Priority.PRIORITY_HIGH_ACCURACY,
-            5000L
-        ).setMinUpdateIntervalMillis(3000L).build()
-
-        fusedLocationClient.requestLocationUpdates(
-            locationRequest,
-            locationCallback,
-            android.os.Looper.getMainLooper()
-        )
     }
 
-    override fun onCleared() {
-        super.onCleared()
-        fusedLocationClient.removeLocationUpdates(locationCallback)
-    }
-
-    /** Called when the user drags or taps to move the player marker. */
+    /** Called when the user drags or taps to move the player marker. Pauses GPS auto-follow. */
     fun onPlayerDragged(newLocation: LatLng) {
-        _uiState.update { it.copy(playerLocation = newLocation) }
+        _uiState.update { it.copy(playerLocation = newLocation, playerFollowsGps = false) }
+    }
+
+    /** Snaps player marker to live GPS position and resumes auto-follow. */
+    fun snapToMe() {
+        val live = _uiState.value.liveUserLocation ?: return
+        _uiState.update { it.copy(playerLocation = live, playerFollowsGps = true) }
     }
 
     /** Called when the user drags or taps to move the flag marker. */
@@ -423,9 +399,9 @@ class GpsViewModel @Inject constructor(
         _uiState.update { it.copy(flagLocation = newLocation) }
     }
 
-    /** Updates the pending shot type selection in the tracking panel. */
+    /** Updates the pending shot type selection in the tracking panel. Locks out auto-suggestion until next shot. */
     fun onShotTypeSelected(type: ShotType) {
-        _uiState.update { it.copy(pendingShotType = type) }
+        _uiState.update { it.copy(pendingShotType = type, userChoseCurrentShotType = true) }
     }
 
     /** Updates the pending club selection in the tracking panel. */
@@ -534,7 +510,8 @@ class GpsViewModel @Inject constructor(
         val state = _uiState.value
         val currentLocation = state.playerLocation ?: return
         val currentClub = state.clubs.find { it.id == state.pendingClubId }
-        val distToFlag = state.flagLocation?.let {
+        // distanceToPin uses greenAnchor (actual pin) not flagLocation (shot target)
+        val distToPin = (state.greenAnchor ?: state.flagLocation)?.let {
             GpsUtils.calculateDistanceYards(currentLocation, it)
         }
 
@@ -543,8 +520,8 @@ class GpsViewModel @Inject constructor(
             clubId = state.pendingClubId,
             clubName = currentClub?.name,
             location = currentLocation,
-            targetLocation = distToFlag?.let { state.flagLocation },
-            distanceToPin = distToFlag,
+            targetLocation = state.flagLocation,
+            distanceToPin = distToPin,
             isMishit = state.pendingMishit
         )
 
@@ -576,15 +553,18 @@ class GpsViewModel @Inject constructor(
 
         val finalTrackedShot = newTrackedShot.copy(targetLocation = state.flagLocation)
         updatedShots.add(finalTrackedShot)
-        _uiState.update {
-            it.copy(
+        _uiState.update { s ->
+            s.copy(
                 trackedShots = updatedShots,
+                flagLocation = s.greenAnchor ?: s.flagLocation,
+                playerFollowsGps = true,
+                userChoseCurrentShotType = false,
                 // Advance shot type
                 pendingShotType = when (state.pendingShotType) {
                     ShotType.TEE -> ShotType.APPROACH
                     ShotType.APPROACH -> {
-                        val flag = state.flagLocation
-                        if (flag != null && GpsUtils.calculateDistanceYards(currentLocation, flag) < 30) {
+                        val anchor = s.greenAnchor
+                        if (anchor != null && GpsUtils.calculateDistanceYards(currentLocation, anchor) < 30) {
                             ShotType.CHIP
                         } else {
                             ShotType.APPROACH
@@ -666,7 +646,10 @@ class GpsViewModel @Inject constructor(
                 // Save automatically the first time
                 viewModelScope.launch {
                     courseRepository.updateHole(hole.copy(greenLat = newGreen.latitude, greenLng = newGreen.longitude))
-                    _uiState.update { it.copy(currentHole = it.currentHole?.copy(greenLat = newGreen.latitude, greenLng = newGreen.longitude)) }
+                    _uiState.update { it.copy(
+                        currentHole = it.currentHole?.copy(greenLat = newGreen.latitude, greenLng = newGreen.longitude),
+                        greenAnchor = newGreen
+                    ) }
                 }
             } else {
                 // Check for > 10 yard discrepancy

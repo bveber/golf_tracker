@@ -1,0 +1,10 @@
+{
+  "name": "Par 3 — approach from tee box",
+  "par": 3,
+  "notes": "Par 3s have no TEE shot type chip (hidden by par logic). Shot type starts on APPROACH. Tests that the CHIP auto-suggestion fires correctly when walking to the green result position.",
+  "waypoints": [
+    { "label": "tee box ~160y",      "lat": 36.57135, "lng": -121.94410, "pause_s": 10 },
+    { "label": "approach result",    "lat": 36.57265, "lng": -121.94410, "pause_s": 6  },
+    { "label": "on green",           "lat": 36.57280, "lng": -121.94410, "pause_s": 0  }
+  ]
+}

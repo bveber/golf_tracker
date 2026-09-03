@@ -437,16 +437,11 @@ fun GpsScreen(
 
         // Snap to Me — icon-only FAB in top-right
         FloatingActionButton(
-            onClick = {
-                uiState.liveUserLocation?.let { realLocation ->
-                    playerMarkerState.position = realLocation
-                    viewModel.onPlayerDragged(realLocation)
-                }
-            },
+            onClick = { viewModel.snapToMe() },
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(12.dp),
-            containerColor = Color.White,
+            containerColor = if (uiState.playerFollowsGps) Color.White else Color.Yellow,
             contentColor = Color.Black
         ) {
             Icon(Icons.Default.MyLocation, contentDescription = "Snap to Me")

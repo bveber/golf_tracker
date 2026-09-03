@@ -1,0 +1,11 @@
+{
+  "name": "Hole transition — verify flag resets between holes",
+  "par": 4,
+  "notes": "REGRESSION TEST for bug 1. Start on previous hole's green, wait for user to advance to next hole in the app, then walk to the new tee. The flag must NOT remain pointing at the previous hole's green. Check it visually after the GPS script reaches 'next tee box'.",
+  "waypoints": [
+    { "label": "previous hole green",      "lat": 36.57280, "lng": -121.94410, "pause_s": 15 },
+    { "label": "walking off green",        "lat": 36.57250, "lng": -121.94450, "pause_s": 3  },
+    { "label": "walking to next tee",      "lat": 36.57170, "lng": -121.94510, "pause_s": 3  },
+    { "label": "next tee box (unmapped)",  "lat": 36.57100, "lng": -121.94560, "pause_s": 10 }
+  ]
+}

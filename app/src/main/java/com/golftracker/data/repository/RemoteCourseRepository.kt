@@ -19,16 +19,11 @@ class RemoteCourseRepository @Inject constructor(
 ) {
 
     suspend fun searchCourses(query: String): List<NetworkCourseSummary> {
-        return try {
-            val response = apiService.searchCourses(query)
-            response.courses
-        } catch (e: Exception) {
-            Log.e("RemoteCourseRepository", "Error searching courses", e)
-            emptyList()
-        }
+        val response = apiService.searchCourses(query)
+        return response.courses
     }
 
-    suspend fun fetchCourseDetails(courseId: Int): com.golftracker.data.api.model.NetworkCourseDetails {
+    suspend fun fetchCourseDetails(courseId: String): com.golftracker.data.api.model.NetworkCourseDetails {
         return apiService.getCourseDetails(courseId).course
     }
 

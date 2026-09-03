@@ -7,7 +7,7 @@ data class NetworkCourseSearchResponse(
 )
 
 data class NetworkCourseSummary(
-    @SerializedName("id") val id: Int,
+    @SerializedName("id") val id: String,
     @SerializedName("course_name") val name: String,
     @SerializedName("location") val location: NetworkLocation?
 ) {
@@ -21,7 +21,7 @@ data class NetworkCourseDetailsResponse(
 )
 
 data class NetworkCourseDetails(
-    @SerializedName("id") val id: Int,
+    @SerializedName("id") val id: String,
     @SerializedName("course_name") val name: String,
     @SerializedName("location") val location: NetworkLocation?,
     @SerializedName("tees") val tees: NetworkTees?
