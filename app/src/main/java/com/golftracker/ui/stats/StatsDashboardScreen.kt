@@ -1164,6 +1164,75 @@ fun PuttingTab(p: PuttingStats, adv: PuttAdvancedStats, sg: com.golftracker.data
 
 // ── Putt Details Section ─────────────────────────────────────────────────
 
+@Composable
+private fun MissHeatmapGrid(
+    label: String,
+    gridCounts: Map<Pair<PaceMiss, DirectionMiss>, Int>,
+    paceOrder: List<PaceMiss>,
+    dirOrder: List<DirectionMiss>
+) {
+    val totalCount = gridCounts.values.sum().takeIf { it > 0 } ?: 1
+    val maxCount = gridCounts.values.maxOrNull() ?: 1
+    Text(label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+    Spacer(modifier = Modifier.height(4.dp))
+    Row {
+        Spacer(modifier = Modifier.width(56.dp))
+        dirOrder.forEach { dir ->
+            Text(
+                when (dir) {
+                    DirectionMiss.BIG_LEFT -> "←←"; DirectionMiss.LEFT -> "←"
+                    DirectionMiss.STRAIGHT -> "·"; DirectionMiss.RIGHT -> "→"
+                    DirectionMiss.BIG_RIGHT -> "→→"
+                },
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.width(44.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+    }
+    paceOrder.forEach { pace ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                paceLabel(pace).substringBefore(" "),
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.width(56.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.End
+            )
+            dirOrder.forEach { dir ->
+                val count = gridCounts[Pair(pace, dir)] ?: 0
+                val intensity = if (maxCount > 0) count.toFloat() / maxCount else 0f
+                val textColor = if (intensity > 0.5f) Color.White else MaterialTheme.colorScheme.onSurface
+                Box(
+                    modifier = Modifier
+                        .width(44.dp)
+                        .height(48.dp)
+                        .padding(2.dp)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
+                        .background(
+                            MaterialTheme.colorScheme.error.copy(alpha = (0.1f + intensity * 0.85f).coerceIn(0f, 1f))
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (count > 0) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                String.format(java.util.Locale.US, "%.0f%%", count.toFloat() / totalCount * 100),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = textColor
+                            )
+                            Text(
+                                "($count)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = textColor.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 private fun paceLabel(p: PaceMiss) = when (p) {
     PaceMiss.BIG_SHORT -> "↓↓ Short"
     PaceMiss.SHORT -> "↓ Short"
@@ -1283,12 +1352,11 @@ private fun PuttDetailsSection(adv: PuttAdvancedStats) {
         }
     }
 
-    // Miss heatmap
-    if (hasMissData && adv.missedPuttCount >= 10) {
-        val paceOrder = listOf(PaceMiss.BIG_LONG, PaceMiss.LONG, PaceMiss.GOOD, PaceMiss.SHORT, PaceMiss.BIG_SHORT)
-        val dirOrder = listOf(DirectionMiss.BIG_LEFT, DirectionMiss.LEFT, DirectionMiss.STRAIGHT, DirectionMiss.RIGHT, DirectionMiss.BIG_RIGHT)
-        val maxCount = adv.missGridCounts.values.maxOrNull() ?: 1
+    // Miss heatmap — overall + per distance range
+    val paceOrder = listOf(PaceMiss.BIG_LONG, PaceMiss.LONG, PaceMiss.GOOD, PaceMiss.SHORT, PaceMiss.BIG_SHORT)
+    val dirOrder = listOf(DirectionMiss.BIG_LEFT, DirectionMiss.LEFT, DirectionMiss.STRAIGHT, DirectionMiss.RIGHT, DirectionMiss.BIG_RIGHT)
 
+    if (hasMissData && adv.missedPuttCount >= 10) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Miss Heatmap", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
@@ -1298,55 +1366,31 @@ private fun PuttDetailsSection(adv: PuttAdvancedStats) {
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // Column headers
-                Row {
-                    Spacer(modifier = Modifier.width(56.dp))
-                    dirOrder.forEach { dir ->
-                        Text(
-                            when (dir) {
-                                DirectionMiss.BIG_LEFT -> "←←"; DirectionMiss.LEFT -> "←"
-                                DirectionMiss.STRAIGHT -> "·"; DirectionMiss.RIGHT -> "→"
-                                DirectionMiss.BIG_RIGHT -> "→→"
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.size(36.dp),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                    }
-                }
+                // Overall heatmap
+                MissHeatmapGrid(
+                    label = "Overall",
+                    gridCounts = adv.missGridCounts,
+                    paceOrder = paceOrder,
+                    dirOrder = dirOrder
+                )
 
-                paceOrder.forEach { pace ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            paceLabel(pace).substringBefore(" "),
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.width(56.dp),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.End
+                // Per-distance heatmaps
+                val distanceRanges = listOf(
+                    "5–15 ft" to adv.range5to15,
+                    "15–30 ft" to adv.range15to30,
+                    "30+ ft" to adv.range30plus
+                )
+                distanceRanges.forEach { (rangeLabel, split) ->
+                    if (split != null && split.missGridCounts.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        MissHeatmapGrid(
+                            label = rangeLabel,
+                            gridCounts = split.missGridCounts,
+                            paceOrder = paceOrder,
+                            dirOrder = dirOrder
                         )
-                        dirOrder.forEach { dir ->
-                            val count = adv.missGridCounts[Pair(pace, dir)] ?: 0
-                            val intensity = if (maxCount > 0) count.toFloat() / maxCount else 0f
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .padding(2.dp)
-                                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
-                                    .background(
-                                        MaterialTheme.colorScheme.error.copy(alpha = (0.1f + intensity * 0.85f).coerceIn(0f, 1f))
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (count > 0) {
-                                    Text(
-                                        "$count",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = if (intensity > 0.5f) Color.White else MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-                        }
                     }
                 }
             }

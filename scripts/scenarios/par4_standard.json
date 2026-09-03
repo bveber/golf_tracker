@@ -1,0 +1,12 @@
+{
+  "name": "Par 4 standard — tee, drive, approach, on green",
+  "par": 4,
+  "notes": "Tests the full hole flow. The flag should auto-follow GPS from tee. After the drive, player walks to ball and tracks approach. CHIP should NOT trigger until within 40y of green anchor.",
+  "waypoints": [
+    { "label": "tee box",           "lat": 36.56810, "lng": -121.94410, "pause_s": 10 },
+    { "label": "drive lands 270y",  "lat": 36.56975, "lng": -121.94410, "pause_s": 8  },
+    { "label": "approach position", "lat": 36.57050, "lng": -121.94400, "pause_s": 6  },
+    { "label": "approach result",   "lat": 36.57200, "lng": -121.94410, "pause_s": 5  },
+    { "label": "walk onto green",   "lat": 36.57280, "lng": -121.94410, "pause_s": 0  }
+  ]
+}

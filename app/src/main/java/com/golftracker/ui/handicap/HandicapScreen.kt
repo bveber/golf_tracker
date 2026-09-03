@@ -204,20 +204,21 @@ fun DifferentialItem(diff: HandicapCalculator.Differential) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            val holesLabel = if (diff.totalHoles == 9) " (9 holes)" else ""
+            val holesLabel = if (diff.totalHoles < 18) " (${diff.totalHoles} holes)" else ""
             Text(
                 text = "${dateFormat.format(diff.date)}$holesLabel",
                 style = MaterialTheme.typography.bodyMedium
             )
-            if (diff.totalHoles == 9 && diff.usedExpectedScore) {
+            val remaining = 18 - diff.totalHoles
+            if (diff.totalHoles < 18 && diff.usedExpectedScore) {
                 Text(
-                    text = "Expected score used for back 9",
+                    text = "Expected score used for remaining $remaining holes",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            } else if (diff.totalHoles == 9) {
+            } else if (diff.totalHoles < 18) {
                 Text(
-                    text = "Back 9 doubled (no prior handicap)",
+                    text = "Remaining $remaining holes scaled up (no prior handicap)",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
                 )

@@ -138,6 +138,22 @@ fun RoundSummaryScreen(
                     onHoleClick = onNavigateToHole,
                     onGpsClick = onNavigateToRetroGps
                 )
+                val holesPlayed = stats.count { it.score > 0 }
+                if (uiState.isRoundFinalized && holesPlayed < holes.size) {
+                    val message = if (holesPlayed >= 9) {
+                        "Partial round — $holesPlayed of ${holes.size} holes played. " +
+                            "Remaining holes estimated from your handicap for posting."
+                    } else {
+                        "Partial round — $holesPlayed of ${holes.size} holes played. " +
+                            "At least 9 holes are required for handicap posting."
+                    }
+                    Text(
+                        message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                }
                 Spacer(modifier = Modifier.height(16.dp))
                 SgBreakdownCard(stats = stats)
                 Spacer(modifier = Modifier.height(16.dp))

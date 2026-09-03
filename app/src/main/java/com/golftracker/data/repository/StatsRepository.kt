@@ -1406,10 +1406,15 @@ class StatsRepository @Inject constructor(
             val paceD = countDistribution(inRange.map { it.paceMiss })
             val dirD = countDistribution(inRange.map { it.directionMiss })
             val slides = inRange.mapNotNull { inferSlideMiss(it.breakDirection, it.directionMiss) }
+            val gridCounts = inRange
+                .filter { it.paceMiss != null && it.directionMiss != null }
+                .groupingBy { Pair(it.paceMiss!!, it.directionMiss!!) }
+                .eachCount()
             return PuttRangeSplit(
                 missedPutts = inRange.size,
                 paceMissDistribution = paceD,
                 directionMissDistribution = dirD,
+                missGridCounts = gridCounts,
                 highSidePct = if (slides.size >= 5) slides.count { it == com.golftracker.data.entity.SlideMiss.HIGH }.toFloat() / slides.size else null,
                 lowSidePct = if (slides.size >= 5) slides.count { it == com.golftracker.data.entity.SlideMiss.LOW }.toFloat() / slides.size else null
             )
@@ -1429,9 +1434,9 @@ class StatsRepository @Inject constructor(
             paceBySlope = paceBySlope,
             slideByBreakMagnitude = slideByBreakMagnitude,
             slideByBreakDirection = slideByBreakDirection,
-            shortRange = rangeSplit(0f, 6f),
-            midRange = rangeSplit(6f, 15f),
-            longRange = rangeSplit(15f, Float.MAX_VALUE)
+            range5to15 = rangeSplit(5f, 15f),
+            range15to30 = rangeSplit(15f, 30f),
+            range30plus = rangeSplit(30f, Float.MAX_VALUE)
         )
     }
 
@@ -1512,7 +1517,7 @@ class StatsRepository @Inject constructor(
             }
             val numHoles = if (is9Holes) 9 else 18
 
-            for (hole in round.holeStats) {
+            for (hole in round.holeStats.filter { it.holeStat.score > 0 }) {
                 val defaultYardage = yardageMap[Pair(teeSetId, hole.hole.id)]?.yardage ?: 0
                 val holeYardage = hole.holeStat.adjustedYardage ?: defaultYardage
 
@@ -1827,9 +1832,9 @@ data class PuttAdvancedStats(
     val slideByBreakDirection: Map<String, SlideByDirection> = emptyMap(),
 
     // Distance-stratified breakdowns
-    val shortRange: PuttRangeSplit? = null,   // < 6 ft
-    val midRange: PuttRangeSplit? = null,     // 6–15 ft
-    val longRange: PuttRangeSplit? = null,    // > 15 ft
+    val range5to15: PuttRangeSplit? = null,   // 5–15 ft
+    val range15to30: PuttRangeSplit? = null,  // 15–30 ft
+    val range30plus: PuttRangeSplit? = null,  // 30+ ft
 )
 
 data class SlideByDirection(
@@ -1842,6 +1847,7 @@ data class PuttRangeSplit(
     val missedPutts: Int = 0,
     val paceMissDistribution: Map<PaceMiss, Float> = emptyMap(),
     val directionMissDistribution: Map<DirectionMiss, Float> = emptyMap(),
+    val missGridCounts: Map<Pair<PaceMiss, DirectionMiss>, Int> = emptyMap(),
     val highSidePct: Float? = null,
     val lowSidePct: Float? = null,
 )

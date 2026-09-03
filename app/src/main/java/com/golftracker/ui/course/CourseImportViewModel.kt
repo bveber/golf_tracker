@@ -25,25 +25,39 @@ class CourseImportViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    private val _searchState = MutableStateFlow<SearchState>(SearchState.Idle)
+    val searchState: StateFlow<SearchState> = _searchState.asStateFlow()
+
     private val _importStatus = MutableStateFlow<ImportStatus>(ImportStatus.Idle)
     val importStatus: StateFlow<ImportStatus> = _importStatus.asStateFlow()
 
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query
+        _searchState.value = SearchState.Idle
     }
 
     fun searchCourses() {
         if (_searchQuery.value.isBlank()) return
         viewModelScope.launch {
             _isLoading.value = true
+            _searchState.value = SearchState.Idle
             _importStatus.value = ImportStatus.Idle
-            val results = remoteCourseRepository.searchCourses(_searchQuery.value)
-            _searchResults.value = results
-            _isLoading.value = false
+            try {
+                val results = remoteCourseRepository.searchCourses(_searchQuery.value)
+                _searchResults.value = results
+                _searchState.value = if (results.isEmpty()) SearchState.NoResults else SearchState.Idle
+            } catch (e: Exception) {
+                _searchResults.value = emptyList()
+                _searchState.value = SearchState.Error(
+                    e.message ?: "Failed to search courses. Check your connection and try again."
+                )
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 
-    fun fetchCourseTees(courseId: Int) {
+    fun fetchCourseTees(courseId: String) {
         viewModelScope.launch {
             _importStatus.value = ImportStatus.Importing
             try {
@@ -77,6 +91,16 @@ class CourseImportViewModel @Inject constructor(
     fun resetImportStatus() {
         _importStatus.value = ImportStatus.Idle
     }
+
+    fun resetSearchError() {
+        _searchState.value = SearchState.Idle
+    }
+}
+
+sealed class SearchState {
+    object Idle : SearchState()
+    object NoResults : SearchState()
+    data class Error(val message: String) : SearchState()
 }
 
 sealed class ImportStatus {

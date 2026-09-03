@@ -15,6 +15,6 @@ interface CourseApiService {
 
     @GET("v1/courses/{courseId}")
     suspend fun getCourseDetails(
-        @Path("courseId") courseId: Int
+        @Path("courseId") courseId: String
     ): NetworkCourseDetailsResponse
 }

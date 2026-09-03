@@ -316,6 +316,132 @@ class HandicapCalculatorTest {
         assertEquals(5.0, diffs[0].value, 0.01)
     }
 
+    // ─── Partial Rounds ─────────────────────────────────────────────────
+
+    @Test
+    fun `18-hole round abandoned after 12 holes still produces a differential`() {
+        // 12 of 18 holes played, all at scorePerHole=5 → same per-hole rate as a full
+        // round, so scaling the played portion up should reproduce the same 18.0 diff
+        // a full round at that pace would produce.
+        val round = TestDataFactory.roundWithDetails(
+            teeSet = TestDataFactory.teeSet(slope = 113, rating = 72.0),
+            scorePerHole = 5,
+            totalHoles = 18,
+            holesPlayed = 12,
+            date = dateInYear(currentYear, 1)
+        )
+        val diffs = HandicapCalculator.calculateDifferentials(listOf(round), currentYear)
+        assertEquals(1, diffs.size)
+        assertEquals(12, diffs[0].totalHoles)
+        assertFalse("Should NOT have used expected score for first round", diffs[0].usedExpectedScore)
+        assertEquals(18.0, diffs[0].value, 0.01)
+    }
+
+    @Test
+    fun `partial round with fewer than 9 holes played produces no differential`() {
+        val round = TestDataFactory.roundWithDetails(
+            teeSet = TestDataFactory.teeSet(slope = 113, rating = 72.0),
+            scorePerHole = 5,
+            totalHoles = 18,
+            holesPlayed = 6,
+            date = dateInYear(currentYear, 1)
+        )
+        val diffs = HandicapCalculator.calculateDifferentials(listOf(round), currentYear)
+        assertEquals(0, diffs.size)
+    }
+
+    @Test
+    fun `9-hole round abandoned after 6 holes produces no differential`() {
+        val round = TestDataFactory.roundWithDetails(
+            teeSet = TestDataFactory.teeSet(slope = 113, rating = 72.0),
+            scorePerHole = 5,
+            totalHoles = 9,
+            holesPlayed = 6,
+            date = dateInYear(currentYear, 1)
+        )
+        val diffs = HandicapCalculator.calculateDifferentials(listOf(round), currentYear)
+        assertEquals(0, diffs.size)
+    }
+
+    @Test
+    fun `partial round with trailing handicap estimates remaining holes`() {
+        // 3 prior full 18-hole rounds give a trailing handicap of 16.0 (see the
+        // analogous 9-hole test above for the derivation).
+        // Then a round abandoned after 12 of 18 holes, same scoring pace (gross=60):
+        // playedFraction=12/18, ratingForHolesPlayed=48.0, rawDiffPlayed=(60-48)=12.0
+        // remainingFraction=6/18=0.3333, expected = 16.0 * 0.3333 = 5.333
+        // combined = 12.0 + 5.333 = 17.3
+        val tee = TestDataFactory.teeSet(slope = 113, rating = 72.0)
+        val prior = (1..3).map { i ->
+            TestDataFactory.roundWithDetails(
+                roundId = i,
+                teeSet = tee,
+                scorePerHole = 5, // gross 90
+                date = dateInYear(currentYear, i)
+            )
+        }
+        val partialRound = TestDataFactory.roundWithDetails(
+            roundId = 4,
+            totalHoles = 18,
+            holesPlayed = 12,
+            teeSet = tee,
+            scorePerHole = 5,
+            date = dateInYear(currentYear, 10)
+        )
+
+        val allRounds = prior + partialRound
+        val diffs = HandicapCalculator.calculateDifferentials(allRounds, currentYear)
+
+        assertEquals(4, diffs.size)
+        val partialDiff = diffs.first()
+        assertEquals(12, partialDiff.totalHoles)
+        assertTrue("Should have used expected score", partialDiff.usedExpectedScore)
+        assertEquals(17.3, partialDiff.value, 0.01)
+    }
+
+    @Test
+    fun `partial round with at least 9 holes is included in handicap time series`() {
+        val tee = TestDataFactory.teeSet(slope = 113, rating = 72.0)
+        val completeRounds = (1..3).map { i ->
+            TestDataFactory.roundWithDetails(roundId = i, teeSet = tee, scorePerHole = 5, date = dateInYear(currentYear, i))
+        }
+        val partialRound = TestDataFactory.roundWithDetails(
+            roundId = 4, teeSet = tee, scorePerHole = 5, holesPlayed = 10, date = dateInYear(currentYear, 4)
+        )
+        val series = HandicapCalculator.buildHandicapTimeSeries(completeRounds + listOf(partialRound))
+        // The 3rd complete round is the first with enough differentials (≥3) for a point;
+        // the partial round (≥9 holes) then produces a 2nd point.
+        assertEquals(2, series.size)
+    }
+
+    @Test
+    fun `partial round with fewer than 9 holes is excluded from handicap time series`() {
+        val tee = TestDataFactory.teeSet(slope = 113, rating = 72.0)
+        val completeRounds = (1..3).map { i ->
+            TestDataFactory.roundWithDetails(roundId = i, teeSet = tee, scorePerHole = 5, date = dateInYear(currentYear, i))
+        }
+        val partialRound = TestDataFactory.roundWithDetails(
+            roundId = 4, teeSet = tee, scorePerHole = 5, holesPlayed = 5, date = dateInYear(currentYear, 4)
+        )
+        val series = HandicapCalculator.buildHandicapTimeSeries(completeRounds + listOf(partialRound))
+        // Only the 3 complete rounds should produce a point; the partial round contributes none.
+        assertEquals(1, series.size)
+    }
+
+    @Test
+    fun `fully played round still produces a differential`() {
+        val round = TestDataFactory.roundWithDetails(
+            teeSet = TestDataFactory.teeSet(slope = 113, rating = 72.0),
+            scorePerHole = 5,
+            totalHoles = 18,
+            holesPlayed = 18,
+            date = dateInYear(currentYear, 1)
+        )
+        val diffs = HandicapCalculator.calculateDifferentials(listOf(round), currentYear)
+        assertEquals(1, diffs.size)
+        assertEquals(18.0, diffs[0].value, 0.01)
+    }
+
     // ─── Time Series ──────────────────────────────────────────────────────
 
     @Test
